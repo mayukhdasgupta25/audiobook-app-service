@@ -1,0 +1,171 @@
+# AudioBook API Response Messages
+# Centralized message storage for better maintainability and internationalization support
+
+# Success Messages
+success:
+  audiobooks:
+    retrieved: "AudioBooks retrieved successfully"
+    retrieved_by_id: "AudioBook retrieved successfully"
+    created: "AudioBook created successfully"
+    updated: "AudioBook updated successfully"
+    deleted: "AudioBook deleted successfully"
+    search_results: "Search results retrieved successfully"
+    stats_retrieved: "AudioBook statistics retrieved successfully"
+    by_genre: 'AudioBooks in genre "{genre}" retrieved successfully'
+    by_author: 'AudioBooks by "{author}" retrieved successfully'
+    by_tags: 'AudioBooks with tags "{tags}" retrieved successfully'
+
+  chapters:
+    retrieved: "Chapters retrieved successfully"
+    retrieved_by_id: "Chapter retrieved successfully"
+    created: "Chapter created successfully"
+    updated: "Chapter updated successfully"
+    progress_retrieved: "Chapter progress retrieved successfully"
+    progress_updated: "Chapter progress updated successfully"
+    with_progress_retrieved: "Chapter with progress retrieved successfully"
+    navigation_retrieved: "Chapter navigation retrieved successfully"
+
+  genres:
+    retrieved: "Genres retrieved successfully"
+
+  auth:
+    signup_success: "User account created successfully"
+    login_success: "Login successful"
+    logout_success: "Logout successful"
+    profile_retrieved: "User profile retrieved successfully"
+    profile_updated: "User profile updated successfully"
+    password_changed: "Password changed successfully"
+    account_deleted: "Account deleted successfully"
+    users_retrieved: "Users retrieved successfully"
+    user_retrieved: "User retrieved successfully"
+    status_retrieved: "Authentication status retrieved successfully"
+
+  general:
+    success: "Success"
+    health_check: "Service is healthy"
+    no_content: "Operation completed successfully"
+
+# Error Messages
+errors:
+  validation:
+    page_positive: "Page must be a positive integer"
+    limit_range: "Limit must be between 1 and 100"
+    sort_field: "Sort field must be one of: {fields}"
+    sort_order: 'Sort order must be either "asc" or "desc"'
+    is_active_boolean: 'isActive must be either "true" or "false"'
+    is_public_boolean: 'isPublic must be either "true" or "false"'
+    string_length: "{field} must be less than 100 characters"
+    id_required: "ID parameter is required"
+    id_format: "Invalid ID format"
+    search_required: "Search query is required"
+    tags_required: "At least one tag is required"
+    tag_format: "Tag '{tag}' contains invalid characters. Only alphanumeric characters, spaces, hyphens, and underscores are allowed"
+    tag_length: "Tag '{tag}' is too long. Maximum length is 50 characters"
+    tags_limit: "Maximum 10 tags allowed per request"
+
+    # AudioBook specific validation
+    title_required: "Title is required"
+    author_required: "Author is required"
+    duration_positive: "Duration must be a positive number"
+    file_size_positive: "File size must be a positive number"
+    file_path_required: "File path is required"
+    isbn_format: "Invalid ISBN format"
+
+    # User authentication validation
+    email_required: "Email is required"
+    email_format: "Invalid email format"
+    username_required: "Username is required"
+    username_length: "Username must be between 3 and 30 characters"
+    first_name_required: "First name is required"
+    last_name_required: "Last name is required"
+    password_required: "Password is required"
+    password_min_length: "Password must be at least 8 characters long"
+    password_max_length: "Password must be less than 128 characters"
+    password_uppercase: "Password must contain at least one uppercase letter"
+    password_lowercase: "Password must contain at least one lowercase letter"
+    password_number: "Password must contain at least one number"
+    password_special: "Password must contain at least one special character"
+
+  not_found:
+    audiobook: "AudioBook not found"
+    resource: "Resource not found"
+    route: "Route {route} not found"
+    user: "User not found"
+    genre: "Genre not found"
+
+  conflict:
+    audiobook_exists: "AudioBook with this ISBN already exists"
+    resource_exists: "Resource already exists"
+    user_exists: "User already exists"
+    email_exists: "Email already exists"
+    username_exists: "Username already exists"
+
+  unauthorized:
+    default: "Unauthorized access"
+    access_denied: "Access denied"
+    not_authenticated: "Authentication required"
+    invalid_credentials: "Invalid email or password"
+    invalid_current_password: "Current password is incorrect"
+    already_authenticated: "Already authenticated"
+
+  forbidden:
+    default: "Access forbidden"
+    insufficient_permissions: "Insufficient permissions"
+    admin_required: "Admin access required"
+    rate_limit_exceeded: "Too many authentication attempts"
+    csrf_token_invalid: "Invalid CSRF token"
+    audiobook_access: "You don't have access to this audiobook"
+
+  auth:
+    create_user_failed: "Failed to create user account"
+    login_failed: "Login failed"
+    logout_failed: "Logout failed"
+    fetch_user_failed: "Failed to fetch user"
+    update_user_failed: "Failed to update user"
+    change_password_failed: "Failed to change password"
+    delete_user_failed: "Failed to delete user account"
+    fetch_users_failed: "Failed to fetch users"
+
+  internal:
+    default: "Internal server error"
+    database_operation: "Database operation failed"
+    fetch_audiobooks: "Failed to fetch audiobooks"
+    fetch_audiobook: "Failed to fetch audiobook"
+    create_audiobook: "Failed to create audiobook"
+    update_audiobook: "Failed to update audiobook"
+    delete_audiobook: "Failed to delete audiobook"
+    fetch_stats: "Failed to fetch audiobook statistics"
+    fetch_genres: "Failed to fetch genres"
+
+# API Information
+api:
+  info:
+    title: "AudioBook API Server"
+    version: "1.0.0"
+    status_running: "running"
+    endpoints:
+      health: "/api/health"
+      docs: "/api-docs"
+
+# Validation Rules
+validation:
+  pagination:
+    max_limit: 100
+    default_limit: 10
+    default_page: 1
+
+  sort_fields:
+    allowed: ["title", "author", "createdAt", "updatedAt", "duration"]
+
+  string_fields:
+    max_length: 100
+
+  isbn:
+    formats: ["10-digit", "13-digit"]
+
+# File Information
+file_info:
+  created: "2024-01-01"
+  description: "Centralized response messages for AudioBook API"
+  version: "1.0.0"
+  author: "AudioBook API Team"

@@ -1,0 +1,410 @@
+// AudioBook Backend Prisma Schema
+// This schema defines the database structure for the AudioBook application
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// UserProfile model for user profile information
+model UserProfile {
+  id        String  @id @default(cuid())
+  userId    String  @unique
+  username  String  @unique
+  firstName String?
+  lastName  String?
+  avatar    String? // URL to profile picture
+
+  // User preferences
+  preferences Json? // Store user preferences as JSON
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  audiobooks       UserAudioBook[]
+  playlists        Playlist[]
+  reviews          Review[]
+  favorites        Favorite[]
+  listeningHistory ListeningHistory[]
+  chapterProgress  ChapterProgress[]
+  bookmarks        Bookmark[]
+  notes            Note[]
+  offlineDownloads OfflineDownload[]
+
+  @@map("user_profiles")
+}
+
+// AudioBook model for storing book information
+model AudioBook {
+  id          String  @id @default(cuid())
+  title       String
+  author      String
+  narrator    String?
+  description String?
+
+  // Media information
+  duration   Int // Duration in seconds
+  fileSize   BigInt // File size in bytes
+  coverImage String? // URL to cover image
+
+  // Metadata
+  genreId     String?
+  language    String    @default("en")
+  publisher   String?
+  publishDate DateTime?
+  isbn        String?   @unique
+
+  // Status
+  isActive Boolean @default(true)
+  isPublic Boolean @default(true)
+
+  // Offline availability
+  isOfflineAvailable Boolean @default(false)
+
+  // Calculated progress (updated by background job)
+  overallProgress Float @default(0.0) // Percentage (0-100)
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  genre            Genre?             @relation(fields: [genreId], references: [id])
+  userAudioBooks   UserAudioBook[]
+  reviews          Review[]
+  favorites        Favorite[]
+  playlistItems    PlaylistItem[]
+  listeningHistory ListeningHistory[]
+  chapters         Chapter[]
+  bookmarks        Bookmark[]
+  notes            Note[]
+  offlineDownloads OfflineDownload[]
+  audiobookTags    AudioBookTag[]
+
+  @@map("audiobooks")
+}
+
+// Genre model for categorizing audiobooks
+model Genre {
+  id   String @id @default(cuid())
+  name String @unique
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  audiobooks AudioBook[]
+
+  @@map("genres")
+}
+
+// Junction table for user-audiobook relationships (ownership, uploads, etc.)
+model UserAudioBook {
+  id            String @id @default(cuid())
+  userProfileId String
+  audiobookId   String
+
+  // Relationship type
+  type UserAudioBookType @default(OWNED) // OWNED, UPLOADED, PURCHASED
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  userProfile UserProfile @relation(fields: [userProfileId], references: [id], onDelete: Cascade)
+  audiobook   AudioBook   @relation(fields: [audiobookId], references: [id], onDelete: Cascade)
+
+  @@unique([userProfileId, audiobookId])
+  @@map("user_audiobooks")
+}
+
+// Playlist model for organizing audiobooks
+model Playlist {
+  id          String  @id @default(cuid())
+  name        String
+  description String?
+  isPublic    Boolean @default(false)
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  userProfileId String
+  userProfile   UserProfile    @relation(fields: [userProfileId], references: [id], onDelete: Cascade)
+  items         PlaylistItem[]
+
+  @@map("playlists")
+}
+
+// Playlist items (many-to-many between playlists and audiobooks)
+model PlaylistItem {
+  id          String @id @default(cuid())
+  playlistId  String
+  audiobookId String
+  position    Int // Order in playlist
+
+  // Timestamps
+  createdAt DateTime @default(now())
+
+  // Relations
+  playlist  Playlist  @relation(fields: [playlistId], references: [id], onDelete: Cascade)
+  audiobook AudioBook @relation(fields: [audiobookId], references: [id], onDelete: Cascade)
+
+  @@unique([playlistId, audiobookId])
+  @@map("playlist_items")
+}
+
+// Review model for user reviews
+model Review {
+  id            String  @id @default(cuid())
+  userProfileId String
+  audiobookId   String
+  rating        Int // 1-5 stars
+  title         String?
+  content       String?
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  userProfile UserProfile @relation(fields: [userProfileId], references: [id], onDelete: Cascade)
+  audiobook   AudioBook   @relation(fields: [audiobookId], references: [id], onDelete: Cascade)
+
+  @@unique([userProfileId, audiobookId])
+  @@map("reviews")
+}
+
+// Favorites model for user's favorite audiobooks
+model Favorite {
+  id            String @id @default(cuid())
+  userProfileId String
+  audiobookId   String
+
+  // Timestamps
+  createdAt DateTime @default(now())
+
+  // Relations
+  userProfile UserProfile @relation(fields: [userProfileId], references: [id], onDelete: Cascade)
+  audiobook   AudioBook   @relation(fields: [audiobookId], references: [id], onDelete: Cascade)
+
+  @@unique([userProfileId, audiobookId])
+  @@map("favorites")
+}
+
+// Chapter model for audiobook chapters
+model Chapter {
+  id          String  @id @default(cuid())
+  audiobookId String
+  title       String
+  description String?
+
+  // Chapter metadata
+  chapterNumber Int // Order of chapter in audiobook
+  duration      Int // Duration in seconds
+  filePath      String // Path to chapter audio file
+  fileSize      BigInt // File size in bytes
+
+  // Chapter start/end positions in main audiobook file
+  startPosition Int // Start position in seconds within main audiobook
+  endPosition   Int // End position in seconds within main audiobook
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  audiobook       AudioBook         @relation(fields: [audiobookId], references: [id], onDelete: Cascade)
+  chapterProgress ChapterProgress[]
+  bookmarks       Bookmark[]
+  notes           Note[]
+
+  @@map("chapters")
+}
+
+// Chapter progress tracking for individual users
+model ChapterProgress {
+  id            String @id @default(cuid())
+  userProfileId String
+  chapterId     String
+
+  // Progress tracking
+  currentPosition Int // Current position in seconds within chapter
+  completed       Boolean  @default(false)
+  lastListenedAt  DateTime @default(now())
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  userProfile UserProfile @relation(fields: [userProfileId], references: [id], onDelete: Cascade)
+  chapter     Chapter     @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+
+  @@unique([userProfileId, chapterId])
+  @@map("chapter_progress")
+}
+
+// Bookmarks for audiobooks and chapters
+model Bookmark {
+  id            String  @id @default(cuid())
+  userProfileId String
+  audiobookId   String?
+  chapterId     String?
+
+  // Bookmark details
+  title       String?
+  description String?
+  position    Int // Position in seconds
+  timestamp   DateTime @default(now())
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  userProfile UserProfile @relation(fields: [userProfileId], references: [id], onDelete: Cascade)
+  audiobook   AudioBook?  @relation(fields: [audiobookId], references: [id], onDelete: Cascade)
+  chapter     Chapter?    @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+
+  @@map("bookmarks")
+}
+
+// Notes for audiobooks and chapters
+model Note {
+  id            String  @id @default(cuid())
+  userProfileId String
+  audiobookId   String?
+  chapterId     String?
+
+  // Note details
+  title     String?
+  content   String
+  position  Int? // Position in seconds (optional)
+  timestamp DateTime @default(now())
+
+  audiobook AudioBook? @relation(fields: [audiobookId], references: [id], onDelete: Cascade)
+  // Timestamps
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  // Relations
+  userProfile UserProfile @relation(fields: [userProfileId], references: [id], onDelete: Cascade)
+  chapter     Chapter?    @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+
+  @@map("notes")
+}
+
+// Offline downloads tracking
+model OfflineDownload {
+  id            String @id @default(cuid())
+  userProfileId String
+  audiobookId   String
+
+  // Download status
+  status   DownloadStatus @default(PENDING)
+  progress Float          @default(0.0) // Download progress percentage
+  filePath String? // Local file path when downloaded
+  fileSize BigInt? // Downloaded file size
+
+  // Error handling
+  errorMessage String?
+  retryCount   Int     @default(0)
+
+  // Timestamps
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  completedAt DateTime?
+
+  // Relations
+  userProfile UserProfile @relation(fields: [userProfileId], references: [id], onDelete: Cascade)
+  audiobook   AudioBook   @relation(fields: [audiobookId], references: [id], onDelete: Cascade)
+
+  @@unique([userProfileId, audiobookId])
+  @@map("offline_downloads")
+}
+
+// Listening history for tracking user progress
+model ListeningHistory {
+  id            String @id @default(cuid())
+  userProfileId String
+  audiobookId   String
+
+  // Progress tracking
+  currentPosition Int // Current position in seconds
+  completed       Boolean  @default(false)
+  lastListenedAt  DateTime @default(now())
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  userProfile UserProfile @relation(fields: [userProfileId], references: [id], onDelete: Cascade)
+  audiobook   AudioBook   @relation(fields: [audiobookId], references: [id], onDelete: Cascade)
+
+  @@unique([userProfileId, audiobookId])
+  @@map("listening_history")
+}
+
+// Tags model for categorizing audiobooks
+model Tag {
+  id   String  @id @default(cuid())
+  name String  @unique
+  type TagType
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  audiobookTags AudioBookTag[]
+
+  @@map("tags")
+}
+
+// Junction table for audiobook-tag relationships
+model AudioBookTag {
+  id          String @id @default(cuid())
+  audiobookId String
+  tagId       String
+
+  // Timestamps
+  createdAt DateTime @default(now())
+
+  // Relations
+  audiobook AudioBook @relation(fields: [audiobookId], references: [id], onDelete: Cascade)
+  tag       Tag       @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([audiobookId, tagId])
+  @@map("audiobook_tags")
+}
+
+// Enums
+enum UserAudioBookType {
+  OWNED
+  UPLOADED
+  PURCHASED
+}
+
+enum DownloadStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum TagType {
+  TRENDING
+  NEW_RELEASES
+}

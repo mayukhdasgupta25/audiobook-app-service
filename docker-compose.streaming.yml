@@ -1,0 +1,188 @@
+# Docker Compose for Audio Streaming Service
+# This compose file sets up the streaming service with all required dependencies
+
+version: '3.8'
+
+services:
+  # RabbitMQ message broker
+  rabbitmq:
+    image: rabbitmq:3.12-management-alpine
+    container_name: audiobook-rabbitmq
+    ports:
+      - "5672:5672"    # AMQP port
+      - "15672:15672"  # Management UI
+    environment:
+      RABBITMQ_DEFAULT_USER: admin
+      RABBITMQ_DEFAULT_PASS: password
+      RABBITMQ_DEFAULT_VHOST: /
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - audiobook-network
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  # Redis cache
+  redis:
+    image: redis:7-alpine
+    container_name: audiobook-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    networks:
+      - audiobook-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 10s
+
+  # PostgreSQL database
+  postgres:
+    image: postgres:15-alpine
+    container_name: audiobook-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: audiobook_dev
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-scripts:/docker-entrypoint-initdb.d
+    networks:
+      - audiobook-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  # Audio Streaming Service
+  streaming-service:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.streaming
+    container_name: audiobook-streaming
+    ports:
+      - "3001:3001"
+    environment:
+      NODE_ENV: development
+      PORT: 3001
+      STREAMING_PORT: 3001
+      
+      # Database
+      DATABASE_URL: postgresql://postgres:password@postgres:5432/audiobook_dev
+      
+      # Redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      
+      # RabbitMQ
+      RABBITMQ_URL: amqp://admin:password@rabbitmq:5672
+      
+      # Session
+      SESSION_SECRET: your-streaming-secret-key
+      
+      # Storage (using local storage for development)
+      STORAGE_PROVIDER: local
+      
+      # Streaming configuration
+      HLS_SEGMENT_DURATION: 10
+      TRANSCODING_BITRATES: 64,128,256
+      STREAMING_CACHE_TTL: 3600
+      
+      # Client URL
+      CLIENT_URL: http://localhost:5173
+    volumes:
+      - ../src/uploads:/app/storage:ro  # Read-only access to audio files
+      - streaming_temp:/app/temp        # Temporary transcoding files
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - audiobook-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
+
+  # Main Backend Service (optional, for comparison)
+  backend-service:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.backend
+    container_name: audiobook-backend
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+      
+      # Database
+      DATABASE_URL: postgresql://postgres:password@postgres:5432/audiobook_dev
+      
+      # Redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      
+      # RabbitMQ
+      RABBITMQ_URL: amqp://admin:password@rabbitmq:5672
+      
+      # Session
+      SESSION_SECRET: your-backend-secret-key
+      
+      # Client URL
+      CLIENT_URL: http://localhost:5173
+    volumes:
+      - ../src/uploads:/app/uploads:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - audiobook-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
+    profiles:
+      - full-stack  # Only start with --profile full-stack
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  rabbitmq_data:
+    driver: local
+  streaming_temp:
+    driver: local
+
+networks:
+  audiobook-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
