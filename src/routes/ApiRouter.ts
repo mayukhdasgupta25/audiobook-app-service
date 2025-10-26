@@ -4,6 +4,7 @@
  */
 import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
+import { authenticateJWT } from '../middleware/AuthMiddleware';
 import { createAudioBookRoutes } from './audioBookRoutes';
 import { createChapterRoutes } from './chapterRoutes';
 import { createPlaybackRoutes } from './playbackRoutes';
@@ -54,9 +55,14 @@ export class ApiRouter {
 
   /**
    * Setup API v1 routes
+   * Protected with JWT authentication middleware
    */
   private setupV1Routes(): void {
     const v1Router = Router();
+
+    // Apply JWT authentication middleware to all v1 routes
+    // This ensures all API endpoints require valid JWT tokens
+    v1Router.use(authenticateJWT);
 
     // Mount all route modules
     v1Router.use('/audiobooks', createAudioBookRoutes(this.prisma));

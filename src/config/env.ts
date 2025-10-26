@@ -68,4 +68,8 @@ export const config = {
 
    // External streaming service URL
    STREAMING_SERVICE_URL: process.env['STREAMING_SERVICE_URL'] || 'http://localhost:8081/api/v1/stream',
+
+   // Auth service configuration
+   AUTH_SERVICE_URL: process.env['AUTH_SERVICE_URL'] || 'http://localhost:8080',
+   JWKS_ENDPOINT: process.env['JWKS_ENDPOINT'] || 'http://localhost:8080/auth/.well-known/jwks.json',
 };
