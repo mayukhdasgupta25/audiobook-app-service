@@ -280,11 +280,16 @@ export class MessageHandler {
       let message: any = messages.errors;
 
       for (const k of keys) {
-         message = message[k];
+         if (message && Object.prototype.hasOwnProperty.call(message, k)) {
+            message = message[k];
+         } else {
+            console.warn(`Error message not found for key: ${key}`);
+            return 'An error occurred';
+         }
       }
 
       if (typeof message !== 'string') {
-         console.warn(`Error message not found for key: ${key}`);
+         console.warn(`Error message not a string for key: ${key}`);
          return 'An error occurred';
       }
 
@@ -300,7 +305,11 @@ export class MessageHandler {
       let info: any = messages.api;
 
       for (const k of keys) {
-         info = info[k];
+         if (info && Object.prototype.hasOwnProperty.call(info, k)) {
+            info = info[k];
+         } else {
+            return undefined;
+         }
       }
 
       return info;
@@ -315,7 +324,11 @@ export class MessageHandler {
       let rule: any = messages.validation;
 
       for (const k of keys) {
-         rule = rule[k];
+         if (rule && Object.prototype.hasOwnProperty.call(rule, k)) {
+            rule = rule[k];
+         } else {
+            return undefined;
+         }
       }
 
       return rule;
