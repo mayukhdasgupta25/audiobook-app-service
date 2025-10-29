@@ -1,23 +1,14 @@
-name: Pull Request Tests
+name: Test Branch Tests
 
 on:
-  pull_request:
+  push:
     branches:
-      - main
-    types: [opened, synchronize, reopened]
+      - test
 
 jobs:
   test:
     name: Run Tests
     runs-on: ubuntu-latest
-
-    # Only run tests for specific branch prefixes
-    if: |
-      !github.event.pull_request.head.repo.fork &&
-      (startsWith(github.head_ref, 'hotfix/') ||
-       startsWith(github.head_ref, 'improve/') ||
-       startsWith(github.head_ref, 'feature/') ||
-       startsWith(github.head_ref, 'bugfix/'))
 
     services:
       postgres:

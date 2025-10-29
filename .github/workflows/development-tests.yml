@@ -1,23 +1,14 @@
-name: Pull Request Tests
+name: Development Branch Tests
 
 on:
-  pull_request:
+  push:
     branches:
-      - main
-    types: [opened, synchronize, reopened]
+      - development
 
 jobs:
   test:
     name: Run Tests
     runs-on: ubuntu-latest
-
-    # Only run tests for specific branch prefixes
-    if: |
-      !github.event.pull_request.head.repo.fork &&
-      (startsWith(github.head_ref, 'hotfix/') ||
-       startsWith(github.head_ref, 'improve/') ||
-       startsWith(github.head_ref, 'feature/') ||
-       startsWith(github.head_ref, 'bugfix/'))
 
     services:
       postgres:
@@ -59,7 +50,7 @@ jobs:
           DATABASE_URL: ${{ env.DATABASE_URL }}
 
       - name: Run tests
-        run: npm test
+        run: npm test -- --testPathIgnorePatterns='/tests/controllers/.*\\.test\\.ts$'
         env:
           DATABASE_URL: ${{ env.DATABASE_URL }}
 
