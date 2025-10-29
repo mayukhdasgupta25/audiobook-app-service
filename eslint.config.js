@@ -63,6 +63,7 @@ module.exports = [
       "@typescript-eslint/no-require-imports": "off", // Allow require() in Node.js
       "@typescript-eslint/no-var-requires": "off", // Allow require() in Node.js
       "no-unreachable": "off", // Disable unreachable code warnings
+      "no-useless-catch": "off", // Disable useless catch wrapper warnings
     },
   },
   {
