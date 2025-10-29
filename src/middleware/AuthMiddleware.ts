@@ -46,11 +46,11 @@ export async function authenticateJWT(
             return;
          }
          decodedHeader = decoded.header as JWTHeader;
-      } catch (decodeError) {
+      } catch (decodeError: any) {
          res.status(401).json({
             success: false,
             message: 'Invalid token',
-            details: 'Token header could not be decoded'
+            details: `Token header could not be decoded: ${decodeError.message}`
          });
          return;
       }
@@ -88,11 +88,11 @@ export async function authenticateJWT(
             if (key.use) key.use = key.use.trim();
             if (key.alg) key.alg = key.alg.trim();
          });
-      } catch (fetchError) {
+      } catch (fetchError: any) {
          res.status(500).json({
             success: false,
             message: 'Failed to fetch JWKS from auth-service',
-            details: 'Unable to connect to authentication service'
+            details: `Unable to connect to authentication service: ${fetchError.message}`
          });
          return;
       }

@@ -136,9 +136,9 @@ export class RabbitMQConnection {
          try {
             await this.channel.deleteQueue(`${queuePrefix}.transcode.${queue}`, { ifEmpty: false });
             console.log(`Deleted existing queue: ${queuePrefix}.transcode.${queue}`);
-         } catch (error) {
+         } catch (error: any) {
             // Queue might not exist, which is fine
-            console.log(`Queue ${queuePrefix}.transcode.${queue} does not exist or already deleted`);
+            console.error(`Error deleting queue: ${queuePrefix}.transcode.${queue}: ${error.message}`);
          }
       }
 
