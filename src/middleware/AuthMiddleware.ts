@@ -116,7 +116,7 @@ export async function authenticateJWT(
       try {
          publicKey = jwkToPem(jwk);
       } catch (conversionError) {
-         console.error('Conversion error:', conversionError);
+         // console.error('Conversion error:', conversionError);
          res.status(500).json({
             success: false,
             message: 'Failed to convert JWK to PEM format',
@@ -131,7 +131,7 @@ export async function authenticateJWT(
          console.log('Token verified successfully');
          next();
       } catch (verifyError: any) {
-         console.error('Verification error:', verifyError.name, verifyError.message);
+         // console.error('Verification error:', verifyError.name, verifyError.message);
          res.status(401).json({
             success: false,
             message: 'Invalid token signature',
@@ -139,9 +139,9 @@ export async function authenticateJWT(
          });
          return;
       }
-   } catch (error) {
+   } catch (_error) {
       // Catch any unexpected errors
-      console.error('Authentication error:', error);
+      // console.error('Authentication error:', error);
       res.status(500).json({
          success: false,
          message: 'Authentication error',

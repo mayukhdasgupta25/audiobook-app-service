@@ -66,7 +66,7 @@ export class LocalStorageProvider implements StorageProvider {
 
          return fullPath;
       } catch (error: any) {
-         console.error('Local upload error:', error);
+         // console.error('Local upload error:', error);
          throw new Error(`Failed to upload file locally: ${error.message}`);
       }
    }
@@ -82,7 +82,7 @@ export class LocalStorageProvider implements StorageProvider {
          if (error.code === 'ENOENT') {
             throw new Error('File not found');
          }
-         console.error('Local download error:', error);
+         // console.error('Local download error:', error);
          throw new Error(`Failed to download file locally: ${error.message}`);
       }
    }

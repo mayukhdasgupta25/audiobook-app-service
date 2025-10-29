@@ -51,7 +51,7 @@ export class S3StorageProvider implements StorageProvider {
          const result = await this.s3.upload(params).promise();
          return result.Location;
       } catch (error: any) {
-         console.error('S3 upload error:', error);
+         // console.error('S3 upload error:', error);
          throw new Error(`Failed to upload file to S3: ${error.message}`);
       }
    }
@@ -77,7 +77,7 @@ export class S3StorageProvider implements StorageProvider {
          if (error.code === 'NoSuchKey') {
             throw new Error('File not found');
          }
-         console.error('S3 download error:', error);
+         // console.error('S3 download error:', error);
          throw new Error(`Failed to download file from S3: ${error.message}`);
       }
    }
@@ -113,7 +113,7 @@ export class S3StorageProvider implements StorageProvider {
 
          return this.s3.getSignedUrl('getObject', params);
       } catch (error: any) {
-         console.error('S3 URL generation error:', error);
+         // console.error('S3 URL generation error:', error);
          throw new Error(`Failed to generate file URL: ${error.message}`);
       }
    }
@@ -237,7 +237,7 @@ export class S3StorageProvider implements StorageProvider {
             creationDate: new Date() // S3 doesn't return creation date in headBucket
          };
       } catch (error: any) {
-         console.error('S3 bucket info error:', error);
+         // console.error('S3 bucket info error:', error);
          throw new Error(`Failed to get bucket info: ${error.message}`);
       }
    }

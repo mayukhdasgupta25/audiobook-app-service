@@ -361,8 +361,8 @@ export class PlaybackService {
             volume: session.volume,
             userProfileId: session.userProfileId
          };
-      } catch (error: any) {
-         console.error('Playback control error:', error);
+      } catch (_error: any) {
+         // console.error('Playback control error:', error);
          throw new ApiError('Failed to handle playback control', 500, ErrorType.INTERNAL_ERROR);
       }
    }
@@ -378,8 +378,8 @@ export class PlaybackService {
          if (session) {
             session.playbackSpeed = Math.max(0.5, Math.min(3.0, speed));
          }
-      } catch (error: any) {
-         console.error('Change playback speed error:', error);
+      } catch (_error: any) {
+         // console.error('Change playback speed error:', error);
          throw new ApiError('Failed to change playback speed', 500, ErrorType.INTERNAL_ERROR);
       }
    }
@@ -398,8 +398,8 @@ export class PlaybackService {
          } else {
             await this.initializePlaybackSession(userProfileId, audiobookId, chapterId);
          }
-      } catch (error: any) {
-         console.error('Navigate to chapter error:', error);
+      } catch (_error: any) {
+         // console.error('Navigate to chapter error:', error);
          throw new ApiError('Failed to navigate to chapter', 500, ErrorType.INTERNAL_ERROR);
       }
    }

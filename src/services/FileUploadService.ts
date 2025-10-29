@@ -31,7 +31,7 @@ export class FileUploadService {
             return await this.uploadToS3(uploadedFile, relativePath);
          }
       } catch (error: any) {
-         console.error('File upload error:', error);
+         // console.error('File upload error:', error);
          throw new ApiError(`Failed to upload file: ${error.message}`, 500);
       }
    }
@@ -79,7 +79,7 @@ export class FileUploadService {
             originalName: uploadedFile.originalname
          };
       } catch (error: any) {
-         console.error('Local storage save error:', error);
+         // console.error('Local storage save error:', error);
          throw new ApiError(`Failed to save file to local storage: ${error.message}`, 500);
       }
    }
@@ -133,7 +133,7 @@ export class FileUploadService {
             originalName: uploadedFile.originalname
          };
       } catch (error: any) {
-         console.error('S3 upload error:', error);
+         // console.error('S3 upload error:', error);
          throw new ApiError(`Failed to upload file to S3: ${error.message}`, 500);
       }
    }

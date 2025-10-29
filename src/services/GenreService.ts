@@ -28,8 +28,8 @@ export class GenreService {
          });
 
          return genres.map(genre => toGenreDto(genre));
-      } catch (error) {
-         console.error('Error fetching genres:', error);
+      } catch (_error) {
+         // console.error('Error fetching genres:', error);
          throw new ApiError(
             MessageHandler.getErrorMessage('genres.fetch_failed'),
             HttpStatusCode.INTERNAL_SERVER_ERROR,
@@ -87,8 +87,8 @@ export class GenreService {
          });
 
          return genre ? toGenreDto(genre) : null;
-      } catch (error) {
-         console.error('Error fetching genre by name:', error);
+      } catch (_error) {
+         // console.error('Error fetching genre by name:', error);
          throw new ApiError(
             MessageHandler.getErrorMessage('genres.fetch_failed'),
             HttpStatusCode.INTERNAL_SERVER_ERROR,
