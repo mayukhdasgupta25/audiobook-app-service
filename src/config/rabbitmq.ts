@@ -136,9 +136,9 @@ export class RabbitMQConnection {
          try {
             await this.channel.deleteQueue(`${queuePrefix}.transcode.${queue}`, { ifEmpty: false });
             console.log(`Deleted existing queue: ${queuePrefix}.transcode.${queue}`);
-         } catch (error: any) {
+         } catch (_error: any) {
             // Queue might not exist, which is fine
-            // console.error(`Error deleting queue: ${queuePrefix}.transcode.${queue}: ${error.message}`);
+            // console.error(`Error deleting queue: ${queuePrefix}.transcode.${queue}: ${_error.message}`);
          }
       }
 
@@ -382,8 +382,8 @@ export class RabbitMQConnection {
                // Acknowledge message
                this.channel!.ack(msg);
                console.log(`Processed user creation message for userId: ${messageContent.userId}`);
-            } catch (error: any) {
-               // console.error('Error processing user creation message:', error);
+            } catch (_error: any) {
+               // console.error('Error processing user creation message:', _error);
 
                // Log error and acknowledge message (no retry/DLQ as per requirements)
                this.channel!.ack(msg);

@@ -84,8 +84,8 @@ export class UserConsumerWorker {
             // console.error(`Failed to create user profile for userId: ${message.userId}, error: ${result.error}`);
          }
 
-      } catch (error: any) {
-         // console.error(`Error handling user creation message for userId: ${message.userId}:`, error);
+      } catch (_error: any) {
+         // console.error(`Error handling user creation message for userId: ${message.userId}:`, _error);
          // Error is logged but message is acknowledged (no retry/DLQ as per requirements)
       }
    }

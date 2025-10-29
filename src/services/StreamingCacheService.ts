@@ -153,8 +153,8 @@ export class StreamingCacheService {
             await this.set(key, content, config.STREAMING_CACHE_TTL, contentType);
 
             return content;
-         } catch (storageError: any) {
-            // console.error('Storage fallback error:', storageError);
+         } catch (_storageError: any) {
+            // console.error('Storage fallback error:', _storageError);
             return null;
          }
       } catch (_error: any) {
@@ -276,8 +276,8 @@ export class StreamingCacheService {
                const segmentContent = await this.storageProvider.downloadFile(storagePath);
                await this.cacheSegment(segmentId, segmentContent);
                loadedCount++;
-            } catch (error: any) {
-               // console.error(`Failed to preload segment ${segmentId}:`, error);
+            } catch (_error: any) {
+               // console.error(`Failed to preload segment ${segmentId}:`, _error);
             }
          }
       } catch (_error: any) {

@@ -125,7 +125,7 @@ export class QueueManager {
          console.log(`Job ${job.id} completed in queue '${name}'`);
       });
 
-      queue.on('failed', (job, err) => {
+      queue.on('failed', (_job, _err) => {
          // console.error(`Job ${job.id} failed in queue '${name}':`, err.message);
       });
 
