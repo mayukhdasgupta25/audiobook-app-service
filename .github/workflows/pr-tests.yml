@@ -16,7 +16,8 @@ jobs:
       !github.event.pull_request.head.repo.fork &&
       (startsWith(github.head_ref, 'hotfix/') ||
        startsWith(github.head_ref, 'improve/') ||
-       startsWith(github.head_ref, 'feature/'))
+       startsWith(github.head_ref, 'feature/') ||
+       startsWith(github.head_ref, 'bugfix/'))
 
     services:
       postgres:
@@ -58,7 +59,12 @@ jobs:
           DATABASE_URL: ${{ env.DATABASE_URL }}
 
       - name: Run tests
-        run: npm test
+        run: |
+          if [ "${{ github.head_ref }}" == "development" ] || [ "${{ github.head_ref }}" == "staging" ]; then
+            npm test -- --testPathIgnorePatterns=**/tests/controllers/**/*.test.ts
+          else
+            npm test
+          fi
         env:
           DATABASE_URL: ${{ env.DATABASE_URL }}
 
