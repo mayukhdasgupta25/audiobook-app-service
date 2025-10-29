@@ -13,11 +13,14 @@ jobs:
 
     # Only run tests for specific branch prefixes
     if: |
-      !github.event.pull_request.head.repo.fork &&
-      (startsWith(github.head_ref, 'hotfix/') ||
-       startsWith(github.head_ref, 'improve/') ||
-       startsWith(github.head_ref, 'feature/') ||
-       startsWith(github.head_ref, 'bugfix/'))
+      contains(github.event.pull_request.title, 'hotfix') ||
+      contains(github.event.pull_request.title, 'improve') ||
+      contains(github.event.pull_request.title, 'feature') ||
+      contains(github.event.pull_request.title, 'bugfix') ||
+      contains(github.event.pull_request.head.ref, 'hotfix') ||
+      contains(github.event.pull_request.head.ref, 'improve') ||
+      contains(github.event.pull_request.head.ref, 'feature') ||
+      contains(github.event.pull_request.head.ref, 'bugfix')
 
     services:
       postgres:
