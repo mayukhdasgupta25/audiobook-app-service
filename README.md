@@ -57,7 +57,7 @@ All documentation is available in the [`docs/`](./docs/) folder:
 - **Testing Suite** with Jest
 - **Documentation** with comprehensive guides
 
-## 🏗️ Architecture
+## 🏗️ Architecture..
 
 ```
 src/
