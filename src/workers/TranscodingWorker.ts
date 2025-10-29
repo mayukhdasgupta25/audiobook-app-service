@@ -31,7 +31,7 @@ export class TranscodingWorker {
          this.isRunning = true;
 
       } catch (error: any) {
-         console.error('Failed to start transcoding worker:', error);
+         // console.error('Failed to start transcoding worker:', error);
          throw error;
       }
    }
@@ -49,8 +49,8 @@ export class TranscodingWorker {
          await RabbitMQFactory.shutdown();
          this.isRunning = false;
          console.log('Transcoding worker stopped');
-      } catch (error: any) {
-         console.error('Error stopping transcoding worker:', error);
+      } catch (_error: any) {
+         // console.error('Error stopping transcoding worker:', _error);
       }
    }
 
@@ -67,8 +67,8 @@ export class TranscodingWorker {
             isRunning: this.isRunning,
             recentJobs: []
          };
-      } catch (error: any) {
-         console.error('Error getting worker stats:', error);
+      } catch (_error: any) {
+         // console.error('Error getting worker stats:', _error);
          return {
             isRunning: this.isRunning,
             recentJobs: []
@@ -94,8 +94,8 @@ export class TranscodingWorker {
          });
 
          return isConnected;
-      } catch (error: any) {
-         console.error('Worker test failed:', error);
+      } catch (_error: any) {
+         // console.error('Worker test failed:', _error);
          return false;
       }
    }

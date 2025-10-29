@@ -77,7 +77,7 @@ export function createStreamingRoutes(_prisma: PrismaClient): Router {
          res.status(response.status).send(response.data);
 
       } catch (error) {
-         console.error('Streaming service proxy error:', error);
+         // console.error('Streaming service proxy error:', error);
 
          if (axios.isAxiosError(error)) {
             if (error.response) {

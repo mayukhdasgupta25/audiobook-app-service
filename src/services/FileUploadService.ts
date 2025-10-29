@@ -31,7 +31,7 @@ export class FileUploadService {
             return await this.uploadToS3(uploadedFile, relativePath);
          }
       } catch (error: any) {
-         console.error('File upload error:', error);
+         // console.error('File upload error:', error);
          throw new ApiError(`Failed to upload file: ${error.message}`, 500);
       }
    }
@@ -79,7 +79,7 @@ export class FileUploadService {
             originalName: uploadedFile.originalname
          };
       } catch (error: any) {
-         console.error('Local storage save error:', error);
+         // console.error('Local storage save error:', error);
          throw new ApiError(`Failed to save file to local storage: ${error.message}`, 500);
       }
    }
@@ -133,7 +133,7 @@ export class FileUploadService {
             originalName: uploadedFile.originalname
          };
       } catch (error: any) {
-         console.error('S3 upload error:', error);
+         // console.error('S3 upload error:', error);
          throw new ApiError(`Failed to upload file to S3: ${error.message}`, 500);
       }
    }
@@ -148,8 +148,8 @@ export class FileUploadService {
          } else {
             return await this.storageProvider.deleteFile(filePath);
          }
-      } catch (error: any) {
-         console.error('File deletion error:', error);
+      } catch (_error: any) {
+         // console.error('File deletion error:', _error);
          return false;
       }
    }
@@ -168,8 +168,8 @@ export class FileUploadService {
          }
 
          return false;
-      } catch (error: any) {
-         console.error('Local storage deletion error:', error);
+      } catch (_error: any) {
+         // console.error('Local storage deletion error:', _error);
          return false;
       }
    }
@@ -185,8 +185,8 @@ export class FileUploadService {
          } else {
             return await this.storageProvider.fileExists(filePath);
          }
-      } catch (error: any) {
-         console.error('File existence check error:', error);
+      } catch (_error: any) {
+         // console.error('File existence check error:', _error);
          return false;
       }
    }
@@ -216,8 +216,8 @@ export class FileUploadService {
          } else {
             return await this.storageProvider.getFileMetadata(filePath);
          }
-      } catch (error: any) {
-         console.error('File metadata retrieval error:', error);
+      } catch (_error: any) {
+         // console.error('File metadata retrieval error:', _error);
          return null;
       }
    }

@@ -54,7 +54,7 @@ export class BullBoardConfig {
          console.log('✅ Bull Board configured successfully');
          console.log(`📊 Monitoring ${bullAdapters.length} queues:`, Array.from(queues.keys()));
       } catch (error) {
-         console.error('❌ Failed to configure Bull Board:', error);
+         // console.error('❌ Failed to configure Bull Board:', error);
          throw error;
       }
    }
@@ -83,8 +83,8 @@ export class BullBoardConfig {
          });
 
          console.log(`✅ Added queue '${queue.name}' to Bull Board`);
-      } catch (error) {
-         console.error(`❌ Failed to add queue '${queue.name}' to Bull Board:`, error);
+      } catch (_error) {
+         // console.error(`❌ Failed to add queue '${queue.name}' to Bull Board:`, _error);
       }
    }
 
@@ -106,8 +106,8 @@ export class BullBoardConfig {
          });
 
          console.log(`✅ Removed queue '${queueName}' from Bull Board`);
-      } catch (error) {
-         console.error(`❌ Failed to remove queue '${queueName}' from Bull Board:`, error);
+      } catch (_error) {
+         // console.error(`❌ Failed to remove queue '${queueName}' from Bull Board:`, _error);
       }
    }
 
@@ -117,8 +117,8 @@ export class BullBoardConfig {
    public async getQueueStats(): Promise<any> {
       try {
          return await this.queueManager.getQueueStats();
-      } catch (error) {
-         console.error('❌ Failed to get queue stats:', error);
+      } catch (_error) {
+         // console.error('❌ Failed to get queue stats:', _error);
          return {};
       }
    }
@@ -129,8 +129,8 @@ export class BullBoardConfig {
    public async getRedisInfo(): Promise<any> {
       try {
          return await this.queueManager.getRedisInfo();
-      } catch (error) {
-         console.error('❌ Failed to get Redis info:', error);
+      } catch (_error) {
+         // console.error('❌ Failed to get Redis info:', _error);
          return { connected: false };
       }
    }
@@ -163,8 +163,8 @@ export class BullBoardAuth {
          }
 
          next();
-      } catch (error) {
-         console.error('Bull Board auth error:', error);
+      } catch (_error) {
+         // console.error('Bull Board auth error:', _error);
          ResponseHandler.unauthorized(res, MessageHandler.getErrorMessage('unauthorized.not_authenticated'));
       }
    };
@@ -186,8 +186,8 @@ export class BullBoardAuth {
          }
 
          next();
-      } catch (error) {
-         console.error('Bull Board optional auth error:', error);
+      } catch (_error) {
+         // console.error('Bull Board optional auth error:', _error);
          ResponseHandler.unauthorized(res, MessageHandler.getErrorMessage('unauthorized.not_authenticated'));
       }
    };
@@ -211,8 +211,8 @@ export class BullBoardAPI {
             redis: redisInfo,
             timestamp: new Date().toISOString()
          }, 'Queue statistics retrieved successfully');
-      } catch (error) {
-         console.error('Failed to get queue stats:', error);
+      } catch (_error) {
+         // console.error('Failed to get queue stats:', _error);
          ResponseHandler.internalError(res, 'Failed to retrieve queue statistics');
       }
    };
@@ -228,8 +228,8 @@ export class BullBoardAPI {
          await queueManager.pauseQueue(queueName);
 
          ResponseHandler.success(res, { queueName }, `Queue '${queueName}' paused successfully`);
-      } catch (error) {
-         console.error('Failed to pause queue:', error);
+      } catch (_error) {
+         // console.error('Failed to pause queue:', _error);
          ResponseHandler.internalError(res, 'Failed to pause queue');
       }
    };
@@ -245,8 +245,8 @@ export class BullBoardAPI {
          await queueManager.resumeQueue(queueName);
 
          ResponseHandler.success(res, { queueName }, `Queue '${queueName}' resumed successfully`);
-      } catch (error) {
-         console.error('Failed to resume queue:', error);
+      } catch (_error) {
+         // console.error('Failed to resume queue:', _error);
          ResponseHandler.internalError(res, 'Failed to resume queue');
       }
    };
@@ -263,8 +263,8 @@ export class BullBoardAPI {
          await queueManager.cleanQueue(queueName, grace, type);
 
          ResponseHandler.success(res, { queueName, type, grace }, `Queue '${queueName}' cleaned successfully`);
-      } catch (error) {
-         console.error('Failed to clean queue:', error);
+      } catch (_error) {
+         // console.error('Failed to clean queue:', _error);
          ResponseHandler.internalError(res, 'Failed to clean queue');
       }
    };
@@ -280,8 +280,8 @@ export class BullBoardAPI {
          await queueManager.emptyQueue(queueName);
 
          ResponseHandler.success(res, { queueName }, `Queue '${queueName}' emptied successfully`);
-      } catch (error) {
-         console.error('Failed to empty queue:', error);
+      } catch (_error) {
+         // console.error('Failed to empty queue:', _error);
          ResponseHandler.internalError(res, 'Failed to empty queue');
       }
    };

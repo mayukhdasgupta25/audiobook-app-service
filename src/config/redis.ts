@@ -71,8 +71,8 @@ export class RedisConnection {
          console.log('Redis ready to accept commands');
       });
 
-      this.redis.on('error', (error) => {
-         console.error('Redis connection error:', error);
+      this.redis.on('error', (_error) => {
+         // console.error('Redis connection error:', _error);
       });
 
       this.redis.on('close', () => {
@@ -95,8 +95,8 @@ export class RedisConnection {
       try {
          await this.redis.ping();
          return true;
-      } catch (error) {
-         console.error('Redis connection test failed:', error);
+      } catch (_error) {
+         // console.error('Redis connection test failed:', _error);
          return false;
       }
    }
@@ -108,7 +108,7 @@ export class RedisConnection {
       try {
          return await this.redis.info();
       } catch (error) {
-         console.error('Failed to get Redis info:', error);
+         // console.error('Failed to get Redis info:', error);
          throw error;
       }
    }
@@ -119,8 +119,8 @@ export class RedisConnection {
    public async close(): Promise<void> {
       try {
          await this.redis.quit();
-      } catch (error) {
-         console.error('Error closing Redis connection:', error);
+      } catch (_error) {
+         // console.error('Error closing Redis connection:', _error);
       }
    }
 
@@ -156,7 +156,7 @@ export class RedisConnection {
             usedMemoryPeakHuman: memoryInfo.used_memory_peak_human || '0B',
          };
       } catch (error) {
-         console.error('Failed to get Redis memory usage:', error);
+         // console.error('Failed to get Redis memory usage:', error);
          throw error;
       }
    }
@@ -168,7 +168,7 @@ export class RedisConnection {
       try {
          return await this.redis.dbsize();
       } catch (error) {
-         console.error('Failed to get Redis key count:', error);
+         // console.error('Failed to get Redis key count:', error);
          throw error;
       }
    }
@@ -181,7 +181,7 @@ export class RedisConnection {
          await this.redis.flushall();
          console.log('All Redis data cleared');
       } catch (error) {
-         console.error('Failed to clear Redis data:', error);
+         // console.error('Failed to clear Redis data:', error);
          throw error;
       }
    }
@@ -197,7 +197,7 @@ export class RedisConnection {
          }
          return keys.length;
       } catch (error) {
-         console.error('Failed to clear pattern keys:', error);
+         // console.error('Failed to clear pattern keys:', error);
          throw error;
       }
    }

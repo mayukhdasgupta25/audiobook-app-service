@@ -38,7 +38,7 @@ export class UserConsumerWorker {
          this.isRunning = true;
 
       } catch (error: any) {
-         console.error('Failed to start user consumer worker:', error);
+         // console.error('Failed to start user consumer worker:', error);
          throw error;
       }
    }
@@ -58,8 +58,8 @@ export class UserConsumerWorker {
 
          this.isRunning = false;
          console.log('User consumer worker stopped');
-      } catch (error: any) {
-         console.error('Error stopping user consumer worker:', error);
+      } catch (_error: any) {
+         // console.error('Error stopping user consumer worker:', _error);
       }
    }
 
@@ -81,11 +81,11 @@ export class UserConsumerWorker {
          if (result.success) {
             console.log(`Successfully created user profile for userId: ${message.userId}, username: ${result.userProfile?.username}`);
          } else {
-            console.error(`Failed to create user profile for userId: ${message.userId}, error: ${result.error}`);
+            // console.error(`Failed to create user profile for userId: ${message.userId}, error: ${result.error}`);
          }
 
-      } catch (error: any) {
-         console.error(`Error handling user creation message for userId: ${message.userId}:`, error);
+      } catch (_error: any) {
+         // console.error(`Error handling user creation message for userId: ${message.userId}:`, _error);
          // Error is logged but message is acknowledged (no retry/DLQ as per requirements)
       }
    }
@@ -105,8 +105,8 @@ export class UserConsumerWorker {
             isRunning: this.isRunning,
             rabbitMQConnected
          };
-      } catch (error: any) {
-         console.error('Error getting worker stats:', error);
+      } catch (_error: any) {
+         // console.error('Error getting worker stats:', _error);
          return {
             isRunning: this.isRunning,
             rabbitMQConnected: false
@@ -142,8 +142,8 @@ export class UserConsumerWorker {
          });
 
          return rabbitMQConnected && testResult.success;
-      } catch (error: any) {
-         console.error('User consumer worker test failed:', error);
+      } catch (_error: any) {
+         // console.error('User consumer worker test failed:', _error);
          return false;
       }
    }

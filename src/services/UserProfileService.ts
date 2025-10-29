@@ -72,7 +72,7 @@ export class UserProfileService {
          };
 
       } catch (error: any) {
-         console.error(`Failed to create user profile for userId: ${userId}`, error);
+         // console.error(`Failed to create user profile for userId: ${userId}`, error);
 
          return {
             success: false,
@@ -103,7 +103,7 @@ export class UserProfileService {
 
          return userProfile;
       } catch (error: any) {
-         console.error(`Failed to get user profile for userId: ${userId}`, error);
+         // console.error(`Failed to get user profile for userId: ${userId}`, error);
          throw error;
       }
    }
@@ -136,7 +136,7 @@ export class UserProfileService {
 
          return userProfile;
       } catch (error: any) {
-         console.error(`Failed to update user profile for userId: ${userId}`, error);
+         // console.error(`Failed to update user profile for userId: ${userId}`, error);
          throw error;
       }
    }
@@ -153,7 +153,7 @@ export class UserProfileService {
          console.log(`Deleted user profile for userId: ${userId}`);
          return true;
       } catch (error: any) {
-         console.error(`Failed to delete user profile for userId: ${userId}`, error);
+         // console.error(`Failed to delete user profile for userId: ${userId}`, error);
          throw error;
       }
    }

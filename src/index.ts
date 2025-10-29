@@ -58,8 +58,8 @@ queueManager.createCleanupQueue();
 
       // Start user consumer worker
       await UserConsumerWorkerFactory.startWorker(prisma);
-   } catch (error) {
-      console.error('Failed to initialize RabbitMQ, transcoding worker, or user consumer worker:', error);
+   } catch (_error) {
+      // console.error('Failed to initialize RabbitMQ, transcoding worker, or user consumer worker:', _error);
    }
 })();
 

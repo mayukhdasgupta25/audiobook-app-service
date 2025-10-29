@@ -50,8 +50,8 @@ export class UsernameGenerator {
                   attempts
                };
             }
-         } catch (error) {
-            console.error(`Error checking username uniqueness (attempt ${attempts}):`, error);
+         } catch (_error) {
+            // console.error(`Error checking username uniqueness (attempt ${attempts}):`, _error);
          }
       }
 
@@ -110,7 +110,7 @@ export class UsernameGenerator {
 
          return !existingUser;
       } catch (error) {
-         console.error('Error checking username uniqueness:', error);
+         // console.error('Error checking username uniqueness:', error);
          throw error;
       }
    }

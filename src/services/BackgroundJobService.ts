@@ -89,7 +89,7 @@ export class BackgroundJobService {
 
             console.log(`Progress calculation completed for user ${userProfileId}, audiobook ${audiobookId}`);
          } catch (error) {
-            console.error('Progress calculation failed:', error);
+            // console.error('Progress calculation failed:', error);
             throw error;
          }
       });
@@ -102,7 +102,7 @@ export class BackgroundJobService {
             await this.processOfflineDownload(userProfileId, audiobookId, downloadId, _quality);
             console.log(`Offline download completed for user ${userProfileId}, audiobook ${audiobookId}`);
          } catch (error) {
-            console.error('Offline download failed:', error);
+            // console.error('Offline download failed:', error);
 
             // Retry logic
             if (retryCount < 3) {
@@ -141,7 +141,7 @@ export class BackgroundJobService {
 
             console.log(`Cleanup job completed: ${type}`);
          } catch (error) {
-            console.error('Cleanup job failed:', error);
+            // console.error('Cleanup job failed:', error);
             throw error;
          }
       });
@@ -280,8 +280,8 @@ export class BackgroundJobService {
             for (const audiobook of audiobooks) {
                try {
                   await this.calculateAudiobookProgress(user.userProfileId, audiobook.id);
-               } catch (error) {
-                  console.error(`Failed to calculate progress for user ${user.userProfileId}, audiobook ${audiobook.id}:`, error);
+               } catch (_error) {
+                  // console.error(`Failed to calculate progress for user ${user.userProfileId}, audiobook ${audiobook.id}:`, _error);
                   // Continue with other combinations even if one fails
                }
             }
@@ -289,7 +289,7 @@ export class BackgroundJobService {
 
          console.log('Completed calculating progress for all audiobooks and users');
       } catch (error) {
-         console.error('Failed to calculate all audiobook progress:', error);
+         // console.error('Failed to calculate all audiobook progress:', error);
          throw error;
       }
    }
@@ -336,7 +336,7 @@ export class BackgroundJobService {
             },
          });
       } catch (error) {
-         console.error('Failed to calculate audiobook progress:', error);
+         // console.error('Failed to calculate audiobook progress:', error);
          throw error;
       }
    }
@@ -363,7 +363,7 @@ export class BackgroundJobService {
             }
          }
       } catch (error) {
-         console.error('Failed to calculate chapter progress:', error);
+         // console.error('Failed to calculate chapter progress:', error);
          throw error;
       }
    }
@@ -426,7 +426,7 @@ export class BackgroundJobService {
             },
          });
       } catch (error) {
-         console.error('Failed to process offline download:', error);
+         // console.error('Failed to process offline download:', error);
          throw error;
       }
    }
@@ -465,8 +465,8 @@ export class BackgroundJobService {
          }
 
          console.log(`Cleaned up ${expiredDownloads.length} expired downloads`);
-      } catch (error) {
-         console.error('Failed to cleanup expired downloads:', error);
+      } catch (_error) {
+         // console.error('Failed to cleanup expired downloads:', _error);
       }
    }
 
@@ -489,8 +489,8 @@ export class BackgroundJobService {
          });
 
          console.log(`Cleaned up ${deletedProgress.count} old progress records`);
-      } catch (error) {
-         console.error('Failed to cleanup old progress data:', error);
+      } catch (_error) {
+         // console.error('Failed to cleanup old progress data:', _error);
       }
    }
 
@@ -529,8 +529,8 @@ export class BackgroundJobService {
             this.downloadQueue.close(),
             this.cleanupQueue.close(),
          ]);
-      } catch (error) {
-         console.error('Error during queue shutdown:', error);
+      } catch (_error) {
+         // console.error('Error during queue shutdown:', _error);
       }
    }
 }
