@@ -50,7 +50,7 @@ jobs:
           DATABASE_URL: ${{ env.DATABASE_URL }}
 
       - name: Run tests
-        run: npm test -- --testPathIgnorePatterns=**/tests/controllers/**/*.test.ts
+        run: npm test -- --testPathIgnorePatterns='/tests/controllers/.*\\.test\\.ts$'
         env:
           DATABASE_URL: ${{ env.DATABASE_URL }}
 
