@@ -239,8 +239,8 @@ export class PlaybackService {
                lastListenedAt: new Date(),
             },
          });
-      } catch (error) {
-         console.error('Failed to update playback progress:', error);
+      } catch (_error) {
+         // console.error('Failed to update playback progress:', _error);
       }
    }
 

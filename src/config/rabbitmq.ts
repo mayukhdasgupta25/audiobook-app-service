@@ -89,8 +89,8 @@ export class RabbitMQConnection {
          console.log('Connecting to RabbitMQ...');
          this.connection = await amqp.connect(config.RABBITMQ_URL) as unknown as amqp.Connection;
 
-         this.connection!.on('error', (error: Error) => {
-            console.error('RabbitMQ connection error:', error);
+         this.connection!.on('error', (_error: Error) => {
+            // console.error('RabbitMQ connection error:', _error);
             this.handleConnectionError();
          });
 
@@ -112,7 +112,7 @@ export class RabbitMQConnection {
          await this.setupExchangesAndQueues();
 
       } catch (error) {
-         console.error('Failed to connect to RabbitMQ:', error);
+         // console.error('Failed to connect to RabbitMQ:', error);
          this.isConnecting = false;
          await this.handleConnectionError();
          throw error;
@@ -138,7 +138,7 @@ export class RabbitMQConnection {
             console.log(`Deleted existing queue: ${queuePrefix}.transcode.${queue}`);
          } catch (error: any) {
             // Queue might not exist, which is fine
-            console.error(`Error deleting queue: ${queuePrefix}.transcode.${queue}: ${error.message}`);
+            // console.error(`Error deleting queue: ${queuePrefix}.transcode.${queue}: ${error.message}`);
          }
       }
 
@@ -260,11 +260,11 @@ export class RabbitMQConnection {
             console.log(`Transcoding job published for chapter ${jobData.chapter.id} with priority ${priority}`);
             return true;
          } else {
-            console.error('Failed to publish transcoding job - channel buffer full');
+            // console.error('Failed to publish transcoding job - channel buffer full');
             return false;
          }
-      } catch (error) {
-         console.error('Error publishing transcoding job:', error);
+      } catch (_error) {
+         // console.error('Error publishing transcoding job:', _error);
          return false;
       }
    }
@@ -293,8 +293,8 @@ export class RabbitMQConnection {
                messageCount: queueInfo.messageCount,
                consumerCount: queueInfo.consumerCount
             };
-         } catch (error) {
-            console.error(`Error getting stats for queue ${queue}:`, error);
+         } catch (_error) {
+            // console.error(`Error getting stats for queue ${queue}:`, _error);
             stats[queue] = {
                messageCount: 0,
                consumerCount: 0
@@ -313,7 +313,7 @@ export class RabbitMQConnection {
       this.channel = null;
 
       if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-         console.error('Max reconnection attempts reached. Stopping reconnection attempts.');
+         // console.error('Max reconnection attempts reached. Stopping reconnection attempts.');
          return;
       }
 
@@ -325,8 +325,8 @@ export class RabbitMQConnection {
       setTimeout(async () => {
          try {
             await this.connect();
-         } catch (error) {
-            console.error('Reconnection attempt failed:', error);
+         } catch (_error) {
+            // console.error('Reconnection attempt failed:', _error);
          }
       }, delay);
    }
@@ -347,8 +347,8 @@ export class RabbitMQConnection {
          }
 
          console.log('RabbitMQ connection closed gracefully');
-      } catch (error) {
-         console.error('Error closing RabbitMQ connection:', error);
+      } catch (_error) {
+         // console.error('Error closing RabbitMQ connection:', _error);
       }
    }
 
@@ -383,7 +383,7 @@ export class RabbitMQConnection {
                this.channel!.ack(msg);
                console.log(`Processed user creation message for userId: ${messageContent.userId}`);
             } catch (error: any) {
-               console.error('Error processing user creation message:', error);
+               // console.error('Error processing user creation message:', error);
 
                // Log error and acknowledge message (no retry/DLQ as per requirements)
                this.channel!.ack(msg);
@@ -394,7 +394,7 @@ export class RabbitMQConnection {
 
          console.log(`Started consuming user creation messages from queue: ${queueName}`);
       } catch (error: any) {
-         console.error('Error setting up user creation message consumer:', error);
+         // console.error('Error setting up user creation message consumer:', error);
          throw error;
       }
    }
@@ -413,8 +413,8 @@ export class RabbitMQConnection {
       try {
          await this.channel.cancel(queueName);
          console.log(`Stopped consuming user creation messages from queue: ${queueName}`);
-      } catch (error: any) {
-         console.error('Error stopping user creation message consumer:', error);
+      } catch (_error: any) {
+         // console.error('Error stopping user creation message consumer:', _error);
       }
    }
 }

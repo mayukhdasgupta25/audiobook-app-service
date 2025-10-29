@@ -101,8 +101,8 @@ export class QueueManager {
          console.log(`Queue '${name}' is ready`);
       });
 
-      queue.on('error', (error) => {
-         console.error(`Queue '${name}' error:`, error);
+      queue.on('error', (_error) => {
+         // console.error(`Queue '${name}' error:`, _error);
       });
 
       queue.on('waiting', (jobId) => {
@@ -126,7 +126,7 @@ export class QueueManager {
       });
 
       queue.on('failed', (job, err) => {
-         console.error(`Job ${job.id} failed in queue '${name}':`, err.message);
+         // console.error(`Job ${job.id} failed in queue '${name}':`, err.message);
       });
 
       queue.on('paused', () => {
@@ -298,8 +298,9 @@ export class QueueManager {
       console.log('Shutting down all queues...');
 
       const shutdownPromises = Array.from(this.queues.values()).map(queue =>
-         queue.close().catch((error: any) =>
-            console.error('Error closing queue:', error)
+         queue.close().catch((_error: any) =>
+            // console.error('Error closing queue:', _error)
+            void 0
          )
       );
 
@@ -327,8 +328,8 @@ export class QueueManager {
             memoryUsage,
             keyCount,
          };
-      } catch (error: any) {
-         console.error('Failed to get Redis info:', error);
+      } catch (_error: any) {
+         // console.error('Failed to get Redis info:', _error);
          return {
             connected: false,
             memoryUsage: null,

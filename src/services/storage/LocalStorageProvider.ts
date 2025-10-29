@@ -104,8 +104,8 @@ export class LocalStorageProvider implements StorageProvider {
          }
 
          return true;
-      } catch (error: any) {
-         console.error('Local delete error:', error);
+      } catch (_error: any) {
+         // console.error('Local delete error:', _error);
          return false;
       }
    }
@@ -160,8 +160,8 @@ export class LocalStorageProvider implements StorageProvider {
 
          await readDir(dirPath, '');
          return files;
-      } catch (error: any) {
-         console.error('Local list files error:', error);
+      } catch (_error: any) {
+         // console.error('Local list files error:', _error);
          return [];
       }
    }
@@ -199,7 +199,7 @@ export class LocalStorageProvider implements StorageProvider {
          if (error.code === 'ENOENT') {
             return null;
          }
-         console.error('Local metadata error:', error);
+         // console.error('Local metadata error:', error);
          return null;
       }
    }
@@ -230,8 +230,8 @@ export class LocalStorageProvider implements StorageProvider {
          }
 
          return true;
-      } catch (error: any) {
-         console.error('Local copy error:', error);
+      } catch (_error: any) {
+         // console.error('Local copy error:', _error);
          return false;
       }
    }
@@ -246,8 +246,8 @@ export class LocalStorageProvider implements StorageProvider {
             return await this.deleteFile(sourcePath);
          }
          return false;
-      } catch (error: any) {
-         console.error('Local move error:', error);
+      } catch (_error: any) {
+         // console.error('Local move error:', _error);
          return false;
       }
    }
@@ -284,8 +284,8 @@ export class LocalStorageProvider implements StorageProvider {
       try {
          await fs.access(this.basePath);
          return true;
-      } catch (error: any) {
-         console.error('Local storage connection test failed:', error);
+      } catch (_error: any) {
+         // console.error('Local storage connection test failed:', _error);
          return false;
       }
    }
@@ -325,8 +325,8 @@ export class LocalStorageProvider implements StorageProvider {
             totalSize,
             fileCount
          };
-      } catch (error: any) {
-         console.error('Local storage info error:', error);
+      } catch (_error: any) {
+         // console.error('Local storage info error:', _error);
          return {
             basePath: this.basePath,
             totalSize: 0,

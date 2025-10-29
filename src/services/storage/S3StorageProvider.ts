@@ -94,8 +94,8 @@ export class S3StorageProvider implements StorageProvider {
 
          await this.s3.deleteObject(params).promise();
          return true;
-      } catch (error: any) {
-         console.error('S3 delete error:', error);
+      } catch (_error: any) {
+         // console.error('S3 delete error:', _error);
          return false;
       }
    }
@@ -134,7 +134,7 @@ export class S3StorageProvider implements StorageProvider {
          if (error.code === 'NotFound') {
             return false;
          }
-         console.error('S3 file exists check error:', error);
+         // console.error('S3 file exists check error:', error);
          return false;
       }
    }
@@ -152,8 +152,8 @@ export class S3StorageProvider implements StorageProvider {
          const result = await this.s3.listObjectsV2(params).promise();
 
          return result.Contents?.map(obj => obj.Key!).filter(key => key !== undefined) || [];
-      } catch (error: any) {
-         console.error('S3 list files error:', error);
+      } catch (_error: any) {
+         // console.error('S3 list files error:', _error);
          return [];
       }
    }
@@ -180,7 +180,7 @@ export class S3StorageProvider implements StorageProvider {
          if (error.code === 'NotFound') {
             return null;
          }
-         console.error('S3 metadata error:', error);
+         // console.error('S3 metadata error:', error);
          return null;
       }
    }
@@ -198,8 +198,8 @@ export class S3StorageProvider implements StorageProvider {
 
          await this.s3.copyObject(params).promise();
          return true;
-      } catch (error: any) {
-         console.error('S3 copy error:', error);
+      } catch (_error: any) {
+         // console.error('S3 copy error:', _error);
          return false;
       }
    }
@@ -214,8 +214,8 @@ export class S3StorageProvider implements StorageProvider {
             return await this.deleteFile(sourcePath);
          }
          return false;
-      } catch (error: any) {
-         console.error('S3 move error:', error);
+      } catch (_error: any) {
+         // console.error('S3 move error:', _error);
          return false;
       }
    }
@@ -249,8 +249,8 @@ export class S3StorageProvider implements StorageProvider {
       try {
          await this.s3.headBucket({ Bucket: this.bucket }).promise();
          return true;
-      } catch (error: any) {
-         console.error('S3 connection test failed:', error);
+      } catch (_error: any) {
+         // console.error('S3 connection test failed:', _error);
          return false;
       }
    }

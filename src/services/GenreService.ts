@@ -62,7 +62,7 @@ export class GenreService {
             throw error;
          }
 
-         console.error('Error fetching genre by ID:', error);
+         // console.error('Error fetching genre by ID:', error);
          throw new ApiError(
             MessageHandler.getErrorMessage('genres.fetch_failed'),
             HttpStatusCode.INTERNAL_SERVER_ERROR,

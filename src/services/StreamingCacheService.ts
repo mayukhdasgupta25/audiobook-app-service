@@ -58,8 +58,8 @@ export class StreamingCacheService {
          this.stats.misses++;
          this.updateHitRate();
          return null;
-      } catch (error: any) {
-         console.error('Cache get error:', error);
+      } catch (_error: any) {
+         // console.error('Cache get error:', _error);
          this.stats.misses++;
          this.updateHitRate();
          return null;
@@ -96,8 +96,8 @@ export class StreamingCacheService {
          this.stats.cacheSize += value.length;
 
          return true;
-      } catch (error: any) {
-         console.error('Cache set error:', error);
+      } catch (_error: any) {
+         // console.error('Cache set error:', _error);
          return false;
       }
    }
@@ -110,8 +110,8 @@ export class StreamingCacheService {
          const deleted = await this.redis.getClient().del(key);
          await this.redis.getClient().del(`${key}:meta`);
          return deleted > 0;
-      } catch (error: any) {
-         console.error('Cache delete error:', error);
+      } catch (_error: any) {
+         // console.error('Cache delete error:', _error);
          return false;
       }
    }
@@ -123,8 +123,8 @@ export class StreamingCacheService {
       try {
          const exists = await this.redis.getClient().exists(key);
          return exists === 1;
-      } catch (error: any) {
-         console.error('Cache exists error:', error);
+      } catch (_error: any) {
+         // console.error('Cache exists error:', _error);
          return false;
       }
    }
@@ -154,11 +154,11 @@ export class StreamingCacheService {
 
             return content;
          } catch (storageError: any) {
-            console.error('Storage fallback error:', storageError);
+            // console.error('Storage fallback error:', storageError);
             return null;
          }
-      } catch (error: any) {
-         console.error('Get with fallback error:', error);
+      } catch (_error: any) {
+         // console.error('Get with fallback error:', _error);
          return null;
       }
    }
@@ -181,8 +181,8 @@ export class StreamingCacheService {
          const contentType = 'application/vnd.apple.mpegurl';
 
          return await this.set(key, content, config.STREAMING_CACHE_TTL, contentType);
-      } catch (error: any) {
-         console.error('Cache playlist error:', error);
+      } catch (_error: any) {
+         // console.error('Cache playlist error:', _error);
          return false;
       }
    }
@@ -202,8 +202,8 @@ export class StreamingCacheService {
 
          const content = await this.get(key);
          return content ? content.toString('utf-8') : null;
-      } catch (error: any) {
-         console.error('Get cached playlist error:', error);
+      } catch (_error: any) {
+         // console.error('Get cached playlist error:', _error);
          return null;
       }
    }
@@ -220,8 +220,8 @@ export class StreamingCacheService {
          const contentType = 'video/mp2t';
 
          return await this.set(key, segmentContent, config.STREAMING_CACHE_TTL, contentType);
-      } catch (error: any) {
-         console.error('Cache segment error:', error);
+      } catch (_error: any) {
+         // console.error('Cache segment error:', _error);
          return false;
       }
    }
@@ -233,8 +233,8 @@ export class StreamingCacheService {
       try {
          const key = `stream:segment:${segmentId}`;
          return await this.get(key);
-      } catch (error: any) {
-         console.error('Get cached segment error:', error);
+      } catch (_error: any) {
+         // console.error('Get cached segment error:', _error);
          return null;
       }
    }
@@ -251,8 +251,8 @@ export class StreamingCacheService {
          const contentType = 'video/mp2t';
 
          return await this.getWithFallback(key, storagePath, contentType);
-      } catch (error: any) {
-         console.error('Get segment with fallback error:', error);
+      } catch (_error: any) {
+         // console.error('Get segment with fallback error:', _error);
          return null;
       }
    }
@@ -277,11 +277,11 @@ export class StreamingCacheService {
                await this.cacheSegment(segmentId, segmentContent);
                loadedCount++;
             } catch (error: any) {
-               console.error(`Failed to preload segment ${segmentId}:`, error);
+               // console.error(`Failed to preload segment ${segmentId}:`, error);
             }
          }
-      } catch (error: any) {
-         console.error('Preload chapter segments error:', error);
+      } catch (_error: any) {
+         // console.error('Preload chapter segments error:', _error);
       }
 
       console.log(`Preloaded ${loadedCount}/${segmentCount} segments for chapter ${chapterId}, bitrate ${bitrate}`);
@@ -302,8 +302,8 @@ export class StreamingCacheService {
 
          console.log(`Cleared ${keys.length} cache entries for chapter ${chapterId}`);
          return keys.length;
-      } catch (error: any) {
-         console.error('Clear chapter cache error:', error);
+      } catch (_error: any) {
+         // console.error('Clear chapter cache error:', _error);
          return 0;
       }
    }
@@ -322,8 +322,8 @@ export class StreamingCacheService {
 
          console.log(`Cleared ${keys.length} cache entries`);
          return keys.length;
-      } catch (error: any) {
-         console.error('Clear all cache error:', error);
+      } catch (_error: any) {
+         // console.error('Clear all cache error:', _error);
          return 0;
       }
    }
@@ -344,8 +344,8 @@ export class StreamingCacheService {
             redisInfo,
             cacheKeys
          };
-      } catch (error: any) {
-         console.error('Get cache stats error:', error);
+      } catch (_error: any) {
+         // console.error('Get cache stats error:', _error);
          return {
             ...this.stats,
             redisInfo: null,
@@ -381,8 +381,8 @@ export class StreamingCacheService {
             createdAt: new Date(metadata.createdAt),
             expiresAt: new Date(metadata.expiresAt)
          };
-      } catch (error: any) {
-         console.error('Get cache metadata error:', error);
+      } catch (_error: any) {
+         // console.error('Get cache metadata error:', _error);
          return null;
       }
    }
@@ -448,8 +448,8 @@ export class StreamingCacheService {
          }
 
          return true;
-      } catch (error: any) {
-         console.error('Cache test failed:', error);
+      } catch (_error: any) {
+         // console.error('Cache test failed:', _error);
          return false;
       }
    }

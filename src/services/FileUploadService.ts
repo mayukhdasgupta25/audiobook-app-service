@@ -148,8 +148,8 @@ export class FileUploadService {
          } else {
             return await this.storageProvider.deleteFile(filePath);
          }
-      } catch (error: any) {
-         console.error('File deletion error:', error);
+      } catch (_error: any) {
+         // console.error('File deletion error:', _error);
          return false;
       }
    }
@@ -168,8 +168,8 @@ export class FileUploadService {
          }
 
          return false;
-      } catch (error: any) {
-         console.error('Local storage deletion error:', error);
+      } catch (_error: any) {
+         // console.error('Local storage deletion error:', _error);
          return false;
       }
    }
@@ -185,8 +185,8 @@ export class FileUploadService {
          } else {
             return await this.storageProvider.fileExists(filePath);
          }
-      } catch (error: any) {
-         console.error('File existence check error:', error);
+      } catch (_error: any) {
+         // console.error('File existence check error:', _error);
          return false;
       }
    }
@@ -216,8 +216,8 @@ export class FileUploadService {
          } else {
             return await this.storageProvider.getFileMetadata(filePath);
          }
-      } catch (error: any) {
-         console.error('File metadata retrieval error:', error);
+      } catch (_error: any) {
+         // console.error('File metadata retrieval error:', _error);
          return null;
       }
    }

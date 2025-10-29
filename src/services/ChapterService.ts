@@ -208,7 +208,7 @@ export class ChapterService {
             if (published) {
                console.log(`Transcoding job published for new chapter ${chapter.id}`);
             } else {
-               console.error(`Failed to publish transcoding job for chapter ${chapter.id}`);
+               // console.error(`Failed to publish transcoding job for chapter ${chapter.id}`);
             }
          } catch (_error) {
             // Log error but don't fail chapter creation
