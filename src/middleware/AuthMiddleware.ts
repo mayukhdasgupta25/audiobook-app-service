@@ -1,4 +1,3 @@
-/// <reference path="../types/jwk-to-pem.d.ts" />
 /**
  * Authentication Middleware
  * Verifies JWT tokens by fetching JWKS from the auth-service
@@ -7,6 +6,7 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import jwkToPem from 'jwk-to-pem';
+import axios from 'axios';
 import { config } from '../config/env';
 import { JWKSResponse, JWK, JWTHeader } from '../types/auth';
 
@@ -68,16 +68,8 @@ export async function authenticateJWT(
       // 3. Fetch JWKS from auth-service
       let jwks: JWKSResponse;
       try {
-         const jwksResponse = await fetch(config.JWKS_ENDPOINT);
-         if (!jwksResponse.ok) {
-            res.status(500).json({
-               success: false,
-               message: 'Failed to fetch JWKS',
-               details: `Auth service returned status ${jwksResponse.status}`
-            });
-            return;
-         }
-         jwks = await jwksResponse.json() as JWKSResponse;
+         const jwksResponse = await axios.get<JWKSResponse>(config.JWKS_ENDPOINT);
+         jwks = jwksResponse.data;
 
          // Trim whitespace from all JWK values in the keys array
          jwks.keys.forEach(key => {
@@ -89,11 +81,22 @@ export async function authenticateJWT(
             if (key.alg) key.alg = key.alg.trim();
          });
       } catch (fetchError: any) {
-         res.status(500).json({
-            success: false,
-            message: 'Failed to fetch JWKS from auth-service',
-            details: `Unable to connect to authentication service: ${fetchError.message}`
-         });
+         // Handle axios errors with more detailed information
+         if (axios.isAxiosError(fetchError)) {
+            const statusCode = fetchError.response?.status || 500;
+            const errorMessage = fetchError.response?.statusText || fetchError.message;
+            res.status(statusCode).json({
+               success: false,
+               message: 'Failed to fetch JWKS from auth-service',
+               details: `Auth service returned status ${statusCode}: ${errorMessage}`
+            });
+         } else {
+            res.status(500).json({
+               success: false,
+               message: 'Failed to fetch JWKS from auth-service',
+               details: `Unable to connect to authentication service: ${fetchError.message || 'Unknown error'}`
+            });
+         }
          return;
       }
 
