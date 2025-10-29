@@ -119,7 +119,7 @@ export class MessageHandler {
             const fileContents = fs.readFileSync(messagesPath, 'utf8');
             this.messages = yaml.load(fileContents) as MessagesConfig;
          } catch (error) {
-            console.error('Failed to load messages.yaml:', error);
+            // console.error('Failed to load messages.yaml:', error);
             // Fallback to default messages
             this.messages = this.getDefaultMessages();
          }
