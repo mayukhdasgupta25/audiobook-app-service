@@ -4,11 +4,6 @@
  */
 
 import { UserProfileService } from '../../services/UserProfileService';
-import { UsernameGenerator } from '../../utils/UsernameGenerator';
-
-// Mock UsernameGenerator
-jest.mock('../../utils/UsernameGenerator');
-const MockedUsernameGenerator = UsernameGenerator as jest.MockedClass<typeof UsernameGenerator>;
 
 // Mock Prisma client
 const mockPrisma = {
@@ -26,97 +21,10 @@ describe('UserProfileService', () => {
    beforeEach(() => {
       jest.clearAllMocks();
 
-      // Mock UsernameGenerator methods
-      MockedUsernameGenerator.mockImplementation(() => ({
-         generateUniqueUsername: jest.fn().mockResolvedValue({ username: 'user123' }),
-      } as any));
-
       userProfileService = new UserProfileService(mockPrisma);
    });
 
-   describe('createUserProfile', () => {
-      it('should create a new user profile with generated username', async () => {
-         const userId = 'user-123';
-         const generatedUsername = 'user123';
-
-         mockPrisma.userProfile.findUnique.mockResolvedValue(null);
-
-         jest.spyOn(UsernameGenerator.prototype, 'generateUniqueUsername').mockResolvedValue({ username: generatedUsername, attempts: 1 });
-
-         mockPrisma.userProfile.create.mockResolvedValue({
-            id: 'profile-1',
-            userId,
-            username: generatedUsername,
-            createdAt: new Date(),
-         });
-
-         const result = await userProfileService.createUserProfile(userId);
-
-         expect(result.success).toBe(true);
-         if (result.success && result.userProfile) {
-            expect(result.userProfile.userId).toBe(userId);
-            expect(result.userProfile.username).toBe(generatedUsername);
-         }
-         expect(mockPrisma.userProfile.create).toHaveBeenCalledWith({
-            data: {
-               userId,
-               username: generatedUsername,
-               preferences: {
-                  theme: 'light',
-                  language: 'en',
-                  autoPlay: false,
-                  playbackSpeed: 1.0,
-               },
-            },
-            select: {
-               id: true,
-               userId: true,
-               username: true,
-               createdAt: true,
-            },
-         });
-      });
-
-      it('should return existing profile if already exists', async () => {
-         const userId = 'user-123';
-         const existingProfile = {
-            id: 'profile-1',
-            userId,
-            username: 'existing-user',
-         };
-
-         mockPrisma.userProfile.findUnique.mockResolvedValue(existingProfile);
-
-         const result = await userProfileService.createUserProfile(userId);
-
-         expect(result.success).toBe(true);
-         if (result.success && result.userProfile) {
-            expect(result.userProfile.id).toBe('profile-1');
-            expect(result.userProfile.username).toBe('existing-user');
-         }
-         expect(mockPrisma.userProfile.create).not.toHaveBeenCalled();
-      });
-
-      it('should handle errors during profile creation', async () => {
-         const userId = 'user-123';
-         const error = new Error('Database error');
-
-         mockPrisma.userProfile.findUnique.mockResolvedValue(null);
-
-         // Mock the usernameGenerator instance method
-         const mockGenerateUniqueUsername = jest.spyOn(
-            userProfileService['usernameGenerator'],
-            'generateUniqueUsername'
-         ).mockRejectedValue(error);
-
-         const result = await userProfileService.createUserProfile(userId);
-
-         expect(result.success).toBe(false);
-         expect(result.error).toBeDefined();
-
-         mockGenerateUniqueUsername.mockRestore();
-      });
-   });
+   // Removed createUserProfile tests as creation is no longer supported
 
    describe('getUserProfile', () => {
       it('should return user profile by userId', async () => {
@@ -246,52 +154,10 @@ describe('UserProfileService', () => {
       });
    });
 
-   describe('deleteUserProfile', () => {
-      it('should delete user profile successfully', async () => {
-         const userId = 'user-123';
-
-         mockPrisma.userProfile.delete.mockResolvedValue({});
-
-         const result = await userProfileService.deleteUserProfile(userId);
-
-         expect(result).toBe(true);
-         expect(mockPrisma.userProfile.delete).toHaveBeenCalledWith({
-            where: { userId },
-         });
-      });
-
-      it('should handle errors during deletion', async () => {
-         const userId = 'user-123';
-         const error = new Error('Deletion failed');
-
-         mockPrisma.userProfile.delete.mockRejectedValue(error);
-
-         await expect(userProfileService.deleteUserProfile(userId)).rejects.toThrow('Deletion failed');
-      });
-   });
+   // Removed deleteUserProfile tests as deletion is no longer supported
 
    describe('Edge cases', () => {
-      it('should handle special characters in username', async () => {
-         const userId = 'user-123';
-         const specialUsername = 'user_@#123';
-
-         mockPrisma.userProfile.findUnique.mockResolvedValue(null);
-         jest.spyOn(UsernameGenerator.prototype, 'generateUniqueUsername').mockResolvedValue({ username: specialUsername, attempts: 1 });
-
-         mockPrisma.userProfile.create.mockResolvedValue({
-            id: 'profile-1',
-            userId,
-            username: specialUsername,
-            createdAt: new Date(),
-         });
-
-         const result = await userProfileService.createUserProfile(userId);
-
-         expect(result.success).toBe(true);
-         if (result.success && result.userProfile) {
-            expect(result.userProfile.username).toBe(specialUsername);
-         }
-      });
+      // Creation-related edge cases removed
 
       it('should handle complex preferences object', async () => {
          const userId = 'user-123';
@@ -307,9 +173,6 @@ describe('UserProfileService', () => {
                volume: 75,
             },
          };
-
-         mockPrisma.userProfile.findUnique.mockResolvedValue(null);
-         jest.spyOn(UsernameGenerator.prototype, 'generateUniqueUsername').mockResolvedValue({ username: 'user123', attempts: 1 });
 
          mockPrisma.userProfile.update.mockResolvedValue({
             id: 'profile-1',
