@@ -5,6 +5,7 @@
 import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { GenreController } from '../controllers/GenreController';
+import { ValidationMiddleware } from '../middleware/ValidationMiddleware';
 
 export function createGenreRoutes(prisma: PrismaClient): Router {
    const router = Router();
@@ -55,6 +56,32 @@ export function createGenreRoutes(prisma: PrismaClient): Router {
     *         $ref: '#/components/responses/InternalServerError'
     */
    router.get('/', genreController.getAllGenres);
+
+   // Simple inline validator for genre body
+   const validateGenreBody = (req: any, res: any, next: any) => {
+      const { name } = req.body || {};
+      if (typeof name !== 'string') {
+         return res.status(400).json({ success: false, message: 'Invalid name' });
+      }
+      const trimmed = name.trim();
+      if (trimmed.length === 0 || trimmed.length > 100) {
+         return res.status(400).json({ success: false, message: 'Invalid name' });
+      }
+      req.body.name = trimmed;
+      next();
+   };
+
+   // Create genre
+   router.post('/', validateGenreBody, genreController.createGenre);
+
+   // Get by id
+   router.get('/:id', ValidationMiddleware.validateId, genreController.getGenreById);
+
+   // Update
+   router.put('/:id', ValidationMiddleware.validateId, validateGenreBody, genreController.updateGenre);
+
+   // Delete
+   router.delete('/:id', ValidationMiddleware.validateId, genreController.deleteGenre);
 
    return router;
 }

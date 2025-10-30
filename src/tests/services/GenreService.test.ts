@@ -1,5 +1,110 @@
 /**
  * GenreService Tests
+ */
+import { GenreService } from '../../services/GenreService';
+import { ApiError } from '../../types/ApiError';
+
+const mockPrisma = {
+   genre: {
+      findMany: jest.fn(),
+      findUnique: jest.fn(),
+      findFirst: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+      delete: jest.fn(),
+   },
+} as any;
+
+describe('GenreService', () => {
+   let service: GenreService;
+
+   beforeEach(() => {
+      jest.clearAllMocks();
+      service = new GenreService(mockPrisma);
+   });
+
+   describe('createGenre', () => {
+      it('creates a genre when name is unique', async () => {
+         mockPrisma.genre.findFirst.mockResolvedValue(null);
+         mockPrisma.genre.create.mockResolvedValue({ id: 'g1', name: 'Fiction', createdAt: new Date(), updatedAt: new Date() });
+
+         const result = await service.createGenre('Fiction');
+         expect(result.name).toBe('Fiction');
+         expect(mockPrisma.genre.create).toHaveBeenCalledWith({ data: { name: 'Fiction' } });
+      });
+
+      it('throws on duplicate name', async () => {
+         mockPrisma.genre.findFirst.mockResolvedValue({ id: 'g1', name: 'Fiction' });
+         await expect(service.createGenre('Fiction')).rejects.toBeInstanceOf(ApiError);
+      });
+   });
+
+   describe('getAllGenres', () => {
+      it('returns sorted genres', async () => {
+         mockPrisma.genre.findMany.mockResolvedValue([
+            { id: 'g2', name: 'Non-Fiction', createdAt: new Date(), updatedAt: new Date() },
+            { id: 'g1', name: 'Fiction', createdAt: new Date(), updatedAt: new Date() },
+         ]);
+         const result = await service.getAllGenres();
+         expect(Array.isArray(result)).toBe(true);
+         expect(mockPrisma.genre.findMany).toHaveBeenCalledWith({ orderBy: { name: 'asc' } });
+      });
+   });
+
+   describe('getGenreById', () => {
+      it('returns genre when found', async () => {
+         mockPrisma.genre.findUnique.mockResolvedValue({ id: 'g1', name: 'Fiction' });
+         const result = await service.getGenreById('g1');
+         expect(result.id).toBe('g1');
+      });
+
+      it('throws not found when missing', async () => {
+         mockPrisma.genre.findUnique.mockResolvedValue(null);
+         await expect(service.getGenreById('missing')).rejects.toBeInstanceOf(ApiError);
+      });
+   });
+
+   describe('updateGenre', () => {
+      it('updates successfully when no duplicate', async () => {
+         mockPrisma.genre.findUnique.mockResolvedValue({ id: 'g1', name: 'Old' });
+         mockPrisma.genre.findFirst.mockResolvedValue(null);
+         mockPrisma.genre.update.mockResolvedValue({ id: 'g1', name: 'New' });
+
+         const result = await service.updateGenre('g1', 'New');
+         expect(result.name).toBe('New');
+         expect(mockPrisma.genre.update).toHaveBeenCalledWith({ where: { id: 'g1' }, data: { name: 'New' } });
+      });
+
+      it('throws not found if id missing', async () => {
+         mockPrisma.genre.findUnique.mockResolvedValue(null);
+         await expect(service.updateGenre('missing', 'Name')).rejects.toBeInstanceOf(ApiError);
+      });
+
+      it('throws on duplicate name', async () => {
+         mockPrisma.genre.findUnique.mockResolvedValue({ id: 'g1', name: 'Old' });
+         mockPrisma.genre.findFirst.mockResolvedValue({ id: 'g2', name: 'New' });
+         await expect(service.updateGenre('g1', 'New')).rejects.toBeInstanceOf(ApiError);
+      });
+   });
+
+   describe('deleteGenre', () => {
+      it('deletes successfully', async () => {
+         mockPrisma.genre.findUnique.mockResolvedValue({ id: 'g1', name: 'Fiction' });
+         mockPrisma.genre.delete.mockResolvedValue({});
+         const result = await service.deleteGenre('g1');
+         expect(result).toBe(true);
+         expect(mockPrisma.genre.delete).toHaveBeenCalledWith({ where: { id: 'g1' } });
+      });
+
+      it('throws not found when missing', async () => {
+         mockPrisma.genre.findUnique.mockResolvedValue(null);
+         await expect(service.deleteGenre('missing')).rejects.toBeInstanceOf(ApiError);
+      });
+   });
+});
+
+/**
+ * GenreService Tests
  * Tests for genre management functionality
  */
 
