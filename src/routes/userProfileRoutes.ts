@@ -11,9 +11,15 @@ export function createUserProfileRoutes(prisma: PrismaClient): Router {
    const router = Router();
    const userProfileController = new UserProfileController(prisma);
 
+   // Get current user's profile
+   router.get(
+      '/user/profile',
+      userProfileController.getProfile
+   );
+
    // Update current user's profile
    router.put(
-      '/auth/profile',
+      '/user/profile',
       ValidationMiddleware.validateUserProfileUpdate,
       userProfileController.updateProfile
    );

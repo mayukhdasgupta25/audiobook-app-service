@@ -15,7 +15,39 @@ export class UserProfileController {
 
    /**
     * @swagger
-    * /api/v1/auth/profile:
+    * /api/v1/user/profile:
+    *   get:
+    *     summary: Get current user's profile
+    *     description: Retrieve the authenticated user's profile information
+    *     tags: [Auth]
+    *     responses:
+    *       200:
+    *         description: Profile retrieved successfully
+    *         content:
+    *           application/json:
+    *             schema:
+    *               allOf:
+    *                 - $ref: '#/components/schemas/ApiResponse'
+    *                 - type: object
+    *                   properties:
+    *                     data:
+    *                       $ref: '#/components/schemas/UserProfile'
+    *       401:
+    *         $ref: '#/components/responses/Unauthorized'
+    *       404:
+    *         $ref: '#/components/responses/NotFound'
+    *       500:
+    *         $ref: '#/components/responses/InternalServerError'
+    */
+   getProfile = ErrorHandler.asyncHandler(async (req: Request, res: Response): Promise<void> => {
+      const userId = (req as any).user.id;
+      const profile = await this.userProfileService.getUserProfile(userId);
+      ResponseHandler.success(res, profile, MessageHandler.getSuccessMessage('auth.profile_retrieved'));
+   });
+
+   /**
+    * @swagger
+    * /api/v1/user/profile:
     *   put:
     *     summary: Update current user's profile
     *     description: Update the authenticated user's profile information
