@@ -74,13 +74,13 @@ export function createGenreRoutes(prisma: PrismaClient): Router {
    // Create genre
    router.post('/', validateGenreBody, genreController.createGenre);
 
-   // Get by id
+   // Get genre by id
    router.get('/:id', ValidationMiddleware.validateId, genreController.getGenreById);
 
-   // Update
+   // Update genre
    router.put('/:id', ValidationMiddleware.validateId, validateGenreBody, genreController.updateGenre);
 
-   // Delete
+   // Delete genre
    router.delete('/:id', ValidationMiddleware.validateId, genreController.deleteGenre);
 
    return router;
