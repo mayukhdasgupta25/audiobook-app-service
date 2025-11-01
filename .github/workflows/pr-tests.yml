@@ -15,7 +15,7 @@ on:
 
 jobs:
   test:
-    name: Run PR Tests
+    name: Run Tests
     runs-on: ubuntu-latest
 
     # Run tests for PRs with specific prefixes in title/branch, or for push events to prefixed branches

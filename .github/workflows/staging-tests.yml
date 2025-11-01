@@ -7,7 +7,7 @@ on:
 
 jobs:
   test:
-    name: Run Staging Branch Tests
+    name: Run Tests
     runs-on: ubuntu-latest
 
     services:
