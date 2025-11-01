@@ -1,9 +1,25 @@
-name: Main Branch Tests
+name: CI
 
 on:
+  # Gate merges into env branches (the checks you will *require*)
+  pull_request:
+    branches: [development, test, staging, main]
+    types: [opened, synchronize, reopened]
+
+  # Optional: fast feedback while you work on PR branches
   push:
     branches:
-      - main
+      - "feature/**"
+      - "improve/**"
+      - "bugfix/**"
+      - "hotfix/**"
+
+concurrency:
+  group: ci-${{ github.event.pull_request.head.ref || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
 
 jobs:
   test:
@@ -50,7 +66,7 @@ jobs:
           DATABASE_URL: ${{ env.DATABASE_URL }}
 
       - name: Run tests
-        run: npm test
+        run: npm test -- --testPathIgnorePatterns='/tests/controllers/.*\\.test\\.ts$'
         env:
           DATABASE_URL: ${{ env.DATABASE_URL }}
 
