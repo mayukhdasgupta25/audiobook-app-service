@@ -437,4 +437,80 @@ export class ValidationMiddleware {
 
     next();
   }
+
+  /**
+   * Validate UserAudioBook creation request
+   */
+  static validateUserAudioBookCreation(req: Request, res: Response, next: NextFunction): void {
+    const { userProfileId, audiobookId, type } = req.body;
+
+    // Validate required fields
+    if (!userProfileId || typeof userProfileId !== 'string') {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.user_profile_id_required'));
+      return;
+    }
+
+    // Validate CUID format for userProfileId
+    const cuidRegex = /^c[a-z0-9]{24}$/;
+    if (!cuidRegex.test(userProfileId)) {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.id_format'));
+      return;
+    }
+
+    if (!audiobookId || typeof audiobookId !== 'string') {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.audiobook_id_required'));
+      return;
+    }
+
+    // Validate CUID format for audiobookId
+    if (!cuidRegex.test(audiobookId)) {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.id_format'));
+      return;
+    }
+
+    // Validate type if provided
+    if (type !== undefined) {
+      if (!['OWNED', 'UPLOADED', 'PURCHASED'].includes(type)) {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.user_audiobook_type_invalid'));
+        return;
+      }
+    }
+
+    next();
+  }
+
+  /**
+   * Validate UserAudioBook update request
+   */
+  static validateUserAudioBookUpdate(req: Request, res: Response, next: NextFunction): void {
+    const { type } = req.body;
+
+    // Type is optional for update, but if provided must be valid
+    if (type !== undefined) {
+      if (!['OWNED', 'UPLOADED', 'PURCHASED'].includes(type)) {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.user_audiobook_type_invalid'));
+        return;
+      }
+    } else {
+      // Must have at least one field to update
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.no_update_fields'));
+      return;
+    }
+
+    next();
+  }
+
+  /**
+   * Validate UserAudioBook type parameter
+   */
+  static validateUserAudioBookType(req: Request, res: Response, next: NextFunction): void {
+    const { type } = req.params;
+
+    if (!type || !['OWNED', 'UPLOADED', 'PURCHASED'].includes(type)) {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.user_audiobook_type_invalid'));
+      return;
+    }
+
+    next();
+  }
 }
