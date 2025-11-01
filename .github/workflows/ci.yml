@@ -6,7 +6,7 @@ on:
     branches: [development, test, staging, main]
     types: [opened, synchronize, reopened]
 
-  # Optional: fast feedback while you work on PR branches
+  # Optional: fast feedback while you work on PR branches (feature, improve, bugfix, hotfix)
   push:
     branches:
       - "feature/**"
