@@ -6,14 +6,21 @@ on:
       - main
       - development
     types: [opened, synchronize, reopened]
+  push:
+    branches:
+      - "feature/**"
+      - "improve/**"
+      - "bugfix/**"
+      - "hotfix/**"
 
 jobs:
   test:
-    name: Run Tests
+    name: Run PR Tests
     runs-on: ubuntu-latest
 
-    # Only run tests for specific branch prefixes (hotfix, improve, feature, bugfix)
+    # Run tests for PRs with specific prefixes in title/branch, or for push events to prefixed branches
     if: |
+      github.event_name == 'push' ||
       contains(github.event.pull_request.title, 'hotfix') ||
       contains(github.event.pull_request.title, 'improve') ||
       contains(github.event.pull_request.title, 'feature') ||
