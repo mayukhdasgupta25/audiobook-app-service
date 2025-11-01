@@ -19,6 +19,36 @@ export class GenreController {
    /**
     * @swagger
     * /api/v1/genres:
+    *   post:
+    *     summary: Create a new genre
+    *     tags: [Genres]
+    *     requestBody:
+    *       required: true
+    *       content:
+    *         application/json:
+    *           schema:
+    *             type: object
+    *             required: [name]
+    *             properties:
+    *               name:
+    *                 type: string
+    *     responses:
+    *       201:
+    *         description: Genre created successfully
+    *       400:
+    *         $ref: '#/components/responses/ValidationError'
+    *       500:
+    *         $ref: '#/components/responses/InternalServerError'
+    */
+   createGenre = ErrorHandler.asyncHandler(async (req: Request, res: Response): Promise<void> => {
+      const { name } = req.body as { name: string };
+      const created = await this.genreService.createGenre(name);
+      ResponseHandler.success(res, created, MessageHandler.getSuccessMessage('genres.created'), 201);
+   });
+
+   /**
+    * @swagger
+    * /api/v1/genres:
     *   get:
     *     summary: Get all available genres
     *     description: Retrieve a list of all available genres in the system
@@ -64,5 +94,96 @@ export class GenreController {
       const genres = await this.genreService.getAllGenres();
 
       ResponseHandler.success(res, genres, MessageHandler.getSuccessMessage('genres.retrieved'));
+   });
+
+   /**
+    * @swagger
+    * /api/v1/genres/{id}:
+    *   get:
+    *     summary: Get a genre by ID
+    *     tags: [Genres]
+    *     parameters:
+    *       - name: id
+    *         in: path
+    *         required: true
+    *         schema:
+    *           type: string
+    *     responses:
+    *       200:
+    *         description: Genre retrieved successfully
+    *       404:
+    *         $ref: '#/components/responses/NotFound'
+    *       500:
+    *         $ref: '#/components/responses/InternalServerError'
+    */
+   getGenreById = ErrorHandler.asyncHandler(async (req: Request, res: Response): Promise<void> => {
+      const { id } = req.params as { id: string };
+      const genre = await this.genreService.getGenreById(id);
+      ResponseHandler.success(res, genre, MessageHandler.getSuccessMessage('genres.retrieved'));
+   });
+
+   /**
+    * @swagger
+    * /api/v1/genres/{id}:
+    *   put:
+    *     summary: Update a genre by ID
+    *     tags: [Genres]
+    *     parameters:
+    *       - name: id
+    *         in: path
+    *         required: true
+    *         schema:
+    *           type: string
+    *     requestBody:
+    *       required: true
+    *       content:
+    *         application/json:
+    *           schema:
+    *             type: object
+    *             required: [name]
+    *             properties:
+    *               name:
+    *                 type: string
+    *     responses:
+    *       200:
+    *         description: Genre updated successfully
+    *       400:
+    *         $ref: '#/components/responses/ValidationError'
+    *       404:
+    *         $ref: '#/components/responses/NotFound'
+    *       500:
+    *         $ref: '#/components/responses/InternalServerError'
+    */
+   updateGenre = ErrorHandler.asyncHandler(async (req: Request, res: Response): Promise<void> => {
+      const { id } = req.params as { id: string };
+      const { name } = req.body as { name: string };
+      const updated = await this.genreService.updateGenre(id, name);
+      ResponseHandler.success(res, updated, MessageHandler.getSuccessMessage('genres.updated'));
+   });
+
+   /**
+    * @swagger
+    * /api/v1/genres/{id}:
+    *   delete:
+    *     summary: Delete a genre by ID
+    *     tags: [Genres]
+    *     parameters:
+    *       - name: id
+    *         in: path
+    *         required: true
+    *         schema:
+    *           type: string
+    *     responses:
+    *       200:
+    *         description: Genre deleted successfully
+    *       404:
+    *         $ref: '#/components/responses/NotFound'
+    *       500:
+    *         $ref: '#/components/responses/InternalServerError'
+    */
+   deleteGenre = ErrorHandler.asyncHandler(async (req: Request, res: Response): Promise<void> => {
+      const { id } = req.params as { id: string };
+      await this.genreService.deleteGenre(id);
+      ResponseHandler.success(res, { deleted: true }, MessageHandler.getSuccessMessage('genres.deleted'));
    });
 }
