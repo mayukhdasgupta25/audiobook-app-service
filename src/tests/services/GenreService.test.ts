@@ -2,7 +2,6 @@
  * GenreService Tests
  * Tests for genre management functionality
  */
-
 import { GenreService } from '../../services/GenreService';
 import { ApiError } from '../../types/ApiError';
 
@@ -29,6 +28,7 @@ jest.mock('../../utils/MessageHandler', () => ({
             'genres.update_failed': 'Failed to update genre',
             'genres.delete_failed': 'Failed to delete genre',
             'genres.already_exists': 'Genre already exists',
+            'genres.name_exists': 'Genre name already exists',
          };
          return messages[key] || key;
       },
@@ -41,6 +41,30 @@ describe('GenreService', () => {
    beforeEach(() => {
       genreService = new GenreService(mockPrisma);
       jest.clearAllMocks();
+   });
+
+   describe('createGenre', () => {
+      it('creates a genre when name is unique', async () => {
+         mockPrisma.genre.findFirst.mockResolvedValue(null);
+         mockPrisma.genre.create.mockResolvedValue({ id: 'g1', name: 'Fiction', createdAt: new Date(), updatedAt: new Date() });
+
+         const result = await genreService.createGenre('Fiction');
+         expect(result.name).toBe('Fiction');
+         expect(mockPrisma.genre.create).toHaveBeenCalledWith({ data: { name: 'Fiction' } });
+      });
+
+      it('throws on duplicate name', async () => {
+         mockPrisma.genre.findFirst.mockResolvedValue({ id: 'g1', name: 'Fiction' });
+         await expect(genreService.createGenre('Fiction')).rejects.toBeInstanceOf(ApiError);
+      });
+
+      it('trims whitespace from genre name', async () => {
+         mockPrisma.genre.findFirst.mockResolvedValue(null);
+         mockPrisma.genre.create.mockResolvedValue({ id: 'g1', name: 'Fiction', createdAt: new Date(), updatedAt: new Date() });
+
+         await genreService.createGenre('  Fiction  ');
+         expect(mockPrisma.genre.create).toHaveBeenCalledWith({ data: { name: 'Fiction' } });
+      });
    });
 
    describe('getAllGenres', () => {
@@ -77,6 +101,16 @@ describe('GenreService', () => {
          expect(mockPrisma.genre.findMany).toHaveBeenCalledWith({
             orderBy: { name: 'asc' },
          });
+      });
+
+      it('returns sorted genres', async () => {
+         mockPrisma.genre.findMany.mockResolvedValue([
+            { id: 'g2', name: 'Non-Fiction', createdAt: new Date(), updatedAt: new Date() },
+            { id: 'g1', name: 'Fiction', createdAt: new Date(), updatedAt: new Date() },
+         ]);
+         const result = await genreService.getAllGenres();
+         expect(Array.isArray(result)).toBe(true);
+         expect(mockPrisma.genre.findMany).toHaveBeenCalledWith({ orderBy: { name: 'asc' } });
       });
 
       it('should return empty array when no genres exist', async () => {
@@ -117,11 +151,22 @@ describe('GenreService', () => {
          });
       });
 
+      it('returns genre when found', async () => {
+         mockPrisma.genre.findUnique.mockResolvedValue({ id: 'g1', name: 'Fiction' });
+         const result = await genreService.getGenreById('g1');
+         expect(result.id).toBe('g1');
+      });
+
       it('should throw ApiError when genre not found', async () => {
          mockPrisma.genre.findUnique.mockResolvedValue(null);
 
          await expect(genreService.getGenreById('non-existent')).rejects.toThrow(ApiError);
          await expect(genreService.getGenreById('non-existent')).rejects.toThrow('Genre not found');
+      });
+
+      it('throws not found when missing', async () => {
+         mockPrisma.genre.findUnique.mockResolvedValue(null);
+         await expect(genreService.getGenreById('missing')).rejects.toBeInstanceOf(ApiError);
       });
 
       it('should handle database errors', async () => {
@@ -189,6 +234,53 @@ describe('GenreService', () => {
       });
    });
 
+   describe('updateGenre', () => {
+      it('updates successfully when no duplicate', async () => {
+         mockPrisma.genre.findUnique.mockResolvedValue({ id: 'g1', name: 'Old' });
+         mockPrisma.genre.findFirst.mockResolvedValue(null);
+         mockPrisma.genre.update.mockResolvedValue({ id: 'g1', name: 'New' });
+
+         const result = await genreService.updateGenre('g1', 'New');
+         expect(result.name).toBe('New');
+         expect(mockPrisma.genre.update).toHaveBeenCalledWith({ where: { id: 'g1' }, data: { name: 'New' } });
+      });
+
+      it('throws not found if id missing', async () => {
+         mockPrisma.genre.findUnique.mockResolvedValue(null);
+         await expect(genreService.updateGenre('missing', 'Name')).rejects.toBeInstanceOf(ApiError);
+      });
+
+      it('throws on duplicate name', async () => {
+         mockPrisma.genre.findUnique.mockResolvedValue({ id: 'g1', name: 'Old' });
+         mockPrisma.genre.findFirst.mockResolvedValue({ id: 'g2', name: 'New' });
+         await expect(genreService.updateGenre('g1', 'New')).rejects.toBeInstanceOf(ApiError);
+      });
+
+      it('trims whitespace from genre name', async () => {
+         mockPrisma.genre.findUnique.mockResolvedValue({ id: 'g1', name: 'Old' });
+         mockPrisma.genre.findFirst.mockResolvedValue(null);
+         mockPrisma.genre.update.mockResolvedValue({ id: 'g1', name: 'New' });
+
+         await genreService.updateGenre('g1', '  New  ');
+         expect(mockPrisma.genre.update).toHaveBeenCalledWith({ where: { id: 'g1' }, data: { name: 'New' } });
+      });
+   });
+
+   describe('deleteGenre', () => {
+      it('deletes successfully', async () => {
+         mockPrisma.genre.findUnique.mockResolvedValue({ id: 'g1', name: 'Fiction' });
+         mockPrisma.genre.delete.mockResolvedValue({});
+         const result = await genreService.deleteGenre('g1');
+         expect(result).toBe(true);
+         expect(mockPrisma.genre.delete).toHaveBeenCalledWith({ where: { id: 'g1' } });
+      });
+
+      it('throws not found when missing', async () => {
+         mockPrisma.genre.findUnique.mockResolvedValue(null);
+         await expect(genreService.deleteGenre('missing')).rejects.toBeInstanceOf(ApiError);
+      });
+   });
+
    describe('Edge cases', () => {
       it('should handle single genre result', async () => {
          const mockGenre = {
@@ -253,4 +345,3 @@ describe('GenreService', () => {
       });
    });
 });
-

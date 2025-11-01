@@ -2,7 +2,6 @@
  * GenreController Tests
  * Tests for HTTP request handling and response formatting
  */
-
 import { PrismaClient } from '@prisma/client';
 import { GenreController } from '../../controllers/GenreController';
 import { GenreService } from '../../services/GenreService';
@@ -22,6 +21,7 @@ describe('GenreController', () => {
    let mockReq: any;
    let mockRes: any;
    let mockGenreService: jest.Mocked<GenreService>;
+   let mockNext: jest.Mock;
 
    beforeEach(() => {
       // Create mock Prisma
@@ -43,7 +43,10 @@ describe('GenreController', () => {
       } as any;
 
       // Mock next function for async handler
-      mockReq.next = jest.fn();
+      mockNext = jest.fn();
+
+      // Setup MessageHandler mock
+      (MessageHandler.getSuccessMessage as jest.Mock).mockImplementation((k: string) => k);
 
       // Clear all mocks
       jest.clearAllMocks();
@@ -65,7 +68,7 @@ describe('GenreController', () => {
          mockGenreService.getAllGenres.mockResolvedValue(mockGenres);
          (MessageHandler.getSuccessMessage as jest.Mock).mockReturnValue('Genres retrieved successfully');
 
-         await genreController.getAllGenres(mockReq, mockRes, mockReq.next);
+         await genreController.getAllGenres(mockReq, mockRes, mockNext);
 
          expect(mockGenreService.getAllGenres).toHaveBeenCalledTimes(1);
          expect(MessageHandler.getSuccessMessage).toHaveBeenCalledWith('genres.retrieved');
@@ -76,13 +79,19 @@ describe('GenreController', () => {
          );
       });
 
+      it('returns list', async () => {
+         mockGenreService.getAllGenres.mockResolvedValue([{ id: 'g1', name: 'Fiction' } as any]);
+         await genreController.getAllGenres(mockReq, mockRes, mockNext);
+         expect(ResponseHandler.success).toHaveBeenCalledWith(mockRes, [{ id: 'g1', name: 'Fiction' }], 'genres.retrieved');
+      });
+
       it('should handle empty genres list', async () => {
          const emptyGenres: any[] = [];
 
          mockGenreService.getAllGenres.mockResolvedValue(emptyGenres);
          (MessageHandler.getSuccessMessage as jest.Mock).mockReturnValue('Genres retrieved successfully');
 
-         await genreController.getAllGenres(mockReq, mockRes, mockReq.next);
+         await genreController.getAllGenres(mockReq, mockRes, mockNext);
 
          expect(mockGenreService.getAllGenres).toHaveBeenCalledTimes(1);
          expect(ResponseHandler.success).toHaveBeenCalledWith(
@@ -97,7 +106,7 @@ describe('GenreController', () => {
          mockGenreService.getAllGenres.mockRejectedValue(error);
 
          try {
-            await genreController.getAllGenres(mockReq, mockRes, mockReq.next);
+            await genreController.getAllGenres(mockReq, mockRes, mockNext);
          } catch (e) {
             expect(e).toEqual(error);
          }
@@ -110,7 +119,7 @@ describe('GenreController', () => {
          mockGenreService.getAllGenres.mockResolvedValue(mockGenres);
          (MessageHandler.getSuccessMessage as jest.Mock).mockReturnValue('Success message');
 
-         await genreController.getAllGenres(mockReq, mockRes, mockReq.next);
+         await genreController.getAllGenres(mockReq, mockRes, mockNext);
 
          expect(ResponseHandler.success).toHaveBeenCalledWith(
             mockRes,
@@ -119,5 +128,45 @@ describe('GenreController', () => {
          );
       });
    });
-});
 
+   describe('createGenre', () => {
+      it('creates and returns 201', async () => {
+         mockReq.body = { name: 'Fiction' };
+         mockGenreService.createGenre.mockResolvedValue({ id: 'g1', name: 'Fiction' } as any);
+         await genreController.createGenre(mockReq, mockRes, mockNext);
+         expect(mockGenreService.createGenre).toHaveBeenCalledWith('Fiction');
+         expect(ResponseHandler.success).toHaveBeenCalledWith(mockRes, { id: 'g1', name: 'Fiction' }, 'genres.created', 201);
+      });
+   });
+
+   describe('getGenreById', () => {
+      it('returns genre', async () => {
+         mockReq.params = { id: 'g1' };
+         mockGenreService.getGenreById.mockResolvedValue({ id: 'g1', name: 'Fiction' } as any);
+         await genreController.getGenreById(mockReq, mockRes, mockNext);
+         expect(mockGenreService.getGenreById).toHaveBeenCalledWith('g1');
+         expect(ResponseHandler.success).toHaveBeenCalledWith(mockRes, { id: 'g1', name: 'Fiction' }, 'genres.retrieved');
+      });
+   });
+
+   describe('updateGenre', () => {
+      it('updates and returns genre', async () => {
+         mockReq.params = { id: 'g1' };
+         mockReq.body = { name: 'New' };
+         mockGenreService.updateGenre.mockResolvedValue({ id: 'g1', name: 'New' } as any);
+         await genreController.updateGenre(mockReq, mockRes, mockNext);
+         expect(mockGenreService.updateGenre).toHaveBeenCalledWith('g1', 'New');
+         expect(ResponseHandler.success).toHaveBeenCalledWith(mockRes, { id: 'g1', name: 'New' }, 'genres.updated');
+      });
+   });
+
+   describe('deleteGenre', () => {
+      it('deletes and returns success', async () => {
+         mockReq.params = { id: 'g1' };
+         mockGenreService.deleteGenre.mockResolvedValue(true);
+         await genreController.deleteGenre(mockReq, mockRes, mockNext);
+         expect(mockGenreService.deleteGenre).toHaveBeenCalledWith('g1');
+         expect(ResponseHandler.success).toHaveBeenCalledWith(mockRes, { deleted: true }, 'genres.deleted');
+      });
+   });
+});
