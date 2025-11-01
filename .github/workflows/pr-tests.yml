@@ -12,7 +12,7 @@ jobs:
     name: Run Tests
     runs-on: ubuntu-latest
 
-    # Only run tests for specific branch prefixes
+    # Only run tests for specific branch prefixes (hotfix, improve, feature, bugfix)
     if: |
       contains(github.event.pull_request.title, 'hotfix') ||
       contains(github.event.pull_request.title, 'improve') ||
