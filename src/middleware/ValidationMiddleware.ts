@@ -325,6 +325,89 @@ export class ValidationMiddleware {
   }
 
   /**
+   * Validate user profile update request
+   */
+  static validateUserProfileUpdate(req: Request, res: Response, next: NextFunction): void {
+    const { username, firstName, lastName, avatar, preferences } = req.body;
+
+    // Ensure only expected fields are present
+    const allowedFields = ['username', 'firstName', 'lastName', 'avatar', 'preferences'];
+    const extraFields = Object.keys(req.body).filter(k => !allowedFields.includes(k));
+    if (extraFields.length > 0) {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.unexpected_fields'));
+      return;
+    }
+
+    // Validate username
+    if (username !== undefined) {
+      if (typeof username !== 'string') {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.username_type'));
+        return;
+      }
+      const trimmed = username.trim();
+      if (trimmed.length < 3 || trimmed.length > 30) {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.username_length'));
+        return;
+      }
+      const usernameRegex = /^[a-zA-Z0-9_\.\-]+$/;
+      if (!usernameRegex.test(trimmed)) {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.username_format'));
+        return;
+      }
+      req.body.username = trimmed;
+    }
+
+    // Validate firstName and lastName
+    if (firstName !== undefined) {
+      if (typeof firstName !== 'string' || firstName.trim().length === 0 || firstName.length > 50) {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.first_name'));
+        return;
+      }
+      req.body.firstName = firstName.trim();
+    }
+
+    if (lastName !== undefined) {
+      if (typeof lastName !== 'string' || lastName.trim().length === 0 || lastName.length > 50) {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.last_name'));
+        return;
+      }
+      req.body.lastName = lastName.trim();
+    }
+
+    // Validate avatar URL if provided
+    if (avatar !== undefined) {
+      if (typeof avatar !== 'string' || avatar.length > 500) {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.avatar_url'));
+        return;
+      }
+      try {
+        // Basic URL validation
+        // eslint-disable-next-line no-new
+        new URL(avatar);
+      } catch {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.avatar_url'));
+        return;
+      }
+    }
+
+    // Validate preferences object
+    if (preferences !== undefined) {
+      if (typeof preferences !== 'object' || Array.isArray(preferences)) {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.preferences_object'));
+        return;
+      }
+    }
+
+    // Must have at least one updatable field
+    if ([username, firstName, lastName, avatar, preferences].every(v => v === undefined)) {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.no_update_fields'));
+      return;
+    }
+
+    next();
+  }
+
+  /**
    * Sanitize and normalize query parameters
    */
   static sanitizeQueryParams(req: Request, _res: Response, next: NextFunction): void {

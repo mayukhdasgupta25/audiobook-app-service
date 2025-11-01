@@ -13,6 +13,7 @@ import { createOfflineDownloadRoutes } from './offlineDownloadRoutes';
 import { createHealthRoutes } from './healthRoutes';
 import { createGenreRoutes } from './genreRoutes';
 import { createStreamingRoutes } from './streamingRoutes';
+import { createUserProfileRoutes } from './userProfileRoutes';
 
 export class ApiRouter {
   private static instance: ApiRouter;
@@ -72,6 +73,7 @@ export class ApiRouter {
     v1Router.use('/', createOfflineDownloadRoutes(this.prisma));
     v1Router.use('/genres', createGenreRoutes(this.prisma));
     v1Router.use('/stream', createStreamingRoutes(this.prisma));
+    v1Router.use('/', createUserProfileRoutes(this.prisma));
 
     // Mount v1 routes
     this.router.use('/v1', v1Router);
