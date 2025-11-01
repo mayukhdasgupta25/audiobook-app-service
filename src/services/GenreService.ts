@@ -16,6 +16,40 @@ export class GenreService {
    }
 
    /**
+    * Create a new genre
+    */
+   async createGenre(name: string): Promise<GenreDto> {
+      const trimmed = name.trim();
+      try {
+         // Check duplicate by case-insensitive name
+         const existing = await this.prisma.genre.findFirst({
+            where: { name: { equals: trimmed, mode: 'insensitive' } }
+         });
+         if (existing) {
+            throw new ApiError(
+               MessageHandler.getErrorMessage('genres.name_exists'),
+               HttpStatusCode.BAD_REQUEST,
+               ErrorType.VALIDATION_ERROR
+            );
+         }
+
+         const created = await this.prisma.genre.create({
+            data: { name: trimmed }
+         });
+         return toGenreDto(created);
+      } catch (error) {
+         if (error instanceof ApiError) {
+            throw error;
+         }
+         throw new ApiError(
+            MessageHandler.getErrorMessage('genres.create_failed'),
+            HttpStatusCode.INTERNAL_SERVER_ERROR,
+            ErrorType.INTERNAL_ERROR
+         );
+      }
+   }
+
+   /**
     * Get all available genres
     * Returns all genres sorted by name in ascending order
     */
@@ -91,6 +125,84 @@ export class GenreService {
          // console.error('Error fetching genre by name:', error);
          throw new ApiError(
             MessageHandler.getErrorMessage('genres.fetch_failed'),
+            HttpStatusCode.INTERNAL_SERVER_ERROR,
+            ErrorType.INTERNAL_ERROR
+         );
+      }
+   }
+
+   /**
+    * Update an existing genre's name
+    */
+   async updateGenre(id: string, name: string): Promise<GenreDto> {
+      const trimmed = name.trim();
+      try {
+         // Ensure the genre exists
+         const existingById = await this.prisma.genre.findUnique({ where: { id } });
+         if (!existingById) {
+            throw new ApiError(
+               MessageHandler.getErrorMessage('genres.not_found'),
+               HttpStatusCode.NOT_FOUND,
+               ErrorType.NOT_FOUND
+            );
+         }
+
+         // Check for duplicate name (other record)
+         const duplicate = await this.prisma.genre.findFirst({
+            where: {
+               name: { equals: trimmed, mode: 'insensitive' },
+               NOT: { id }
+            }
+         });
+         if (duplicate) {
+            throw new ApiError(
+               MessageHandler.getErrorMessage('genres.name_exists'),
+               HttpStatusCode.BAD_REQUEST,
+               ErrorType.VALIDATION_ERROR
+            );
+         }
+
+         const updated = await this.prisma.genre.update({
+            where: { id },
+            data: { name: trimmed }
+         });
+
+         return toGenreDto(updated);
+      } catch (error) {
+         if (error instanceof ApiError) {
+            throw error;
+         }
+         throw new ApiError(
+            MessageHandler.getErrorMessage('genres.update_failed'),
+            HttpStatusCode.INTERNAL_SERVER_ERROR,
+            ErrorType.INTERNAL_ERROR
+         );
+      }
+   }
+
+   /**
+    * Delete a genre by ID
+    */
+   async deleteGenre(id: string): Promise<boolean> {
+      try {
+         // Ensure exists first for consistent 404
+         const existing = await this.prisma.genre.findUnique({ where: { id } });
+         if (!existing) {
+            throw new ApiError(
+               MessageHandler.getErrorMessage('genres.not_found'),
+               HttpStatusCode.NOT_FOUND,
+               ErrorType.NOT_FOUND
+            );
+         }
+
+         await this.prisma.genre.delete({ where: { id } });
+         return true;
+      } catch (error) {
+         if (error instanceof ApiError) {
+            throw error;
+         }
+         throw new ApiError(
+            MessageHandler.getErrorMessage('genres.delete_failed'),
             HttpStatusCode.INTERNAL_SERVER_ERROR,
             ErrorType.INTERNAL_ERROR
          );
