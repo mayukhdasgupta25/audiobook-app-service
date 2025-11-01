@@ -349,7 +349,7 @@ export class ValidationMiddleware {
         ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.username_length'));
         return;
       }
-      const usernameRegex = /^[a-zA-Z0-9_\.\-]+$/;
+      const usernameRegex = /^[a-zA-Z0-9_.-]+$/;
       if (!usernameRegex.test(trimmed)) {
         ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.username_format'));
         return;
@@ -382,7 +382,6 @@ export class ValidationMiddleware {
       }
       try {
         // Basic URL validation
-        // eslint-disable-next-line no-new
         new URL(avatar);
       } catch {
         ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.avatar_url'));
