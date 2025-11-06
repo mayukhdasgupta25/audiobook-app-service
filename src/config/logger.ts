@@ -24,13 +24,48 @@ const baseLoggerConfig: pino.LoggerOptions = {
    timestamp: pino.stdTimeFunctions.isoTime,
 };
 
-// Create file destinations for different log files
-const appLogFile = pino.destination(path.join(logDir, 'app.log'));
-const errorLogFile = pino.destination(path.join(logDir, 'error.log'));
-const apiAccessLogFile = pino.destination(path.join(logDir, 'api-access.log'));
-const rabbitmqLogFile = pino.destination(path.join(logDir, 'rabbitmq.log'));
-const redisLogFile = pino.destination(path.join(logDir, 'redis.log'));
-const bullLogFile = pino.destination(path.join(logDir, 'bull.log'));
+// Open file descriptors for log files
+// Using file descriptors ensures files are available before writing
+const appLogFd = fs.openSync(path.join(logDir, 'app.log'), 'a');
+const errorLogFd = fs.openSync(path.join(logDir, 'error.log'), 'a');
+const apiAccessLogFd = fs.openSync(path.join(logDir, 'api-access.log'), 'a');
+const rabbitmqLogFd = fs.openSync(path.join(logDir, 'rabbitmq.log'), 'a');
+const redisLogFd = fs.openSync(path.join(logDir, 'redis.log'), 'a');
+const bullLogFd = fs.openSync(path.join(logDir, 'bull.log'), 'a');
+
+// Create file destinations using file descriptors
+// Using fd option ensures the file descriptor is available before writing
+// minLength: 0 ensures immediate writes, sync: false prevents blocking
+const appLogFile = pino.destination({
+   fd: appLogFd,
+   minLength: 0,
+   sync: false,
+});
+const errorLogFile = pino.destination({
+   fd: errorLogFd,
+   minLength: 0,
+   sync: false,
+});
+const apiAccessLogFile = pino.destination({
+   fd: apiAccessLogFd,
+   minLength: 0,
+   sync: false,
+});
+const rabbitmqLogFile = pino.destination({
+   fd: rabbitmqLogFd,
+   minLength: 0,
+   sync: false,
+});
+const redisLogFile = pino.destination({
+   fd: redisLogFd,
+   minLength: 0,
+   sync: false,
+});
+const bullLogFile = pino.destination({
+   fd: bullLogFd,
+   minLength: 0,
+   sync: false,
+});
 
 // Error-only logger configuration
 const errorLoggerConfig: pino.LoggerOptions = {

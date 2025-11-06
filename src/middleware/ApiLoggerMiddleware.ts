@@ -51,5 +51,25 @@ export const apiLoggerMiddleware = pinoHttp({
       err: 'error',
       responseTime: 'responseTime',
    },
+   serializers: {
+      req: (req: Request) => {
+         // Exclude headers from request serialization
+         return {
+            id: req.id,
+            method: req.method,
+            url: req.url,
+            query: req.query,
+            params: req.params,
+            remoteAddress: req.socket?.remoteAddress,
+            remotePort: req.socket?.remotePort,
+         };
+      },
+      res: (res: Response) => {
+         // Exclude headers from response serialization
+         return {
+            statusCode: res.statusCode,
+         };
+      },
+   },
 });
 
