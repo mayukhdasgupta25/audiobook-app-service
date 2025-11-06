@@ -24,7 +24,7 @@ export function formatIST(date?: Date): string {
    let day = utcDate.getUTCDate();
    let hours = utcDate.getUTCHours();
    let minutes = utcDate.getUTCMinutes();
-   let seconds = utcDate.getUTCSeconds();
+   const seconds = utcDate.getUTCSeconds();
 
    // Add IST offset (5:30)
    minutes += istOffsetMinutes;
