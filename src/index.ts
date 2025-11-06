@@ -5,9 +5,9 @@ import session from 'express-session';
 import express from 'express';
 import helmet from 'helmet';
 import path from 'path';
-import pinoHttp from 'pino-http';
 import { config } from './config/env';
 import { logger } from './config/logger';
+import { apiLoggerMiddleware } from './middleware/ApiLoggerMiddleware';
 import { ApiRouter } from './routes/ApiRouter';
 import { ErrorHandler } from './middleware/ErrorHandler';
 import { MessageHandler } from './utils/MessageHandler';
@@ -29,8 +29,9 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Pino HTTP logging middleware
-app.use(pinoHttp({ logger }));
+// API access logging middleware
+// This middleware ONLY logs API access requests in format: host:api:statusCode:date_time_IST
+app.use(apiLoggerMiddleware);
 
 // Session configuration
 app.use(session({

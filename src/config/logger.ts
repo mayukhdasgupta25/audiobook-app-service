@@ -27,6 +27,7 @@ const baseLoggerConfig: pino.LoggerOptions = {
 // Create file destinations for different log files
 const appLogFile = pino.destination(path.join(logDir, 'app.log'));
 const errorLogFile = pino.destination(path.join(logDir, 'error.log'));
+const apiAccessLogFile = pino.destination(path.join(logDir, 'api-access.log'));
 const rabbitmqLogFile = pino.destination(path.join(logDir, 'rabbitmq.log'));
 const redisLogFile = pino.destination(path.join(logDir, 'redis.log'));
 const bullLogFile = pino.destination(path.join(logDir, 'bull.log'));
@@ -44,6 +45,16 @@ export const logger = pino(baseLoggerConfig, appLogFile);
 
 // Error-only logger (writes to error.log)
 export const errorLogger = pino(errorLoggerConfig, errorLogFile);
+
+// API access logger (writes to api-access.log)
+// This logger is specifically for API access logging with custom format
+export const apiAccessLogger = pino(
+   {
+      ...baseLoggerConfig,
+      base: { component: 'api-access' },
+   },
+   apiAccessLogFile
+);
 
 // RabbitMQ logger (writes to rabbitmq.log)
 export const rabbitmqLogger = pino(
