@@ -6,6 +6,7 @@ import { Request, Response, NextFunction } from 'express';
 import { ResponseHandler } from '../utils/ResponseHandler';
 import { ApiError } from '../types/ApiError';
 import { MessageHandler } from '../utils/MessageHandler';
+import { logger, errorLogger } from '../config/logger';
 
 export class ErrorHandler {
   /**
@@ -13,10 +14,28 @@ export class ErrorHandler {
    */
   static handleError(
     error: Error | ApiError,
-    _req: Request,
+    req: Request,
     res: Response,
     _next: NextFunction
   ): void {
+    // Log error with context
+    const errorContext = {
+      err: error,
+      method: req.method,
+      url: req.originalUrl,
+      statusCode: error instanceof ApiError ? error.statusCode : 500,
+    };
+
+    // Log to error logger (error.log file)
+    errorLogger.error(errorContext, 'Error handled by ErrorHandler');
+
+    // Also log to main logger with appropriate level
+    if (error instanceof ApiError && error.statusCode < 500) {
+      logger.warn(errorContext, 'Client error');
+    } else {
+      logger.error(errorContext, 'Server error');
+    }
+
     // If it's already an ApiError, use it directly
     if (error instanceof ApiError) {
       ResponseHandler.error(res, error);
