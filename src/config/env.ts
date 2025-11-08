@@ -13,7 +13,6 @@ export const config = {
    NODE_ENV: nodeEnv,
    PORT: parseInt(process.env['PORT'] || '8081', 10),
    DATABASE_URL: process.env['DATABASE_URL'] || '',
-   JWT_SECRET: process.env['JWT_SECRET'] || '',
    SESSION_SECRET: process.env['SESSION_SECRET'] || '',
    CLIENT_URL: process.env['CLIENT_URL'] || 'http://localhost:3000',
 
@@ -42,8 +41,6 @@ export const config = {
    ENABLE_PASSWORD_RESET: process.env['ENABLE_PASSWORD_RESET'] === 'true',
 
    // Streaming service configuration
-   STREAMING_PORT: parseInt(process.env['STREAMING_PORT'] || '3001', 10),
-   HLS_SEGMENT_DURATION: parseInt(process.env['HLS_SEGMENT_DURATION'] || '10', 10), // seconds
    TRANSCODING_BITRATES: process.env['TRANSCODING_BITRATES']?.split(',').map(b => parseInt(b, 10)) || [64, 128, 256], // kbps
    STREAMING_CACHE_TTL: parseInt(process.env['STREAMING_CACHE_TTL'] || '3600', 10), // seconds
 
@@ -72,4 +69,8 @@ export const config = {
    // Auth service configuration
    AUTH_SERVICE_URL: process.env['AUTH_SERVICE_URL'] || 'http://localhost:8080',
    JWKS_ENDPOINT: process.env['JWKS_ENDPOINT'] || 'http://localhost:8080/auth/.well-known/jwks.json',
+
+   // Logging configuration
+   LOG_LEVEL: process.env['LOG_LEVEL'] || (nodeEnv === 'production' ? 'info' : 'debug'),
+   LOG_DIR: process.env['LOG_DIR'] || './logs',
 };

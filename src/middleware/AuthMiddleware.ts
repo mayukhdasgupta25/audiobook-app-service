@@ -5,7 +5,7 @@
  */
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-import jwkToPem from 'jwk-to-pem';
+import convertJwkToPem from 'jwk-to-pem';
 import axios from 'axios';
 import { config } from '../config/env';
 import { JWKSResponse, JWK, JWTHeader } from '../types/auth';
@@ -114,7 +114,7 @@ export async function authenticateJWT(
       // 5. Convert JWK to PEM format
       let publicKey: string;
       try {
-         publicKey = jwkToPem(jwk);
+         publicKey = convertJwkToPem(jwk as any);
       } catch (conversionError) {
          // console.error('Conversion error:', conversionError);
          res.status(500).json({
