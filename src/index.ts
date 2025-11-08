@@ -6,6 +6,8 @@ import express from 'express';
 import helmet from 'helmet';
 import path from 'path';
 import { config } from './config/env';
+import { logger } from './config/logger';
+import { apiLoggerMiddleware } from './middleware/ApiLoggerMiddleware';
 import { ApiRouter } from './routes/ApiRouter';
 import { ErrorHandler } from './middleware/ErrorHandler';
 import { MessageHandler } from './utils/MessageHandler';
@@ -26,6 +28,10 @@ app.use(cors({
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// API access logging middleware
+// This middleware ONLY logs API access requests in format: host:api:statusCode:date_time_IST
+app.use(apiLoggerMiddleware);
 
 // Session configuration
 app.use(session({
@@ -50,7 +56,7 @@ queueManager.createCleanupQueue();
 (async (): Promise<void> => {
    try {
       await RabbitMQFactory.initialize();
-      console.log('RabbitMQ initialized successfully');
+      logger.info('RabbitMQ initialized successfully');
 
       // Start transcoding worker
       const prisma = require('./lib/prisma').prisma;
@@ -58,8 +64,8 @@ queueManager.createCleanupQueue();
 
       // Start user consumer worker
       await UserConsumerWorkerFactory.startWorker(prisma);
-   } catch (_error) {
-      // console.error('Failed to initialize RabbitMQ, transcoding worker, or user consumer worker:', _error);
+   } catch (error) {
+      logger.error({ err: error }, 'Failed to initialize RabbitMQ, transcoding worker, or user consumer worker');
    }
 })();
 
@@ -110,11 +116,13 @@ app.use((req, res) => ErrorHandler.handleNotFound(req, res));
 app.use(ErrorHandler.handleError);
 
 app.listen(config.PORT, () => {
-   console.log(`🚀 Server running on port ${config.PORT}`);
-   console.log(`📚 Environment: ${config.NODE_ENV}`);
-   console.log(`🔗 API Base URL: http://localhost:${config.PORT}/api`);
-   console.log(`📚 Swagger UI: http://localhost:${config.PORT}/api-docs`);
-   console.log(`📋 OpenAPI Spec: http://localhost:${config.PORT}/api-docs.json`);
-   console.log(`📊 Bull Board UI: http://localhost:${config.PORT}/admin/queues`);
-   console.log(`📈 Queue Stats API: http://localhost:${config.PORT}/admin/queues/stats`);
+   logger.info({
+      port: config.PORT,
+      environment: config.NODE_ENV,
+      apiBaseUrl: `http://localhost:${config.PORT}/api`,
+      swaggerUI: `http://localhost:${config.PORT}/api-docs`,
+      openAPISpec: `http://localhost:${config.PORT}/api-docs.json`,
+      bullBoardUI: `http://localhost:${config.PORT}/admin/queues`,
+      queueStatsAPI: `http://localhost:${config.PORT}/admin/queues/stats`,
+   }, 'Server started successfully');
 });

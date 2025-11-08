@@ -69,4 +69,8 @@ export const config = {
    // Auth service configuration
    AUTH_SERVICE_URL: process.env['AUTH_SERVICE_URL'] || 'http://localhost:8080',
    JWKS_ENDPOINT: process.env['JWKS_ENDPOINT'] || 'http://localhost:8080/auth/.well-known/jwks.json',
+
+   // Logging configuration
+   LOG_LEVEL: process.env['LOG_LEVEL'] || (nodeEnv === 'production' ? 'info' : 'debug'),
+   LOG_DIR: process.env['LOG_DIR'] || './logs',
 };

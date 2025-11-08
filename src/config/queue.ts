@@ -4,6 +4,7 @@
  */
 import Bull from 'bull';
 import { RedisConnection, RedisConfigHelper } from './redis';
+import { bullLogger } from './logger';
 import {
    ProgressCalculationJobData,
    OfflineDownloadJobData,
@@ -75,7 +76,7 @@ export class QueueManager {
       this.setupQueueEventHandlers(queue, name);
       this.queues.set(name, queue);
 
-      console.log(`Queue '${name}' created successfully`);
+      bullLogger.info({ queueName: name }, 'Queue created successfully');
       return queue;
    }
 
@@ -98,51 +99,51 @@ export class QueueManager {
     */
    private setupQueueEventHandlers(queue: Bull.Queue, name: string): void {
       queue.on('ready', () => {
-         console.log(`Queue '${name}' is ready`);
+         bullLogger.info({ queueName: name }, 'Queue is ready');
       });
 
-      queue.on('error', (_error) => {
-         // console.error(`Queue '${name}' error:`, _error);
+      queue.on('error', (error) => {
+         bullLogger.error({ err: error, queueName: name }, 'Queue error');
       });
 
       queue.on('waiting', (jobId) => {
-         console.log(`Job ${jobId} is waiting in queue '${name}'`);
+         bullLogger.debug({ jobId, queueName: name }, 'Job is waiting in queue');
       });
 
       queue.on('active', (job) => {
-         console.log(`Job ${job.id} is active in queue '${name}'`);
+         bullLogger.info({ jobId: job.id, queueName: name }, 'Job is active in queue');
       });
 
       queue.on('stalled', (job) => {
-         console.log(`Job ${job.id} is stalled in queue '${name}'`);
+         bullLogger.warn({ jobId: job.id, queueName: name }, 'Job is stalled in queue');
       });
 
       queue.on('progress', (job, progress) => {
-         console.log(`Job ${job.id} progress: ${progress}% in queue '${name}'`);
+         bullLogger.debug({ jobId: job.id, progress, queueName: name }, 'Job progress');
       });
 
       queue.on('completed', (job, _result) => {
-         console.log(`Job ${job.id} completed in queue '${name}'`);
+         bullLogger.info({ jobId: job.id, queueName: name }, 'Job completed in queue');
       });
 
-      queue.on('failed', (_job, _err) => {
-         // console.error(`Job ${job.id} failed in queue '${name}':`, err.message);
+      queue.on('failed', (job, err) => {
+         bullLogger.error({ err, jobId: job.id, queueName: name }, 'Job failed in queue');
       });
 
       queue.on('paused', () => {
-         console.log(`Queue '${name}' is paused`);
+         bullLogger.info({ queueName: name }, 'Queue is paused');
       });
 
       queue.on('resumed', () => {
-         console.log(`Queue '${name}' is resumed`);
+         bullLogger.info({ queueName: name }, 'Queue is resumed');
       });
 
       queue.on('cleaned', (jobs, type) => {
-         console.log(`Cleaned ${jobs.length} ${type} jobs from queue '${name}'`);
+         bullLogger.info({ count: jobs.length, type, queueName: name }, 'Cleaned jobs from queue');
       });
 
       queue.on('drained', () => {
-         console.log(`Queue '${name}' is drained`);
+         bullLogger.info({ queueName: name }, 'Queue is drained');
       });
    }
 
@@ -232,7 +233,7 @@ export class QueueManager {
       const queue = this.queues.get(name);
       if (queue) {
          await queue.pause();
-         console.log(`Queue '${name}' paused`);
+         bullLogger.info({ queueName: name }, 'Queue paused');
       } else {
          throw new Error(`Queue '${name}' not found`);
       }
@@ -245,7 +246,7 @@ export class QueueManager {
       const queue = this.queues.get(name);
       if (queue) {
          await queue.resume();
-         console.log(`Queue '${name}' resumed`);
+         bullLogger.info({ queueName: name }, 'Queue resumed');
       } else {
          throw new Error(`Queue '${name}' not found`);
       }
@@ -258,7 +259,7 @@ export class QueueManager {
       const queue = this.queues.get(name);
       if (queue) {
          await queue.clean(grace, type);
-         console.log(`Queue '${name}' cleaned (${type})`);
+         bullLogger.info({ queueName: name, type }, 'Queue cleaned');
       } else {
          throw new Error(`Queue '${name}' not found`);
       }
@@ -271,7 +272,7 @@ export class QueueManager {
       const queue = this.queues.get(name);
       if (queue) {
          await queue.empty();
-         console.log(`Queue '${name}' emptied`);
+         bullLogger.info({ queueName: name }, 'Queue emptied');
       } else {
          throw new Error(`Queue '${name}' not found`);
       }
@@ -285,7 +286,7 @@ export class QueueManager {
       if (queue) {
          await queue.close();
          this.queues.delete(name);
-         console.log(`Queue '${name}' removed`);
+         bullLogger.info({ queueName: name }, 'Queue removed');
       } else {
          throw new Error(`Queue '${name}' not found`);
       }
@@ -295,19 +296,19 @@ export class QueueManager {
     * Graceful shutdown of all queues
     */
    public async shutdown(): Promise<void> {
-      console.log('Shutting down all queues...');
+      bullLogger.info('Shutting down all queues...');
 
       const shutdownPromises = Array.from(this.queues.values()).map(queue =>
-         queue.close().catch((_error: any) =>
-            // console.error('Error closing queue:', _error)
-            void 0
-         )
+         queue.close().catch((error: any) => {
+            bullLogger.error({ err: error }, 'Error closing queue');
+            return void 0;
+         })
       );
 
       await Promise.all(shutdownPromises);
       this.queues.clear();
 
-      console.log('All queues shut down successfully');
+      bullLogger.info('All queues shut down successfully');
    }
 
    /**
@@ -328,8 +329,8 @@ export class QueueManager {
             memoryUsage,
             keyCount,
          };
-      } catch (_error: any) {
-         // console.error('Failed to get Redis info:', _error);
+      } catch (error: any) {
+         bullLogger.error({ err: error }, 'Failed to get Redis info');
          return {
             connected: false,
             memoryUsage: null,
