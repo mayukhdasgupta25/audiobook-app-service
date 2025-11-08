@@ -4,6 +4,7 @@
  */
 import * as amqp from 'amqplib';
 import { config } from './env';
+import { rabbitmqLogger } from './logger';
 
 export interface QueueConfig {
    name: string;
@@ -86,16 +87,16 @@ export class RabbitMQConnection {
       this.isConnecting = true;
 
       try {
-         console.log('Connecting to RabbitMQ...');
+         rabbitmqLogger.info('Connecting to RabbitMQ...');
          this.connection = await amqp.connect(config.RABBITMQ_URL) as unknown as amqp.Connection;
 
-         this.connection!.on('error', (_error: Error) => {
-            // console.error('RabbitMQ connection error:', _error);
+         this.connection!.on('error', (error: Error) => {
+            rabbitmqLogger.error({ err: error }, 'RabbitMQ connection error');
             this.handleConnectionError();
          });
 
          this.connection!.on('close', () => {
-            console.log('RabbitMQ connection closed');
+            rabbitmqLogger.warn('RabbitMQ connection closed');
             this.handleConnectionError();
          });
 
@@ -104,7 +105,7 @@ export class RabbitMQConnection {
          // Set prefetch to prevent overwhelming workers
          await this.channel!.prefetch(1);
 
-         console.log('Connected to RabbitMQ successfully');
+         rabbitmqLogger.info('Connected to RabbitMQ successfully');
          this.reconnectAttempts = 0;
          this.isConnecting = false;
 
@@ -112,7 +113,7 @@ export class RabbitMQConnection {
          await this.setupExchangesAndQueues();
 
       } catch (error) {
-         // console.error('Failed to connect to RabbitMQ:', error);
+         rabbitmqLogger.error({ err: error }, 'Failed to connect to RabbitMQ');
          this.isConnecting = false;
          await this.handleConnectionError();
          throw error;
@@ -135,10 +136,10 @@ export class RabbitMQConnection {
       for (const queue of existingQueues) {
          try {
             await this.channel.deleteQueue(`${queuePrefix}.transcode.${queue}`, { ifEmpty: false });
-            console.log(`Deleted existing queue: ${queuePrefix}.transcode.${queue}`);
-         } catch (_error: any) {
+            rabbitmqLogger.info({ queue: `${queuePrefix}.transcode.${queue}` }, 'Deleted existing queue');
+         } catch (error: any) {
             // Queue might not exist, which is fine
-            // console.error(`Error deleting queue: ${queuePrefix}.transcode.${queue}: ${_error.message}`);
+            rabbitmqLogger.debug({ err: error, queue: `${queuePrefix}.transcode.${queue}` }, 'Error deleting queue (queue may not exist)');
          }
       }
 
@@ -186,7 +187,7 @@ export class RabbitMQConnection {
       // Setup users exchange and queue for user creation events
       await this.setupUsersExchangeAndQueue(queuePrefix);
 
-      console.log('RabbitMQ exchanges and queues setup completed');
+      rabbitmqLogger.info('RabbitMQ exchanges and queues setup completed');
    }
 
    /**
@@ -216,7 +217,7 @@ export class RabbitMQConnection {
       // Bind queue to exchange with routing key
       await this.channel.bindQueue(`${queuePrefix}.users.created`, 'users', 'user.created');
 
-      console.log('Users exchange and queue setup completed');
+      rabbitmqLogger.info('Users exchange and queue setup completed');
    }
 
 
@@ -257,14 +258,17 @@ export class RabbitMQConnection {
          );
 
          if (published) {
-            console.log(`Transcoding job published for chapter ${jobData.chapter.id} with priority ${priority}`);
+            rabbitmqLogger.info({
+               chapterId: jobData.chapter.id,
+               priority,
+            }, 'Transcoding job published');
             return true;
          } else {
-            // console.error('Failed to publish transcoding job - channel buffer full');
+            rabbitmqLogger.error('Failed to publish transcoding job - channel buffer full');
             return false;
          }
-      } catch (_error) {
-         // console.error('Error publishing transcoding job:', _error);
+      } catch (error) {
+         rabbitmqLogger.error({ err: error }, 'Error publishing transcoding job');
          return false;
       }
    }
@@ -293,8 +297,8 @@ export class RabbitMQConnection {
                messageCount: queueInfo.messageCount,
                consumerCount: queueInfo.consumerCount
             };
-         } catch (_error) {
-            // console.error(`Error getting stats for queue ${queue}:`, _error);
+         } catch (error) {
+            rabbitmqLogger.error({ err: error, queue }, 'Error getting stats for queue');
             stats[queue] = {
                messageCount: 0,
                consumerCount: 0
@@ -313,20 +317,27 @@ export class RabbitMQConnection {
       this.channel = null;
 
       if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-         // console.error('Max reconnection attempts reached. Stopping reconnection attempts.');
+         rabbitmqLogger.error({
+            attempts: this.reconnectAttempts,
+            maxAttempts: this.maxReconnectAttempts,
+         }, 'Max reconnection attempts reached. Stopping reconnection attempts.');
          return;
       }
 
       this.reconnectAttempts++;
       const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1); // Exponential backoff
 
-      console.log(`Attempting to reconnect to RabbitMQ in ${delay}ms (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
+      rabbitmqLogger.warn({
+         delay,
+         attempt: this.reconnectAttempts,
+         maxAttempts: this.maxReconnectAttempts,
+      }, 'Attempting to reconnect to RabbitMQ');
 
       setTimeout(async () => {
          try {
             await this.connect();
-         } catch (_error) {
-            // console.error('Reconnection attempt failed:', _error);
+         } catch (error) {
+            rabbitmqLogger.error({ err: error }, 'Reconnection attempt failed');
          }
       }, delay);
    }
@@ -346,9 +357,9 @@ export class RabbitMQConnection {
             this.connection = null;
          }
 
-         console.log('RabbitMQ connection closed gracefully');
-      } catch (_error) {
-         // console.error('Error closing RabbitMQ connection:', _error);
+         rabbitmqLogger.info('RabbitMQ connection closed gracefully');
+      } catch (error) {
+         rabbitmqLogger.error({ err: error }, 'Error closing RabbitMQ connection');
       }
    }
 
@@ -374,16 +385,16 @@ export class RabbitMQConnection {
             try {
                // Parse message content
                const messageContent = JSON.parse(msg.content.toString());
-               console.log(`Received user creation message:`, messageContent);
+               rabbitmqLogger.info({ messageContent }, 'Received user creation message');
 
                // Process the message
                await onMessage(messageContent);
 
                // Acknowledge message
                this.channel!.ack(msg);
-               console.log(`Processed user creation message for userId: ${messageContent.userId}`);
-            } catch (_error: any) {
-               // console.error('Error processing user creation message:', _error);
+               rabbitmqLogger.info({ userId: messageContent.userId }, 'Processed user creation message');
+            } catch (error: any) {
+               rabbitmqLogger.error({ err: error }, 'Error processing user creation message');
 
                // Log error and acknowledge message (no retry/DLQ as per requirements)
                this.channel!.ack(msg);
@@ -392,9 +403,9 @@ export class RabbitMQConnection {
             noAck: false
          });
 
-         console.log(`Started consuming user creation messages from queue: ${queueName}`);
+         rabbitmqLogger.info({ queueName }, 'Started consuming user creation messages from queue');
       } catch (error: any) {
-         // console.error('Error setting up user creation message consumer:', error);
+         rabbitmqLogger.error({ err: error }, 'Error setting up user creation message consumer');
          throw error;
       }
    }
@@ -412,9 +423,9 @@ export class RabbitMQConnection {
 
       try {
          await this.channel.cancel(queueName);
-         console.log(`Stopped consuming user creation messages from queue: ${queueName}`);
-      } catch (_error: any) {
-         // console.error('Error stopping user creation message consumer:', _error);
+         rabbitmqLogger.info({ queueName }, 'Stopped consuming user creation messages from queue');
+      } catch (error: any) {
+         rabbitmqLogger.error({ err: error }, 'Error stopping user creation message consumer');
       }
    }
 }

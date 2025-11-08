@@ -3,6 +3,7 @@
  * Handles Redis connection and configuration for Bull queues
  */
 import Redis from 'ioredis';
+import { redisLogger } from './logger';
 
 export interface RedisConfig {
    host: string;
@@ -64,27 +65,27 @@ export class RedisConnection {
     */
    private setupEventHandlers(): void {
       this.redis.on('connect', () => {
-         console.log('Redis connected successfully');
+         redisLogger.info('Redis connected successfully');
       });
 
       this.redis.on('ready', () => {
-         console.log('Redis ready to accept commands');
+         redisLogger.info('Redis ready to accept commands');
       });
 
-      this.redis.on('error', (_error) => {
-         // console.error('Redis connection error:', _error);
+      this.redis.on('error', (error) => {
+         redisLogger.error({ err: error }, 'Redis connection error');
       });
 
       this.redis.on('close', () => {
-         console.log('Redis connection closed');
+         redisLogger.warn('Redis connection closed');
       });
 
       this.redis.on('reconnecting', () => {
-         console.log('Redis reconnecting...');
+         redisLogger.info('Redis reconnecting...');
       });
 
       this.redis.on('end', () => {
-         console.log('Redis connection ended');
+         redisLogger.warn('Redis connection ended');
       });
    }
 
@@ -95,8 +96,8 @@ export class RedisConnection {
       try {
          await this.redis.ping();
          return true;
-      } catch (_error) {
-         // console.error('Redis connection test failed:', _error);
+      } catch (error) {
+         redisLogger.error({ err: error }, 'Redis connection test failed');
          return false;
       }
    }
@@ -108,7 +109,7 @@ export class RedisConnection {
       try {
          return await this.redis.info();
       } catch (error) {
-         // console.error('Failed to get Redis info:', error);
+         redisLogger.error({ err: error }, 'Failed to get Redis info');
          throw error;
       }
    }
@@ -119,8 +120,8 @@ export class RedisConnection {
    public async close(): Promise<void> {
       try {
          await this.redis.quit();
-      } catch (_error) {
-         // console.error('Error closing Redis connection:', _error);
+      } catch (error) {
+         redisLogger.error({ err: error }, 'Error closing Redis connection');
       }
    }
 
@@ -156,7 +157,7 @@ export class RedisConnection {
             usedMemoryPeakHuman: memoryInfo.used_memory_peak_human || '0B',
          };
       } catch (error) {
-         // console.error('Failed to get Redis memory usage:', error);
+         redisLogger.error({ err: error }, 'Failed to get Redis memory usage');
          throw error;
       }
    }
@@ -168,7 +169,7 @@ export class RedisConnection {
       try {
          return await this.redis.dbsize();
       } catch (error) {
-         // console.error('Failed to get Redis key count:', error);
+         redisLogger.error({ err: error }, 'Failed to get Redis key count');
          throw error;
       }
    }
@@ -179,9 +180,9 @@ export class RedisConnection {
    public async clearAll(): Promise<void> {
       try {
          await this.redis.flushall();
-         console.log('All Redis data cleared');
+         redisLogger.warn('All Redis data cleared');
       } catch (error) {
-         // console.error('Failed to clear Redis data:', error);
+         redisLogger.error({ err: error }, 'Failed to clear Redis data');
          throw error;
       }
    }
@@ -197,7 +198,7 @@ export class RedisConnection {
          }
          return keys.length;
       } catch (error) {
-         // console.error('Failed to clear pattern keys:', error);
+         redisLogger.error({ err: error, pattern }, 'Failed to clear pattern keys');
          throw error;
       }
    }
