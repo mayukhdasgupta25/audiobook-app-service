@@ -15,6 +15,7 @@ import { createGenreRoutes } from './genreRoutes';
 import { createStreamingRoutes } from './streamingRoutes';
 import { createUserProfileRoutes } from './userProfileRoutes';
 import { createUserAudioBookRoutes } from './userAudioBookRoutes';
+import { createTagRoutes } from './tagRoutes';
 
 export class ApiRouter {
   private static instance: ApiRouter;
@@ -73,6 +74,7 @@ export class ApiRouter {
     v1Router.use('/', createBookmarkRoutes(this.prisma));
     v1Router.use('/', createOfflineDownloadRoutes(this.prisma));
     v1Router.use('/genres', createGenreRoutes(this.prisma));
+    v1Router.use('/tags', createTagRoutes(this.prisma));
     v1Router.use('/stream', createStreamingRoutes(this.prisma));
     v1Router.use('/', createUserProfileRoutes(this.prisma));
     v1Router.use('/user-audiobooks', createUserAudioBookRoutes(this.prisma));
