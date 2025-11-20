@@ -28,6 +28,9 @@ success:
   genres:
     retrieved: "Genres retrieved successfully"
 
+  tags:
+    retrieved: "Tags retrieved successfully"
+
   user_audiobooks:
     retrieved: "User-audiobook relationships retrieved successfully"
     retrieved_by_id: "User-audiobook relationship retrieved successfully"
@@ -103,6 +106,7 @@ errors:
     route: "Route {route} not found"
     user: "User not found"
     genre: "Genre not found"
+    tag: "Tag not found"
     user_audiobook: "User-audiobook relationship not found"
 
   conflict:
@@ -139,6 +143,18 @@ errors:
     delete_user_failed: "Failed to delete user account"
     fetch_users_failed: "Failed to fetch users"
 
+  genres:
+    not_found: "Genre not found"
+    fetch_failed: "Failed to fetch genres"
+    create_failed: "Failed to create genre"
+    update_failed: "Failed to update genre"
+    delete_failed: "Failed to delete genre"
+    name_exists: "Genre name already exists"
+
+  tags:
+    not_found: "Tag not found"
+    fetch_failed: "Failed to fetch tags"
+
   internal:
     default: "Internal server error"
     database_operation: "Database operation failed"
@@ -149,6 +165,7 @@ errors:
     delete_audiobook: "Failed to delete audiobook"
     fetch_stats: "Failed to fetch audiobook statistics"
     fetch_genres: "Failed to fetch genres"
+    fetch_tags: "Failed to fetch tags"
     fetch_user_audiobooks: "Failed to fetch user-audiobook relationships"
     create_user_audiobook: "Failed to create user-audiobook relationship"
     update_user_audiobook: "Failed to update user-audiobook relationship"

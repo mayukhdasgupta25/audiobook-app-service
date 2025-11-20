@@ -243,21 +243,55 @@ export class AudioBookService {
   /**
    * Create a new audiobook
    */
-  async createAudioBook(data: CreateAudioBookDto): Promise<AudioBookDto> {
+  async createAudioBook(data: CreateAudioBookDto & { tagIds?: string[] }): Promise<AudioBookDto> {
     try {
       // Validate required fields
       this.validateCreateData(data);
 
+      // Extract tagIds from data before creating audiobook
+      const { tagIds, ...audiobookData } = data;
+
       const audiobook = await this.prisma.audioBook.create({
         data: {
-          ...data,
-          language: data.language || 'en',
-          isActive: data.isActive ?? true,
-          isPublic: data.isPublic ?? true
+          ...audiobookData,
+          language: audiobookData.language || 'en',
+          isActive: audiobookData.isActive ?? true,
+          isPublic: audiobookData.isPublic ?? true
         }
       });
 
-      return toAudioBookDto(audiobook);
+      // Create AudioBookTag records if tagIds are provided
+      if (tagIds && tagIds.length > 0) {
+        await Promise.all(
+          tagIds.map(tagId =>
+            this.prisma.audioBookTag.create({
+              data: {
+                audiobookId: audiobook.id,
+                tagId: tagId
+              }
+            })
+          )
+        );
+      }
+
+      // Fetch the audiobook with all relations included
+      const audiobookWithRelations = await this.prisma.audioBook.findUnique({
+        where: { id: audiobook.id },
+        include: {
+          audiobookTags: {
+            include: {
+              tag: true
+            }
+          },
+          genre: true
+        }
+      });
+
+      if (!audiobookWithRelations) {
+        throw ApiError.internalError(MessageHandler.getErrorMessage('internal.create_audiobook'));
+      }
+
+      return toAudioBookDto(audiobookWithRelations);
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError) {
         if (error.code === 'P2002') {
@@ -427,6 +461,8 @@ export class AudioBookService {
           }
         }
       };
+
+      console.log(tags)
 
       // Build orderBy clause
       const orderBy: Prisma.AudioBookOrderByWithRelationInput = {

@@ -92,16 +92,16 @@ export class ValidationMiddleware {
    * Validate MongoDB ObjectId format (if using MongoDB) or CUID format
    */
   static validateId(req: Request, res: Response, next: NextFunction): void {
-    const { id } = req.params;
+    const { id, audiobookId } = req.params;
 
-    if (!id) {
+    if (!id && !audiobookId) {
       ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.id_required'));
       return;
     }
 
     // CUID format validation (used by Prisma)
     const cuidRegex = /^c[a-z0-9]{24}$/;
-    if (!cuidRegex.test(id)) {
+    if (!cuidRegex.test(id!) && !cuidRegex.test(audiobookId!)) {
       ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.id_format'));
       return;
     }
@@ -274,6 +274,7 @@ export class ValidationMiddleware {
   static validateChapterCreation(req: Request, res: Response, next: NextFunction): void {
     const { audiobookId, title, chapterNumber, duration, startPosition, endPosition } = req.body;
 
+    console.log(req.body);
     // Validate required fields
     if (!audiobookId) {
       ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.audiobook_id_required'));
@@ -320,7 +321,6 @@ export class ValidationMiddleware {
       ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.description_length'));
       return;
     }
-
     next();
   }
 
