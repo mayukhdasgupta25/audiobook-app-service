@@ -49,13 +49,13 @@ model AudioBook {
   description String?
 
   // Media information
-  duration   Int // Duration in seconds
-  fileSize   BigInt // File size in bytes
+  duration   Int? // Duration in seconds (calculated from chapters)
+  fileSize   BigInt? // File size in bytes
   coverImage String? // URL to cover image
 
   // Metadata
-  genreId     String?
-  language    String    @default("en")
+  genreId     String
+  language    String    @default("bn")
   publisher   String?
   publishDate DateTime?
   isbn        String?   @unique
@@ -75,7 +75,7 @@ model AudioBook {
   updatedAt DateTime @updatedAt
 
   // Relations
-  genre            Genre?             @relation(fields: [genreId], references: [id])
+  genre            Genre              @relation(fields: [genreId], references: [id])
   userAudioBooks   UserAudioBook[]
   reviews          Review[]
   favorites        Favorite[]

@@ -248,13 +248,28 @@ export class AudioBookService {
       // Validate required fields
       this.validateCreateData(data);
 
+      // Construct data object, only including defined values for optional fields
+      const createData: any = {
+        title: data.title,
+        author: data.author,
+        genreId: data.genreId, // Required
+        language: data.language || 'bn', // Default language is now Bengali
+        isActive: data.isActive ?? true,
+        isPublic: data.isPublic ?? true,
+      };
+
+      // Add optional fields only if they are defined
+      if (data.narrator !== undefined) createData.narrator = data.narrator;
+      if (data.description !== undefined) createData.description = data.description;
+      if (data.duration !== undefined) createData.duration = data.duration;
+      if (data.fileSize !== undefined) createData.fileSize = BigInt(data.fileSize);
+      if (data.coverImage !== undefined) createData.coverImage = data.coverImage;
+      if (data.publisher !== undefined) createData.publisher = data.publisher;
+      if (data.publishDate !== undefined) createData.publishDate = data.publishDate;
+      if (data.isbn !== undefined) createData.isbn = data.isbn;
+
       const audiobook = await this.prisma.audioBook.create({
-        data: {
-          ...data,
-          language: data.language || 'en',
-          isActive: data.isActive ?? true,
-          isPublic: data.isPublic ?? true
-        }
+        data: createData
       });
 
       return toAudioBookDto(audiobook);
@@ -494,8 +509,8 @@ export class AudioBookService {
         totalAudioBooks,
         activeAudioBooks,
         publicAudioBooks,
-        totalDuration: durationStats._sum.duration || 0,
-        averageDuration: Math.round(durationStats._avg.duration || 0)
+        totalDuration: durationStats._sum.duration ?? 0,
+        averageDuration: Math.round(durationStats._avg.duration ?? 0)
       };
     } catch (_error) {
       throw ApiError.internalError(MessageHandler.getErrorMessage('internal.fetch_stats'));
@@ -514,11 +529,18 @@ export class AudioBookService {
       throw ApiError.validationError(MessageHandler.getErrorMessage('validation.author_required'));
     }
 
-    if (!data.duration || data.duration <= 0) {
+    // Genre is now mandatory
+    if (!data.genreId || data.genreId.trim().length === 0) {
+      throw ApiError.validationError(MessageHandler.getErrorMessage('validation.genre_required') || 'Genre is required');
+    }
+
+    // Duration and fileSize are now optional (calculated from chapters)
+    // But if provided, they must be positive
+    if (data.duration !== undefined && data.duration <= 0) {
       throw ApiError.validationError(MessageHandler.getErrorMessage('validation.duration_positive'));
     }
 
-    if (!data.fileSize || data.fileSize <= 0) {
+    if (data.fileSize !== undefined && data.fileSize <= 0) {
       throw ApiError.validationError(MessageHandler.getErrorMessage('validation.file_size_positive'));
     }
 
