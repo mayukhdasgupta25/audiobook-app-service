@@ -83,18 +83,18 @@ export class BackgroundJobService {
                   await this.calculateAllAudiobookProgress();
                } else {
                   // Validate audiobookId format (should be UUID)
-                  if (!this.isValidUUID(audiobookId)) {
-                     console.warn(`Invalid audiobookId format: ${audiobookId}, skipping progress calculation`);
-                     return;
-                  }
+                  // if (!this.isValidUUID(audiobookId)) {
+                  //    console.warn(`Invalid audiobookId format: ${audiobookId}, skipping progress calculation`);
+                  //    return;
+                  // }
                   await this.calculateAudiobookProgress(userProfileId, audiobookId);
                }
             } else if (type === 'chapter_progress') {
                // Validate audiobookId format (should be UUID)
-               if (!this.isValidUUID(audiobookId)) {
-                  console.warn(`Invalid audiobookId format: ${audiobookId}, skipping chapter progress calculation`);
-                  return;
-               }
+               // if (!this.isValidUUID(audiobookId)) {
+               //    console.warn(`Invalid audiobookId format: ${audiobookId}, skipping chapter progress calculation`);
+               //    return;
+               // }
                await this.calculateChapterProgress(userProfileId, audiobookId);
             }
 
@@ -163,10 +163,10 @@ export class BackgroundJobService {
 
          try {
             // Validate audiobookId format (should be UUID)
-            if (!this.isValidUUID(audiobookId)) {
-               console.warn(`Invalid audiobookId format: ${audiobookId}, skipping duration calculation`);
-               return;
-            }
+            // if (!this.isValidUUID(audiobookId)) {
+            //    console.warn(`Invalid audiobookId format: ${audiobookId}, skipping duration calculation`);
+            //    return;
+            // }
 
             await this.calculateAudiobookDuration(audiobookId);
             console.log(`Duration calculation completed for audiobook ${audiobookId}`);
@@ -340,10 +340,10 @@ export class BackgroundJobService {
    /**
     * Validate if a string is a valid UUID
     */
-   private isValidUUID(uuid: string): boolean {
-      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-      return uuidRegex.test(uuid);
-   }
+   // private isValidUUID(uuid: string): boolean {
+   //    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+   //    return uuidRegex.test(uuid);
+   // }
 
    /**
     * Calculate progress for all audiobooks for all users

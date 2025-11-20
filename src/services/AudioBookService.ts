@@ -243,36 +243,70 @@ export class AudioBookService {
   /**
    * Create a new audiobook
    */
-  async createAudioBook(data: CreateAudioBookDto): Promise<AudioBookDto> {
+  async createAudioBook(data: CreateAudioBookDto & { tagIds?: string[] }): Promise<AudioBookDto> {
     try {
+      // Extract tagIds from data before validation
+      const { tagIds, ...audiobookData } = data;
+
       // Validate required fields
-      this.validateCreateData(data);
+      this.validateCreateData(audiobookData);
 
       // Construct data object, only including defined values for optional fields
       const createData: any = {
-        title: data.title,
-        author: data.author,
-        genreId: data.genreId, // Required
-        language: data.language || 'bn', // Default language is now Bengali
-        isActive: data.isActive ?? true,
-        isPublic: data.isPublic ?? true,
+        title: audiobookData.title,
+        author: audiobookData.author,
+        genreId: audiobookData.genreId, // Required
+        language: audiobookData.language || 'bn', // Default language is now Bengali
+        isActive: audiobookData.isActive ?? true,
+        isPublic: audiobookData.isPublic ?? true,
       };
 
       // Add optional fields only if they are defined
-      if (data.narrator !== undefined) createData.narrator = data.narrator;
-      if (data.description !== undefined) createData.description = data.description;
-      if (data.duration !== undefined) createData.duration = data.duration;
-      if (data.fileSize !== undefined) createData.fileSize = BigInt(data.fileSize);
-      if (data.coverImage !== undefined) createData.coverImage = data.coverImage;
-      if (data.publisher !== undefined) createData.publisher = data.publisher;
-      if (data.publishDate !== undefined) createData.publishDate = data.publishDate;
-      if (data.isbn !== undefined) createData.isbn = data.isbn;
+      if (audiobookData.narrator !== undefined) createData.narrator = audiobookData.narrator;
+      if (audiobookData.description !== undefined) createData.description = audiobookData.description;
+      if (audiobookData.duration !== undefined) createData.duration = audiobookData.duration;
+      if (audiobookData.fileSize !== undefined) createData.fileSize = BigInt(audiobookData.fileSize);
+      if (audiobookData.coverImage !== undefined) createData.coverImage = audiobookData.coverImage;
+      if (audiobookData.publisher !== undefined) createData.publisher = audiobookData.publisher;
+      if (audiobookData.publishDate !== undefined) createData.publishDate = audiobookData.publishDate;
+      if (audiobookData.isbn !== undefined) createData.isbn = audiobookData.isbn;
 
       const audiobook = await this.prisma.audioBook.create({
         data: createData
       });
 
-      return toAudioBookDto(audiobook);
+      // Create AudioBookTag records if tagIds are provided
+      if (tagIds && tagIds.length > 0) {
+        await Promise.all(
+          tagIds.map(tagId =>
+            this.prisma.audioBookTag.create({
+              data: {
+                audiobookId: audiobook.id,
+                tagId: tagId
+              }
+            })
+          )
+        );
+      }
+
+      // Fetch the audiobook with all relations included
+      const audiobookWithRelations = await this.prisma.audioBook.findUnique({
+        where: { id: audiobook.id },
+        include: {
+          audiobookTags: {
+            include: {
+              tag: true
+            }
+          },
+          genre: true
+        }
+      });
+
+      if (!audiobookWithRelations) {
+        throw ApiError.internalError(MessageHandler.getErrorMessage('internal.create_audiobook'));
+      }
+
+      return toAudioBookDto(audiobookWithRelations);
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError) {
         if (error.code === 'P2002') {
@@ -442,6 +476,8 @@ export class AudioBookService {
           }
         }
       };
+
+      console.log(tags)
 
       // Build orderBy clause
       const orderBy: Prisma.AudioBookOrderByWithRelationInput = {

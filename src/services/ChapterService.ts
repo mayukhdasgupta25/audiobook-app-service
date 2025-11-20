@@ -221,6 +221,7 @@ export class ChapterService {
          // Schedule audiobook duration calculation job
          if (this.backgroundJobService) {
             try {
+               console.log(`Scheduling duration calculation for audiobook ${chapter.audiobookId}`);
                await this.backgroundJobService.scheduleAudiobookDurationCalculation(chapter.audiobookId);
             } catch (_error) {
                // Log error but don't fail chapter creation

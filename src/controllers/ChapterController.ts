@@ -5,6 +5,7 @@
 import { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { ChapterService } from '../services/ChapterService';
+import { BackgroundJobService } from '../services/BackgroundJobService';
 import { ResponseHandler } from '../utils/ResponseHandler';
 import { ChapterQueryParams } from '../models/ChapterDto';
 import { ErrorHandler } from '../middleware/ErrorHandler';
@@ -13,8 +14,8 @@ import { MessageHandler } from '../utils/MessageHandler';
 export class ChapterController {
    private chapterService: ChapterService;
 
-   constructor(prisma: PrismaClient) {
-      this.chapterService = new ChapterService(prisma);
+   constructor(prisma: PrismaClient, backgroundJobService?: BackgroundJobService) {
+      this.chapterService = new ChapterService(prisma, backgroundJobService);
    }
 
    /**
@@ -157,7 +158,7 @@ export class ChapterController {
     *               endPosition:
     *                 type: integer
     *                 description: End position in seconds
-    *               audio:
+    *               file:
     *                 type: string
     *                 format: binary
     *                 description: Audio file (optional)
@@ -172,7 +173,7 @@ export class ChapterController {
     *                 duration: 1800
     *                 startPosition: 0
     *                 endPosition: 1800
-    *                 audio: "[audio file]"
+    *                 file: "[audio file]"
     *     responses:
     *       201:
     *         description: Chapter created successfully
@@ -209,6 +210,7 @@ export class ChapterController {
          fileSize: uploadedFile?.size || parseInt(req.body.fileSize || '0', 10)
       };
 
+      console.log(chapterData);
       const chapter = await this.chapterService.createChapter(chapterData, uploadedFile);
 
       ResponseHandler.success(res, chapter, MessageHandler.getSuccessMessage('chapters.created'), 201);

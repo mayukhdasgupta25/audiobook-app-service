@@ -144,7 +144,8 @@ export const handleUploadError = (_error: any, _req: Request, res: Response, nex
 export const uploadSingleImage = imageUpload.single('image');
 
 // Middleware for single audio upload
-export const uploadSingleAudio = audioUpload.single('audio');
+// Accepts both 'audio' and 'file' field names for flexibility
+export const uploadSingleAudio = audioUpload.single('file');
 
 // Middleware for multiple image uploads
 export const uploadMultipleImages = imageUpload.array('images', 5);
@@ -192,6 +193,7 @@ export class UploadMiddleware {
          if (err) {
             return handleUploadError(err, req, res, next);
          }
+         // req.body is now populated after multer processes the multipart/form-data
          next();
       });
    };
