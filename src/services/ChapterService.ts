@@ -18,12 +18,15 @@ import { ApiError } from '../types/ApiError';
 import { RabbitMQFactory, TranscodingJobData } from '../config/rabbitmq';
 import { config } from '../config/env';
 import { FileUploadService } from './FileUploadService';
+import { BackgroundJobService } from './BackgroundJobService';
 
 export class ChapterService {
    private fileUploadService: FileUploadService;
+   private backgroundJobService: BackgroundJobService | undefined;
 
-   constructor(private prisma: PrismaClient) {
+   constructor(private prisma: PrismaClient, backgroundJobService?: BackgroundJobService) {
       this.fileUploadService = new FileUploadService();
+      this.backgroundJobService = backgroundJobService;
    }
 
    /**
@@ -215,6 +218,17 @@ export class ChapterService {
             // console.error(`Error publishing transcoding job for chapter ${chapter.id}:`, error);
          }
 
+         // Schedule audiobook duration calculation job
+         if (this.backgroundJobService) {
+            try {
+               console.log(`Scheduling duration calculation for audiobook ${chapter.audiobookId}`);
+               await this.backgroundJobService.scheduleAudiobookDurationCalculation(chapter.audiobookId);
+            } catch (_error) {
+               // Log error but don't fail chapter creation
+               console.error(`Error scheduling duration calculation for audiobook ${chapter.audiobookId}:`, _error);
+            }
+         }
+
          return {
             id: chapter.id,
             audiobookId: chapter.audiobookId,
@@ -275,6 +289,16 @@ export class ChapterService {
             data: updatePayload,
          });
 
+         // Schedule audiobook duration calculation job if duration was updated
+         if (this.backgroundJobService && (updateData.duration !== undefined)) {
+            try {
+               await this.backgroundJobService.scheduleAudiobookDurationCalculation(chapter.audiobookId);
+            } catch (_error) {
+               // Log error but don't fail chapter update
+               console.error(`Error scheduling duration calculation for audiobook ${chapter.audiobookId}:`, _error);
+            }
+         }
+
          return {
             id: chapter.id,
             audiobookId: chapter.audiobookId,
@@ -310,9 +334,21 @@ export class ChapterService {
             throw new ApiError('Chapter not found', 404);
          }
 
+         const audiobookId = chapter.audiobookId;
+
          await this.prisma.chapter.delete({
             where: { id: chapterId },
          });
+
+         // Schedule audiobook duration calculation job after deletion
+         if (this.backgroundJobService) {
+            try {
+               await this.backgroundJobService.scheduleAudiobookDurationCalculation(audiobookId);
+            } catch (_error) {
+               // Log error but don't fail chapter deletion
+               console.error(`Error scheduling duration calculation for audiobook ${audiobookId}:`, _error);
+            }
+         }
       } catch (error) {
          if (error instanceof ApiError) {
             throw error;

@@ -245,19 +245,34 @@ export class AudioBookService {
    */
   async createAudioBook(data: CreateAudioBookDto & { tagIds?: string[] }): Promise<AudioBookDto> {
     try {
-      // Validate required fields
-      this.validateCreateData(data);
-
-      // Extract tagIds from data before creating audiobook
+      // Extract tagIds from data before validation
       const { tagIds, ...audiobookData } = data;
 
+      // Validate required fields
+      this.validateCreateData(audiobookData);
+
+      // Construct data object, only including defined values for optional fields
+      const createData: any = {
+        title: audiobookData.title,
+        author: audiobookData.author,
+        genreId: audiobookData.genreId, // Required
+        language: audiobookData.language || 'bn', // Default language is now Bengali
+        isActive: audiobookData.isActive ?? true,
+        isPublic: audiobookData.isPublic ?? true,
+      };
+
+      // Add optional fields only if they are defined
+      if (audiobookData.narrator !== undefined) createData.narrator = audiobookData.narrator;
+      if (audiobookData.description !== undefined) createData.description = audiobookData.description;
+      if (audiobookData.duration !== undefined) createData.duration = audiobookData.duration;
+      if (audiobookData.fileSize !== undefined) createData.fileSize = BigInt(audiobookData.fileSize);
+      if (audiobookData.coverImage !== undefined) createData.coverImage = audiobookData.coverImage;
+      if (audiobookData.publisher !== undefined) createData.publisher = audiobookData.publisher;
+      if (audiobookData.publishDate !== undefined) createData.publishDate = audiobookData.publishDate;
+      if (audiobookData.isbn !== undefined) createData.isbn = audiobookData.isbn;
+
       const audiobook = await this.prisma.audioBook.create({
-        data: {
-          ...audiobookData,
-          language: audiobookData.language || 'en',
-          isActive: audiobookData.isActive ?? true,
-          isPublic: audiobookData.isPublic ?? true
-        }
+        data: createData
       });
 
       // Create AudioBookTag records if tagIds are provided
@@ -530,8 +545,8 @@ export class AudioBookService {
         totalAudioBooks,
         activeAudioBooks,
         publicAudioBooks,
-        totalDuration: durationStats._sum.duration || 0,
-        averageDuration: Math.round(durationStats._avg.duration || 0)
+        totalDuration: durationStats._sum.duration ?? 0,
+        averageDuration: Math.round(durationStats._avg.duration ?? 0)
       };
     } catch (_error) {
       throw ApiError.internalError(MessageHandler.getErrorMessage('internal.fetch_stats'));
@@ -550,11 +565,18 @@ export class AudioBookService {
       throw ApiError.validationError(MessageHandler.getErrorMessage('validation.author_required'));
     }
 
-    if (!data.duration || data.duration <= 0) {
+    // Genre is now mandatory
+    if (!data.genreId || data.genreId.trim().length === 0) {
+      throw ApiError.validationError(MessageHandler.getErrorMessage('validation.genre_required') || 'Genre is required');
+    }
+
+    // Duration and fileSize are now optional (calculated from chapters)
+    // But if provided, they must be positive
+    if (data.duration !== undefined && data.duration <= 0) {
       throw ApiError.validationError(MessageHandler.getErrorMessage('validation.duration_positive'));
     }
 
-    if (!data.fileSize || data.fileSize <= 0) {
+    if (data.fileSize !== undefined && data.fileSize <= 0) {
       throw ApiError.validationError(MessageHandler.getErrorMessage('validation.file_size_positive'));
     }
 

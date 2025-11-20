@@ -5,6 +5,7 @@
 import { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { ChapterService } from '../services/ChapterService';
+import { BackgroundJobService } from '../services/BackgroundJobService';
 import { ResponseHandler } from '../utils/ResponseHandler';
 import { ChapterQueryParams } from '../models/ChapterDto';
 import { ErrorHandler } from '../middleware/ErrorHandler';
@@ -13,8 +14,8 @@ import { MessageHandler } from '../utils/MessageHandler';
 export class ChapterController {
    private chapterService: ChapterService;
 
-   constructor(prisma: PrismaClient) {
-      this.chapterService = new ChapterService(prisma);
+   constructor(prisma: PrismaClient, backgroundJobService?: BackgroundJobService) {
+      this.chapterService = new ChapterService(prisma, backgroundJobService);
    }
 
    /**

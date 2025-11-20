@@ -7,6 +7,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 // UserProfile model for user profile information
@@ -48,13 +49,13 @@ model AudioBook {
   description String?
 
   // Media information
-  duration   Int // Duration in seconds
-  fileSize   BigInt // File size in bytes
+  duration   Int? // Duration in seconds (calculated from chapters)
+  fileSize   BigInt? // File size in bytes
   coverImage String? // URL to cover image
 
   // Metadata
-  genreId     String?
-  language    String    @default("en")
+  genreId     String
+  language    String    @default("bn")
   publisher   String?
   publishDate DateTime?
   isbn        String?   @unique
@@ -72,9 +73,10 @@ model AudioBook {
   // Timestamps
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  scheduledAt DateTime? // Optional scheduled date/time
 
   // Relations
-  genre            Genre?             @relation(fields: [genreId], references: [id])
+  genre            Genre              @relation(fields: [genreId], references: [id])
   userAudioBooks   UserAudioBook[]
   reviews          Review[]
   favorites        Favorite[]
@@ -220,6 +222,7 @@ model Chapter {
   // Timestamps
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  scheduledAt DateTime? // Optional scheduled date/time
 
   // Relations
   audiobook       AudioBook         @relation(fields: [audiobookId], references: [id], onDelete: Cascade)

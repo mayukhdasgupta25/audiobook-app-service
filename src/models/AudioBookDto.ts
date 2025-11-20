@@ -10,8 +10,8 @@ export interface AudioBookDto {
   author: string;
   narrator?: string | undefined;
   description?: string | undefined;
-  duration: number;
-  fileSize: number;
+  duration?: number | undefined;
+  fileSize?: number | undefined;
   coverImage?: string | undefined;
   language: string;
   publisher?: string | undefined;
@@ -39,10 +39,10 @@ export interface CreateAudioBookDto {
   author: string;
   narrator?: string;
   description?: string;
-  duration: number;
-  fileSize: number;
+  duration?: number;
+  fileSize?: number;
   coverImage?: string;
-  genreId?: string;
+  genreId: string; // Required - genre is now mandatory
   language?: string;
   publisher?: string;
   publishDate?: Date;
@@ -95,8 +95,8 @@ export function toAudioBookDto(audiobook: PrismaAudioBook & {
     author: audiobook.author,
     narrator: audiobook.narrator || undefined,
     description: audiobook.description || undefined,
-    duration: audiobook.duration,
-    fileSize: Number(audiobook.fileSize),
+    duration: audiobook.duration ?? undefined,
+    fileSize: audiobook.fileSize ? Number(audiobook.fileSize) : undefined,
     coverImage: audiobook.coverImage || undefined,
     language: audiobook.language,
     publisher: audiobook.publisher || undefined,
