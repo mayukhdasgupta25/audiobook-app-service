@@ -31,11 +31,17 @@ export interface DurationCalculationJobData {
    audiobookId: string;
 }
 
+export interface ScheduledActivationJobData {
+   type: 'audiobook' | 'chapter';
+   id: string;
+}
+
 export class BackgroundJobService {
    private progressQueue: Bull.Queue<ProgressCalculationJobData>;
    private downloadQueue: Bull.Queue<OfflineDownloadJobData>;
    private cleanupQueue: Bull.Queue<CleanupJobData>;
    private durationQueue: Bull.Queue<DurationCalculationJobData>;
+   private activationQueue: Bull.Queue<ScheduledActivationJobData>;
    private chapterService: ChapterService;
 
    constructor(private prisma: PrismaClient) {
@@ -57,6 +63,10 @@ export class BackgroundJobService {
       });
 
       this.durationQueue = new Bull('duration-calculation', {
+         redis: redisUrl,
+      });
+
+      this.activationQueue = new Bull('scheduled-activation', {
          redis: redisUrl,
       });
 
@@ -175,6 +185,36 @@ export class BackgroundJobService {
             throw error;
          }
       });
+
+      // Scheduled activation processor
+      this.activationQueue.process('activate-scheduled', async (job) => {
+         const { type, id } = job.data;
+
+         try {
+            if (type === 'audiobook') {
+               await this.prisma.audioBook.update({
+                  where: { id },
+                  data: {
+                     isActive: true,
+                     scheduledAt: null,
+                  },
+               });
+               console.log(`Activated scheduled audiobook ${id}`);
+            } else if (type === 'chapter') {
+               await this.prisma.chapter.update({
+                  where: { id },
+                  data: {
+                     isActive: true,
+                     scheduledAt: null,
+                  },
+               });
+               console.log(`Activated scheduled chapter ${id}`);
+            }
+         } catch (error) {
+            // console.error('Scheduled activation failed:', error);
+            throw error;
+         }
+      });
    }
 
    /**
@@ -270,6 +310,61 @@ export class BackgroundJobService {
          });
       } catch (_error) {
          throw new ApiError('Failed to schedule duration calculation', 500);
+      }
+   }
+
+   /**
+    * Schedule activation job for audiobook or chapter
+    * Creates a delayed job that will activate the item at the specified time
+    */
+   async scheduleActivationJob(type: 'audiobook' | 'chapter', id: string, scheduledAt: Date): Promise<void> {
+      try {
+         // Calculate delay in milliseconds
+         const delay = scheduledAt.getTime() - Date.now();
+
+         // If scheduled time is in the past, activate immediately
+         if (delay <= 0) {
+            // Activate immediately
+            if (type === 'audiobook') {
+               await this.prisma.audioBook.update({
+                  where: { id },
+                  data: {
+                     isActive: true,
+                     scheduledAt: null,
+                  },
+               });
+            } else {
+               await this.prisma.chapter.update({
+                  where: { id },
+                  data: {
+                     isActive: true,
+                     scheduledAt: null,
+                  },
+               });
+            }
+            return;
+         }
+
+         // Create unique job ID to prevent duplicates
+         const jobId = `activation-${type}-${id}`;
+
+         // Remove any existing job with the same ID
+         const existingJob = await this.activationQueue.getJob(jobId);
+         if (existingJob) {
+            await existingJob.remove();
+         }
+
+         // Schedule the activation job
+         await this.activationQueue.add('activate-scheduled', {
+            type,
+            id,
+         } as ScheduledActivationJobData, {
+            jobId,
+            delay,
+            attempts: 1, // Only attempt once
+         });
+      } catch (_error) {
+         throw new ApiError('Failed to schedule activation job', 500);
       }
    }
 
@@ -590,13 +685,15 @@ export class BackgroundJobService {
       downloadQueue: any;
       cleanupQueue: any;
       durationQueue: any;
+      activationQueue: any;
    }> {
       try {
-         const [progressStats, downloadStats, cleanupStats, durationStats] = await Promise.all([
+         const [progressStats, downloadStats, cleanupStats, durationStats, activationStats] = await Promise.all([
             this.progressQueue.getJobCounts(),
             this.downloadQueue.getJobCounts(),
             this.cleanupQueue.getJobCounts(),
             this.durationQueue.getJobCounts(),
+            this.activationQueue.getJobCounts(),
          ]);
 
          return {
@@ -604,6 +701,7 @@ export class BackgroundJobService {
             downloadQueue: downloadStats,
             cleanupQueue: cleanupStats,
             durationQueue: durationStats,
+            activationQueue: activationStats,
          };
       } catch (_error) {
          throw new ApiError('Failed to retrieve queue statistics', 500);
@@ -620,6 +718,7 @@ export class BackgroundJobService {
             this.downloadQueue.close(),
             this.cleanupQueue.close(),
             this.durationQueue.close(),
+            this.activationQueue.close(),
          ]);
       } catch (_error) {
          // console.error('Error during queue shutdown:', _error);

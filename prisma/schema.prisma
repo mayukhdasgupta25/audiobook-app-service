@@ -71,8 +71,8 @@ model AudioBook {
   overallProgress Float @default(0.0) // Percentage (0-100)
 
   // Timestamps
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
   scheduledAt DateTime? // Optional scheduled date/time
 
   // Relations
@@ -214,14 +214,18 @@ model Chapter {
   duration      Int // Duration in seconds
   filePath      String // Path to chapter audio file
   fileSize      BigInt // File size in bytes
+  coverImage    String // URL to chapter cover image (required)
 
   // Chapter start/end positions in main audiobook file
   startPosition Int // Start position in seconds within main audiobook
   endPosition   Int // End position in seconds within main audiobook
 
+  // Status
+  isActive Boolean @default(true)
+
   // Timestamps
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
   scheduledAt DateTime? // Optional scheduled date/time
 
   // Relations
