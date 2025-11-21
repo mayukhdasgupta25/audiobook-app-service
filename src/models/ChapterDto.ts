@@ -15,13 +15,13 @@ export interface ChapterData {
    duration: number;
    filePath: string;
    fileSize: number;
-   coverImage?: string;
+   coverImage: string; // Required
    startPosition: number;
    endPosition: number;
    isActive: boolean;
    createdAt: Date;
    updatedAt: Date;
-   scheduledAt?: Date;
+   scheduledAt?: Date | null;
 }
 
 // Chapter with relations
@@ -45,7 +45,7 @@ export interface CreateChapterRequest {
    duration: number;
    filePath?: string; // Made optional for file uploads
    fileSize?: number; // Made optional for file uploads
-   coverImage?: string;
+   coverImage?: string; // Optional in request, will be set from uploaded file
    startPosition: number;
    endPosition: number;
    isActive?: boolean;

@@ -136,6 +136,8 @@ export class ChapterController {
     *               - duration
     *               - startPosition
     *               - endPosition
+    *               - coverImage
+    *               - file
     *             properties:
     *               audiobookId:
     *                 type: string
@@ -158,10 +160,14 @@ export class ChapterController {
     *               endPosition:
     *                 type: integer
     *                 description: End position in seconds
+    *               coverImage:
+    *                 type: string
+    *                 format: binary
+    *                 description: Chapter cover image (required, max 50MB)
     *               file:
     *                 type: string
     *                 format: binary
-    *                 description: Audio file (optional)
+    *                 description: Audio file (required, max 1GB)
     *           examples:
     *             example1:
     *               summary: Example chapter with audio file
@@ -194,7 +200,20 @@ export class ChapterController {
     *         $ref: '#/components/responses/InternalServerError'
     */
    createChapter = ErrorHandler.asyncHandler(async (req: Request, res: Response): Promise<void> => {
-      const uploadedFile = req.file as Express.Multer.File | undefined;
+      // Get files from combined upload middleware
+      const uploadedCoverImage = (req as any).coverImageFile as Express.Multer.File | undefined;
+      const uploadedFile = (req as any).audioFile as Express.Multer.File | undefined;
+
+      // Files are already validated by middleware, but double-check for safety
+      if (!uploadedCoverImage) {
+         ResponseHandler.validationError(res, 'Cover image is required');
+         return;
+      }
+
+      if (!uploadedFile) {
+         ResponseHandler.validationError(res, 'Audio file is required');
+         return;
+      }
 
       // Parse form-data values (they come as strings from multipart/form-data)
       const chapterData: any = {
@@ -205,9 +224,6 @@ export class ChapterController {
          duration: parseInt(req.body.duration, 10),
          startPosition: parseInt(req.body.startPosition, 10),
          endPosition: parseInt(req.body.endPosition, 10),
-         // File data will be handled by uploadedFile
-         filePath: uploadedFile?.path || req.body.filePath || '',
-         fileSize: uploadedFile?.size || parseInt(req.body.fileSize || '0', 10),
       };
 
       // Parse isActive if provided (defaults to true in service)
@@ -220,7 +236,7 @@ export class ChapterController {
          chapterData.scheduledAt = new Date(req.body.scheduledAt);
       }
 
-      const chapter = await this.chapterService.createChapter(chapterData, uploadedFile);
+      const chapter = await this.chapterService.createChapter(chapterData, uploadedFile, uploadedCoverImage);
 
       ResponseHandler.success(res, chapter, MessageHandler.getSuccessMessage('chapters.created'), 201);
    });
@@ -230,7 +246,7 @@ export class ChapterController {
     * /api/v1/chapters/{id}:
     *   put:
     *     summary: Update an existing chapter
-    *     description: Update an existing chapter with the provided information
+    *     description: Update an existing chapter with the provided information and optional audio file upload
     *     tags: [Chapters]
     *     parameters:
     *       - name: id
@@ -242,12 +258,49 @@ export class ChapterController {
     *     requestBody:
     *       required: true
     *       content:
-    *         application/json:
+    *         multipart/form-data:
     *           schema:
-    *             $ref: '#/components/schemas/UpdateChapterRequest'
+    *             type: object
+    *             properties:
+    *               title:
+    *                 type: string
+    *                 description: Chapter title
+    *               description:
+    *                 type: string
+    *                 description: Chapter description
+    *               chapterNumber:
+    *                 type: integer
+    *                 description: Chapter number
+    *               duration:
+    *                 type: integer
+    *                 description: Duration in seconds
+    *               startPosition:
+    *                 type: integer
+    *                 description: Start position in seconds
+    *               endPosition:
+    *                 type: integer
+    *                 description: End position in seconds
+    *               file:
+    *                 type: string
+    *                 format: binary
+    *                 description: Audio file (optional)
+    *               isActive:
+    *                 type: boolean
+    *                 description: Whether the chapter is active
+    *               scheduledAt:
+    *                 type: string
+    *                 format: date-time
+    *                 description: Scheduled activation date
     *           examples:
     *             example1:
-    *               summary: Update chapter
+    *               summary: Update chapter with audio file
+    *               value:
+    *                 title: "Chapter 1: The Beginning (Updated)"
+    *                 description: "An updated description of the first chapter"
+    *                 duration: 1900
+    *                 file: "[audio file]"
+    *             example2:
+    *               summary: Update chapter without file
     *               value:
     *                 title: "Chapter 1: The Beginning (Updated)"
     *                 description: "An updated description of the first chapter"
@@ -273,13 +326,55 @@ export class ChapterController {
     */
    updateChapter = ErrorHandler.asyncHandler(async (req: Request, res: Response): Promise<void> => {
       const { id } = req.params;
-      const updateData = {
-         ...req.body,
-         // Parse scheduledAt if provided
-         scheduledAt: req.body.scheduledAt ? new Date(req.body.scheduledAt) : undefined
-      };
+      const uploadedFile = req.file as Express.Multer.File | undefined;
+      const uploadedCoverImage = (req as any).coverImageFile as Express.Multer.File | undefined;
 
-      const chapter = await this.chapterService.updateChapter(id as string, updateData);
+      // Parse form-data values (they come as strings from multipart/form-data)
+      const updateData: any = {};
+
+      // Only include fields that are provided
+      if (req.body.title !== undefined) {
+         updateData.title = req.body.title;
+      }
+      if (req.body.description !== undefined) {
+         updateData.description = req.body.description || undefined;
+      }
+      if (req.body.chapterNumber !== undefined) {
+         updateData.chapterNumber = parseInt(req.body.chapterNumber, 10);
+      }
+      if (req.body.duration !== undefined) {
+         updateData.duration = parseInt(req.body.duration, 10);
+      }
+      if (req.body.startPosition !== undefined) {
+         updateData.startPosition = parseInt(req.body.startPosition, 10);
+      }
+      if (req.body.endPosition !== undefined) {
+         updateData.endPosition = parseInt(req.body.endPosition, 10);
+      }
+      if (req.body.isActive !== undefined) {
+         updateData.isActive = req.body.isActive === 'true' || req.body.isActive === true;
+      }
+      if (req.body.scheduledAt !== undefined && req.body.scheduledAt !== '') {
+         updateData.scheduledAt = new Date(req.body.scheduledAt);
+      }
+
+      // File data will be handled by uploadedFile
+      if (uploadedFile) {
+         updateData.filePath = uploadedFile.path;
+         updateData.fileSize = uploadedFile.size;
+      } else if (req.body.filePath !== undefined) {
+         updateData.filePath = req.body.filePath;
+      }
+      if (req.body.fileSize !== undefined && !uploadedFile) {
+         updateData.fileSize = parseInt(req.body.fileSize || '0', 10);
+      }
+
+      // Cover image can be updated via upload or body
+      if (req.body.coverImage !== undefined) {
+         updateData.coverImage = req.body.coverImage;
+      }
+
+      const chapter = await this.chapterService.updateChapter(id as string, updateData, uploadedFile, uploadedCoverImage);
 
       ResponseHandler.success(res, chapter, MessageHandler.getSuccessMessage('chapters.updated'));
    });

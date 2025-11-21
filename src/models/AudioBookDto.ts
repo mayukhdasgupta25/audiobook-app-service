@@ -83,6 +83,8 @@ export interface AudioBookQueryParams {
   isActive?: boolean | undefined;
   isPublic?: boolean | undefined;
   search?: string | undefined;
+  active?: boolean | undefined;
+  scheduled?: boolean | undefined;
 }
 
 /**

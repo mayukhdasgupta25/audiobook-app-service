@@ -316,6 +316,9 @@ export class ValidationMiddleware {
       return;
     }
 
+    // Cover image and audio file are validated by UploadMiddleware.handleImageAndAudioUpload
+    // No need to validate here as middleware ensures both are present
+
     // Validate description if provided
     if (req.body.description && (typeof req.body.description !== 'string' || req.body.description.length > 1000)) {
       ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.description_length'));
