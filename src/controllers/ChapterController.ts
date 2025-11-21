@@ -197,7 +197,7 @@ export class ChapterController {
       const uploadedFile = req.file as Express.Multer.File | undefined;
 
       // Parse form-data values (they come as strings from multipart/form-data)
-      const chapterData = {
+      const chapterData: any = {
          audiobookId: req.body.audiobookId,
          title: req.body.title,
          description: req.body.description || undefined,
@@ -207,10 +207,19 @@ export class ChapterController {
          endPosition: parseInt(req.body.endPosition, 10),
          // File data will be handled by uploadedFile
          filePath: uploadedFile?.path || req.body.filePath || '',
-         fileSize: uploadedFile?.size || parseInt(req.body.fileSize || '0', 10)
+         fileSize: uploadedFile?.size || parseInt(req.body.fileSize || '0', 10),
       };
 
-      console.log(chapterData);
+      // Parse isActive if provided (defaults to true in service)
+      if (req.body.isActive !== undefined) {
+         chapterData.isActive = req.body.isActive === 'true' || req.body.isActive === true;
+      }
+
+      // Parse scheduledAt if provided (can be ISO string or Date)
+      if (req.body.scheduledAt) {
+         chapterData.scheduledAt = new Date(req.body.scheduledAt);
+      }
+
       const chapter = await this.chapterService.createChapter(chapterData, uploadedFile);
 
       ResponseHandler.success(res, chapter, MessageHandler.getSuccessMessage('chapters.created'), 201);
@@ -264,7 +273,11 @@ export class ChapterController {
     */
    updateChapter = ErrorHandler.asyncHandler(async (req: Request, res: Response): Promise<void> => {
       const { id } = req.params;
-      const updateData = req.body;
+      const updateData = {
+         ...req.body,
+         // Parse scheduledAt if provided
+         scheduledAt: req.body.scheduledAt ? new Date(req.body.scheduledAt) : undefined
+      };
 
       const chapter = await this.chapterService.updateChapter(id as string, updateData);
 

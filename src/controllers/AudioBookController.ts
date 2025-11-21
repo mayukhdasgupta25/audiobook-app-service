@@ -180,7 +180,11 @@ export class AudioBookController {
    *         $ref: '#/components/responses/InternalServerError'
    */
   createAudioBook = ErrorHandler.asyncHandler(async (req: Request, res: Response): Promise<void> => {
-    const audiobookData = req.body;
+    const audiobookData = {
+      ...req.body,
+      // Parse scheduledAt if provided (can be ISO string or Date)
+      scheduledAt: req.body.scheduledAt ? new Date(req.body.scheduledAt) : undefined
+    };
 
     // Handle uploaded files
     if (req.files) {
@@ -252,7 +256,11 @@ export class AudioBookController {
    */
   updateAudioBook = ErrorHandler.asyncHandler(async (req: Request, res: Response): Promise<void> => {
     const { id } = req.params;
-    const updateData = req.body;
+    const updateData = {
+      ...req.body,
+      // Parse scheduledAt if provided (can be ISO string or Date)
+      scheduledAt: req.body.scheduledAt ? new Date(req.body.scheduledAt) : undefined
+    };
 
     // Handle uploaded files
     if (req.files) {

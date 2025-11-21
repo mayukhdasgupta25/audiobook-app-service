@@ -74,8 +74,10 @@ export class ChapterService {
                duration: chapter.duration,
                filePath: chapter.filePath,
                fileSize: Number(chapter.fileSize),
+               coverImage: chapter.coverImage || undefined,
                startPosition: chapter.startPosition,
                endPosition: chapter.endPosition,
+               isActive: chapter.isActive,
                createdAt: chapter.createdAt,
                updatedAt: chapter.updatedAt,
                audiobook: chapter.audiobook,
@@ -124,8 +126,10 @@ export class ChapterService {
             duration: chapter.duration,
             filePath: chapter.filePath,
             fileSize: Number(chapter.fileSize),
+            coverImage: chapter.coverImage || undefined,
             startPosition: chapter.startPosition,
             endPosition: chapter.endPosition,
+            isActive: chapter.isActive,
             createdAt: chapter.createdAt,
             updatedAt: chapter.updatedAt
          } as ChapterData;
@@ -181,6 +185,7 @@ export class ChapterService {
                ...chapterData,
                filePath,
                fileSize: BigInt(fileSize),
+               isActive: chapterData.isActive ?? true, // Default to true if not provided
             },
          });
 
@@ -238,10 +243,13 @@ export class ChapterService {
             duration: chapter.duration,
             filePath: chapter.filePath,
             fileSize: Number(chapter.fileSize),
+            coverImage: chapter.coverImage || undefined,
             startPosition: chapter.startPosition,
             endPosition: chapter.endPosition,
+            isActive: chapter.isActive,
             createdAt: chapter.createdAt,
-            updatedAt: chapter.updatedAt
+            updatedAt: chapter.updatedAt,
+            scheduledAt: chapter.scheduledAt || undefined
          } as ChapterData;
       } catch (error) {
          if (error instanceof ApiError) {
@@ -308,10 +316,13 @@ export class ChapterService {
             duration: chapter.duration,
             filePath: chapter.filePath,
             fileSize: Number(chapter.fileSize),
+            coverImage: chapter.coverImage || undefined,
             startPosition: chapter.startPosition,
             endPosition: chapter.endPosition,
+            isActive: chapter.isActive,
             createdAt: chapter.createdAt,
-            updatedAt: chapter.updatedAt
+            updatedAt: chapter.updatedAt,
+            scheduledAt: chapter.scheduledAt || undefined
          } as ChapterData;
       } catch (error) {
          if (error instanceof ApiError) {

@@ -21,6 +21,7 @@ export interface AudioBookDto {
   isPublic: boolean;
   createdAt: Date;
   updatedAt: Date;
+  scheduledAt?: Date | undefined;
   audiobookTags?: AudioBookTagDto[] | undefined;
   genre?: GenreDto | undefined;
 }
@@ -49,6 +50,7 @@ export interface CreateAudioBookDto {
   isbn?: string;
   isActive?: boolean;
   isPublic?: boolean;
+  scheduledAt?: Date;
 }
 
 export interface UpdateAudioBookDto {
@@ -66,6 +68,7 @@ export interface UpdateAudioBookDto {
   isbn?: string;
   isActive?: boolean;
   isPublic?: boolean;
+  scheduledAt?: Date;
 }
 
 export interface AudioBookQueryParams {
@@ -106,6 +109,7 @@ export function toAudioBookDto(audiobook: PrismaAudioBook & {
     isPublic: audiobook.isPublic,
     createdAt: audiobook.createdAt,
     updatedAt: audiobook.updatedAt,
+    scheduledAt: audiobook.scheduledAt || undefined,
     audiobookTags: audiobook.audiobookTags?.map(tag => ({
       name: tag.tag.name,
       type: tag.tag.type

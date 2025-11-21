@@ -270,6 +270,7 @@ export class AudioBookService {
       if (audiobookData.publisher !== undefined) createData.publisher = audiobookData.publisher;
       if (audiobookData.publishDate !== undefined) createData.publishDate = audiobookData.publishDate;
       if (audiobookData.isbn !== undefined) createData.isbn = audiobookData.isbn;
+      if (audiobookData.scheduledAt !== undefined) createData.scheduledAt = audiobookData.scheduledAt;
 
       const audiobook = await this.prisma.audioBook.create({
         data: createData
