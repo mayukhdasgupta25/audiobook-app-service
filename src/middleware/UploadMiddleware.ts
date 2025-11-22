@@ -12,7 +12,8 @@ import { config } from '../config/env';
 const ensureUploadDirs = (): void => {
    const dirs = [
       config.DEV_UPLOAD_DIR,
-      config.DEV_IMAGE_DIR,
+      config.DEV_AUDIOBOOK_IMAGE_DIR,
+      config.DEV_CHAPTER_IMAGE_DIR,
       config.DEV_AUDIO_DIR
    ];
 
@@ -27,9 +28,18 @@ const ensureUploadDirs = (): void => {
 ensureUploadDirs();
 
 // Storage configuration for images
+// Routes to chapters subdirectory for chapter routes, main images directory otherwise
 const imageStorage = multer.diskStorage({
-   destination: (_req, _file, cb) => {
-      cb(null, config.DEV_IMAGE_DIR);
+   destination: (req, _file, cb) => {
+      // Check if this is a chapter route by examining the request path
+      const isChapterRoute = req.path?.includes('/chapters') || req.originalUrl?.includes('/chapters');
+
+      // For chapter routes, use chapters subdirectory; otherwise use main images directory
+      if (isChapterRoute) {
+         cb(null, config.DEV_CHAPTER_IMAGE_DIR);
+      } else {
+         cb(null, config.DEV_AUDIOBOOK_IMAGE_DIR);
+      }
    },
    filename: (_req, file, cb) => {
       // Generate unique filename with timestamp
@@ -99,11 +109,21 @@ const imageUpload = multer({
 });
 
 // Combined storage that routes files to appropriate directories based on field name
+// For chapter creation/update: coverImage goes to chapters subdirectory
+// For audiobook creation/update: coverImage goes to main images directory
 const combinedStorage = multer.diskStorage({
-   destination: (_req, file, cb) => {
-      // Route to image directory for coverImage field
+   destination: (req, file, cb) => {
+      // Route chapter coverImage to chapters subdirectory
+      // Check if this is a chapter route by examining the request path
+      const isChapterRoute = req.path?.includes('/chapters') || req.originalUrl?.includes('/chapters');
+
       if (file.fieldname === 'coverImage') {
-         cb(null, config.DEV_IMAGE_DIR);
+         // For chapter routes, use chapters subdirectory; otherwise use main images directory
+         if (isChapterRoute) {
+            cb(null, config.DEV_CHAPTER_IMAGE_DIR);
+         } else {
+            cb(null, config.DEV_AUDIOBOOK_IMAGE_DIR);
+         }
       } else if (file.fieldname === 'file' || file.fieldname === 'audio') {
          // Route to audio directory for audio files
          cb(null, config.DEV_AUDIO_DIR);
