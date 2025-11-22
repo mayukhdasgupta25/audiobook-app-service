@@ -6,12 +6,15 @@ import { PrismaClient, Prisma } from '@prisma/client';
 import { AudioBookDto, CreateAudioBookDto, UpdateAudioBookDto, AudioBookQueryParams, toAudioBookDto } from '../models/AudioBookDto';
 import { ApiError } from '../types/ApiError';
 import { MessageHandler } from '../utils/MessageHandler';
+import { BackgroundJobService } from './BackgroundJobService';
 
 export class AudioBookService {
   private prisma: PrismaClient;
+  private backgroundJobService: BackgroundJobService | undefined;
 
-  constructor(prisma: PrismaClient) {
+  constructor(prisma: PrismaClient, backgroundJobService?: BackgroundJobService) {
     this.prisma = prisma;
+    this.backgroundJobService = backgroundJobService;
   }
 
   /**
@@ -33,7 +36,9 @@ export class AudioBookService {
         narrator,
         isActive,
         isPublic,
-        search
+        search,
+        active,
+        scheduled
       } = params;
 
       // Build where clause for filtering
@@ -44,6 +49,9 @@ export class AudioBookService {
         ...(language && { language: { contains: language, mode: 'insensitive' } }),
         ...(author && { author: { contains: author, mode: 'insensitive' } }),
         ...(narrator && { narrator: { contains: narrator, mode: 'insensitive' } }),
+        // Handle active and scheduled query params (mutually exclusive)
+        ...(active === true && { isActive: true }),
+        ...(scheduled === true && { isActive: false }),
         ...(search && {
           OR: [
             { title: { contains: search, mode: 'insensitive' } },
@@ -109,7 +117,9 @@ export class AudioBookService {
         narrator,
         isActive,
         isPublic,
-        search
+        search,
+        active,
+        scheduled
       } = params;
 
       // Build where clause for filtering
@@ -120,6 +130,9 @@ export class AudioBookService {
         ...(language && { language: { contains: language, mode: 'insensitive' } }),
         ...(author && { author: { contains: author, mode: 'insensitive' } }),
         ...(narrator && { narrator: { contains: narrator, mode: 'insensitive' } }),
+        // Handle active and scheduled query params (mutually exclusive)
+        ...(active === true && { isActive: true }),
+        ...(scheduled === true && { isActive: false }),
         ...(search && {
           OR: [
             { title: { contains: search, mode: 'insensitive' } },
@@ -243,21 +256,88 @@ export class AudioBookService {
   /**
    * Create a new audiobook
    */
-  async createAudioBook(data: CreateAudioBookDto): Promise<AudioBookDto> {
+  async createAudioBook(data: CreateAudioBookDto & { tagIds?: string[] }): Promise<AudioBookDto> {
     try {
+      // Extract tagIds from data before validation
+      const { tagIds, ...audiobookData } = data;
+
       // Validate required fields
-      this.validateCreateData(data);
+      this.validateCreateData(audiobookData);
+
+      // Construct data object, only including defined values for optional fields
+      const createData: any = {
+        title: audiobookData.title,
+        author: audiobookData.author,
+        genreId: audiobookData.genreId, // Required
+        language: audiobookData.language || 'bn', // Default language is now Bengali
+        isPublic: audiobookData.isPublic ?? true,
+      };
+
+      // Handle scheduledAt: if provided, set isActive=false and schedule activation job
+      if (audiobookData.scheduledAt !== undefined) {
+        createData.scheduledAt = audiobookData.scheduledAt;
+        createData.isActive = false;
+      } else {
+        createData.isActive = audiobookData.isActive ?? true;
+      }
+
+      // Add optional fields only if they are defined
+      if (audiobookData.narrator !== undefined) createData.narrator = audiobookData.narrator;
+      if (audiobookData.description !== undefined) createData.description = audiobookData.description;
+      if (audiobookData.duration !== undefined) createData.duration = audiobookData.duration;
+      if (audiobookData.fileSize !== undefined) createData.fileSize = BigInt(audiobookData.fileSize);
+      if (audiobookData.coverImage !== undefined) createData.coverImage = audiobookData.coverImage;
+      if (audiobookData.publisher !== undefined) createData.publisher = audiobookData.publisher;
+      if (audiobookData.publishDate !== undefined) createData.publishDate = audiobookData.publishDate;
+      if (audiobookData.isbn !== undefined) createData.isbn = audiobookData.isbn;
 
       const audiobook = await this.prisma.audioBook.create({
-        data: {
-          ...data,
-          language: data.language || 'en',
-          isActive: data.isActive ?? true,
-          isPublic: data.isPublic ?? true
+        data: createData
+      });
+
+      // Create AudioBookTag records if tagIds are provided
+      // Ensure tagIds is an array before using map
+      if (tagIds && Array.isArray(tagIds) && tagIds.length > 0) {
+        await Promise.all(
+          tagIds.map(tagId =>
+            this.prisma.audioBookTag.create({
+              data: {
+                audiobookId: audiobook.id,
+                tagId: tagId
+              }
+            })
+          )
+        );
+      }
+
+      // Fetch the audiobook with all relations included
+      const audiobookWithRelations = await this.prisma.audioBook.findUnique({
+        where: { id: audiobook.id },
+        include: {
+          audiobookTags: {
+            include: {
+              tag: true
+            }
+          },
+          genre: true
         }
       });
 
-      return toAudioBookDto(audiobook);
+      if (!audiobookWithRelations) {
+        throw ApiError.internalError(MessageHandler.getErrorMessage('internal.create_audiobook'));
+      }
+
+      // Schedule activation job if scheduledAt was provided
+      if (audiobookData.scheduledAt !== undefined && this.backgroundJobService) {
+        try {
+          await this.backgroundJobService.scheduleActivationJob('audiobook', audiobook.id, audiobookData.scheduledAt);
+        } catch (_error) {
+          // Log error but don't fail audiobook creation
+          console.error(`Error scheduling activation job for audiobook ${audiobook.id}:`, _error);
+        }
+      }
+
+      return toAudioBookDto(audiobookWithRelations);
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError) {
         if (error.code === 'P2002') {
@@ -267,6 +347,7 @@ export class AudioBookService {
       if (error instanceof ApiError) {
         throw error;
       }
+      console.log('error', error);
       throw ApiError.internalError(MessageHandler.getErrorMessage('internal.create_audiobook'));
     }
   }
@@ -274,7 +355,7 @@ export class AudioBookService {
   /**
    * Update an existing audiobook
    */
-  async updateAudioBook(id: string, data: UpdateAudioBookDto): Promise<AudioBookDto> {
+  async updateAudioBook(id: string, data: UpdateAudioBookDto, tagIds?: string[]): Promise<AudioBookDto> {
     try {
       // Check if audiobook exists
       const existingAudioBook = await this.prisma.audioBook.findUnique({
@@ -285,12 +366,75 @@ export class AudioBookService {
         throw ApiError.notFound('AudioBook');
       }
 
-      const audiobook = await this.prisma.audioBook.update({
+      // Validate: Cannot schedule an active audiobook
+      if (data.scheduledAt !== undefined && existingAudioBook.isActive) {
+        throw ApiError.validationError('Active audiobook cannot be scheduled');
+      }
+
+      // Handle scheduledAt: if provided, set isActive=false and schedule activation job
+      const updateData: any = { ...data };
+      if (data.scheduledAt !== undefined) {
+        updateData.isActive = false;
+      }
+
+      // updateData.duration = parseInt(updateData.duration);
+      // updateData.fileSize = BigInt(updateData.fileSize);
+
+      await this.prisma.audioBook.update({
         where: { id },
-        data
+        data: updateData
       });
 
-      return toAudioBookDto(audiobook);
+      // Update AudioBookTag records if tagIds are provided
+      if (tagIds !== undefined) {
+        // Delete existing tags
+        await this.prisma.audioBookTag.deleteMany({
+          where: { audiobookId: id }
+        });
+
+        // Create new tags if tagIds array is not empty
+        if (tagIds.length > 0) {
+          await Promise.all(
+            tagIds.map(tagId =>
+              this.prisma.audioBookTag.create({
+                data: {
+                  audiobookId: id,
+                  tagId: tagId
+                }
+              })
+            )
+          );
+        }
+      }
+
+      // Schedule activation job if scheduledAt was provided
+      if (data.scheduledAt !== undefined && this.backgroundJobService) {
+        try {
+          await this.backgroundJobService.scheduleActivationJob('audiobook', id, data.scheduledAt);
+        } catch (_error) {
+          // Log error but don't fail audiobook update
+          console.error(`Error scheduling activation job for audiobook ${id}:`, _error);
+        }
+      }
+
+      // Fetch the audiobook with all relations included
+      const audiobookWithRelations = await this.prisma.audioBook.findUnique({
+        where: { id },
+        include: {
+          audiobookTags: {
+            include: {
+              tag: true
+            }
+          },
+          genre: true
+        }
+      });
+
+      if (!audiobookWithRelations) {
+        throw ApiError.internalError(MessageHandler.getErrorMessage('internal.update_audiobook'));
+      }
+
+      return toAudioBookDto(audiobookWithRelations);
     } catch (error) {
       if (error instanceof ApiError) {
         throw error;
@@ -300,6 +444,7 @@ export class AudioBookService {
           throw ApiError.conflict(MessageHandler.getErrorMessage('conflict.audiobook_exists'));
         }
       }
+      console.log('error', error);
       throw ApiError.internalError(MessageHandler.getErrorMessage('internal.update_audiobook'));
     }
   }
@@ -428,6 +573,8 @@ export class AudioBookService {
         }
       };
 
+      console.log(tags)
+
       // Build orderBy clause
       const orderBy: Prisma.AudioBookOrderByWithRelationInput = {
         [sortBy]: sortOrder
@@ -494,8 +641,8 @@ export class AudioBookService {
         totalAudioBooks,
         activeAudioBooks,
         publicAudioBooks,
-        totalDuration: durationStats._sum.duration || 0,
-        averageDuration: Math.round(durationStats._avg.duration || 0)
+        totalDuration: durationStats._sum.duration ?? 0,
+        averageDuration: Math.round(durationStats._avg.duration ?? 0)
       };
     } catch (_error) {
       throw ApiError.internalError(MessageHandler.getErrorMessage('internal.fetch_stats'));
@@ -514,12 +661,9 @@ export class AudioBookService {
       throw ApiError.validationError(MessageHandler.getErrorMessage('validation.author_required'));
     }
 
-    if (!data.duration || data.duration <= 0) {
-      throw ApiError.validationError(MessageHandler.getErrorMessage('validation.duration_positive'));
-    }
-
-    if (!data.fileSize || data.fileSize <= 0) {
-      throw ApiError.validationError(MessageHandler.getErrorMessage('validation.file_size_positive'));
+    // Genre is now mandatory
+    if (!data.genreId || data.genreId.trim().length === 0) {
+      throw ApiError.validationError(MessageHandler.getErrorMessage('validation.genre_required') || 'Genre is required');
     }
 
     // Validate ISBN format if provided

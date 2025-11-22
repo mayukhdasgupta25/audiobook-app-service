@@ -49,13 +49,13 @@ model AudioBook {
   description String?
 
   // Media information
-  duration   Int // Duration in seconds
-  fileSize   BigInt // File size in bytes
+  duration   Int? // Duration in seconds (calculated from chapters)
+  fileSize   BigInt? // File size in bytes
   coverImage String? // URL to cover image
 
   // Metadata
-  genreId     String?
-  language    String    @default("en")
+  genreId     String
+  language    String    @default("bn")
   publisher   String?
   publishDate DateTime?
   isbn        String?   @unique
@@ -71,11 +71,12 @@ model AudioBook {
   overallProgress Float @default(0.0) // Percentage (0-100)
 
   // Timestamps
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  scheduledAt DateTime? // Optional scheduled date/time
 
   // Relations
-  genre            Genre?             @relation(fields: [genreId], references: [id])
+  genre            Genre              @relation(fields: [genreId], references: [id])
   userAudioBooks   UserAudioBook[]
   reviews          Review[]
   favorites        Favorite[]
@@ -213,14 +214,19 @@ model Chapter {
   duration      Int // Duration in seconds
   filePath      String // Path to chapter audio file
   fileSize      BigInt // File size in bytes
+  coverImage    String // URL to chapter cover image (required)
 
   // Chapter start/end positions in main audiobook file
   startPosition Int // Start position in seconds within main audiobook
   endPosition   Int // End position in seconds within main audiobook
 
+  // Status
+  isActive Boolean @default(true)
+
   // Timestamps
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  scheduledAt DateTime? // Optional scheduled date/time
 
   // Relations
   audiobook       AudioBook         @relation(fields: [audiobookId], references: [id], onDelete: Cascade)

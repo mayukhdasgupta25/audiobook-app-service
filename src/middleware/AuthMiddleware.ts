@@ -8,7 +8,7 @@ import jwt from 'jsonwebtoken';
 import convertJwkToPem from 'jwk-to-pem';
 import axios from 'axios';
 import { config } from '../config/env';
-import { JWKSResponse, JWK, JWTHeader } from '../types/auth';
+import { JWKSResponse, JWK, JWTHeader, AuthenticatedRequest } from '../types/auth';
 
 /**
  * Authentication middleware to verify JWT tokens
@@ -125,10 +125,45 @@ export async function authenticateJWT(
          return;
       }
 
-      // 6. Verify token signature
+      // 6. Verify token signature and extract payload
       try {
-         jwt.verify(token, publicKey, { algorithms: ['RS256'] });
+         const decoded = jwt.verify(token, publicKey, { algorithms: ['RS256'] }) as jwt.JwtPayload;
          console.log('Token verified successfully');
+
+         // Extract user info from token payload
+         // Standard JWT claims: sub (subject/user ID), email, and custom claims like role
+         const userId = decoded.sub || decoded['userId'] || decoded['id'];
+         const email = decoded['email'];
+         let role = decoded['role'];
+
+         // If role is not in token payload, fetch from auth service
+         if (!role && userId) {
+            try {
+               const userInfo = await fetchUserInfoFromAuthService(token, userId);
+               role = userInfo.role;
+            } catch (fetchError: any) {
+               console.error('Failed to fetch user info from auth service:', fetchError.message);
+               // Continue without role - will be handled by role middleware
+               role = undefined;
+            }
+         }
+
+         if (!userId) {
+            res.status(401).json({
+               success: false,
+               message: 'Invalid token payload',
+               details: 'Token does not contain user identifier'
+            });
+            return;
+         }
+
+         // Attach user info to request object
+         (req as AuthenticatedRequest).user = {
+            id: userId,
+            email: email,
+            role: role || 'User' // Default to 'User' if role not found
+         };
+
          next();
       } catch (verifyError: any) {
          // console.error('Verification error:', verifyError.name, verifyError.message);
@@ -147,6 +182,39 @@ export async function authenticateJWT(
          message: 'Authentication error',
          details: 'An unexpected error occurred during authentication'
       });
+   }
+}
+
+/**
+ * Fetch user information from auth service
+ * This is called when role is not present in JWT token payload
+ */
+async function fetchUserInfoFromAuthService(token: string, userId: string): Promise<{ role: string }> {
+   try {
+      // Call auth service to get user info with role
+      // Assuming endpoint: GET /auth/user or /auth/user/:userId
+      const response = await axios.get(`${config.AUTH_SERVICE_URL}/auth/user/${userId}`, {
+         headers: {
+            Authorization: `Bearer ${token}`
+         }
+      });
+
+      // Extract role from response
+      // Adjust based on actual API response structure
+      const role = response.data?.role || response.data?.data?.role;
+
+      if (!role) {
+         throw new Error('Role not found in auth service response');
+      }
+
+      return { role };
+   } catch (error: any) {
+      if (axios.isAxiosError(error)) {
+         const statusCode = error.response?.status || 500;
+         const errorMessage = error.response?.statusText || error.message;
+         throw new Error(`Auth service returned status ${statusCode}: ${errorMessage}`);
+      }
+      throw error;
    }
 }
 
