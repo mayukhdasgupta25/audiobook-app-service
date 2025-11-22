@@ -35,7 +35,8 @@ export const config = {
 
    // Development upload paths
    DEV_UPLOAD_DIR: nodeEnv === 'development' ? './src/uploads' : './uploads',
-   DEV_IMAGE_DIR: nodeEnv === 'development' ? './src/uploads/images' : './uploads/images',
+   DEV_AUDIOBOOK_IMAGE_DIR: nodeEnv === 'development' ? './src/uploads/images/audiobooks' : './uploads/images/audiobooks',
+   DEV_CHAPTER_IMAGE_DIR: nodeEnv === 'development' ? './src/uploads/images/chapters' : './uploads/images/chapters',
    DEV_AUDIO_DIR: nodeEnv === 'development' ? './src/uploads/audio' : './uploads/audio',
 
    // Security settings

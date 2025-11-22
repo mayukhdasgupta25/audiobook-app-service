@@ -19,6 +19,7 @@ import { RabbitMQFactory, TranscodingJobData } from '../config/rabbitmq';
 import { config } from '../config/env';
 import { FileUploadService } from './FileUploadService';
 import { BackgroundJobService } from './BackgroundJobService';
+import { getFileUrl } from '../middleware/UploadMiddleware';
 
 export class ChapterService {
    private fileUploadService: FileUploadService;
@@ -193,13 +194,9 @@ export class ChapterService {
          // Handle coverImage - it's required, so it must be provided via upload or in chapterData
          let coverImage = chapterData.coverImage;
          if (uploadedCoverImage) {
-            // Upload cover image file
-            const imageUploadResult = await this.fileUploadService.uploadFile(
-               uploadedCoverImage,
-               '/uploads/chapters/covers'
-            );
-            // Use the path directly (FileUploadService returns relative path)
-            coverImage = imageUploadResult.filePath;
+            // In local environment, multer already saved the file to the correct directory
+            // Just convert the path to a URL using getFileUrl (similar to audiobooks)
+            coverImage = getFileUrl(uploadedCoverImage.path);
          }
 
          // Validate that coverImage is provided
@@ -377,8 +374,15 @@ export class ChapterService {
             if (existingChapter.coverImage) {
                try {
                   const fs = require('fs');
-                  if (fs.existsSync(existingChapter.coverImage)) {
-                     fs.unlinkSync(existingChapter.coverImage);
+                  const path = require('path');
+                  // Extract the actual file path from the URL if it's a URL
+                  let oldImagePath = existingChapter.coverImage;
+                  // If it's a URL starting with /uploads, convert to file path
+                  if (oldImagePath.startsWith('/uploads')) {
+                     oldImagePath = path.join(config.DEV_UPLOAD_DIR, oldImagePath.replace('/uploads', ''));
+                  }
+                  if (fs.existsSync(oldImagePath)) {
+                     fs.unlinkSync(oldImagePath);
                   }
                } catch (_error) {
                   // Log error but don't fail update
@@ -386,11 +390,9 @@ export class ChapterService {
                }
             }
 
-            const imageUploadResult = await this.fileUploadService.uploadFile(
-               uploadedCoverImage,
-               '/uploads/chapters/covers'
-            );
-            coverImage = imageUploadResult.filePath;
+            // In local environment, multer already saved the file to the correct directory
+            // Just convert the path to a URL using getFileUrl (similar to audiobooks)
+            coverImage = getFileUrl(uploadedCoverImage.path);
          }
 
          // Ensure coverImage is always set (required field)
