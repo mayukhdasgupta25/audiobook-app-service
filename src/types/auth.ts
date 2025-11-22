@@ -42,12 +42,13 @@ export interface JWKSResponse {
 }
 
 /**
- * Extended Express Request with authenticated user info (for future use)
+ * Extended Express Request with authenticated user info
  */
 export interface AuthenticatedRequest extends Request {
    user?: {
       id: string;
-      email: string;
+      email?: string;
+      role: string;
       // Add other user properties as needed
    };
 }

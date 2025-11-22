@@ -27,10 +27,21 @@ export interface CleanupJobData {
    type: 'inactive_sessions' | 'expired_downloads' | 'old_progress_data';
 }
 
+export interface DurationCalculationJobData {
+   audiobookId: string;
+}
+
+export interface ScheduledActivationJobData {
+   type: 'audiobook' | 'chapter';
+   id: string;
+}
+
 export class BackgroundJobService {
    private progressQueue: Bull.Queue<ProgressCalculationJobData>;
    private downloadQueue: Bull.Queue<OfflineDownloadJobData>;
    private cleanupQueue: Bull.Queue<CleanupJobData>;
+   private durationQueue: Bull.Queue<DurationCalculationJobData>;
+   private activationQueue: Bull.Queue<ScheduledActivationJobData>;
    private chapterService: ChapterService;
 
    constructor(private prisma: PrismaClient) {
@@ -51,7 +62,17 @@ export class BackgroundJobService {
          redis: redisUrl,
       });
 
-      this.chapterService = new ChapterService(prisma);
+      this.durationQueue = new Bull('duration-calculation', {
+         redis: redisUrl,
+      });
+
+      this.activationQueue = new Bull('scheduled-activation', {
+         redis: redisUrl,
+      });
+
+      // Initialize ChapterService with reference to this BackgroundJobService
+      // This allows ChapterService to schedule duration calculation jobs
+      this.chapterService = new ChapterService(prisma, this);
 
       this.setupJobProcessors();
       this.setupScheduledJobs();
@@ -72,18 +93,18 @@ export class BackgroundJobService {
                   await this.calculateAllAudiobookProgress();
                } else {
                   // Validate audiobookId format (should be UUID)
-                  if (!this.isValidUUID(audiobookId)) {
-                     console.warn(`Invalid audiobookId format: ${audiobookId}, skipping progress calculation`);
-                     return;
-                  }
+                  // if (!this.isValidUUID(audiobookId)) {
+                  //    console.warn(`Invalid audiobookId format: ${audiobookId}, skipping progress calculation`);
+                  //    return;
+                  // }
                   await this.calculateAudiobookProgress(userProfileId, audiobookId);
                }
             } else if (type === 'chapter_progress') {
                // Validate audiobookId format (should be UUID)
-               if (!this.isValidUUID(audiobookId)) {
-                  console.warn(`Invalid audiobookId format: ${audiobookId}, skipping chapter progress calculation`);
-                  return;
-               }
+               // if (!this.isValidUUID(audiobookId)) {
+               //    console.warn(`Invalid audiobookId format: ${audiobookId}, skipping chapter progress calculation`);
+               //    return;
+               // }
                await this.calculateChapterProgress(userProfileId, audiobookId);
             }
 
@@ -142,6 +163,55 @@ export class BackgroundJobService {
             console.log(`Cleanup job completed: ${type}`);
          } catch (error) {
             // console.error('Cleanup job failed:', error);
+            throw error;
+         }
+      });
+
+      // Duration calculation processor
+      this.durationQueue.process('calculate-duration', async (job) => {
+         const { audiobookId } = job.data;
+
+         try {
+            // Validate audiobookId format (should be UUID)
+            // if (!this.isValidUUID(audiobookId)) {
+            //    console.warn(`Invalid audiobookId format: ${audiobookId}, skipping duration calculation`);
+            //    return;
+            // }
+
+            await this.calculateAudiobookDuration(audiobookId);
+            console.log(`Duration calculation completed for audiobook ${audiobookId}`);
+         } catch (error) {
+            // console.error('Duration calculation failed:', error);
+            throw error;
+         }
+      });
+
+      // Scheduled activation processor
+      this.activationQueue.process('activate-scheduled', async (job) => {
+         const { type, id } = job.data;
+
+         try {
+            if (type === 'audiobook') {
+               await this.prisma.audioBook.update({
+                  where: { id },
+                  data: {
+                     isActive: true,
+                     scheduledAt: null,
+                  },
+               });
+               console.log(`Activated scheduled audiobook ${id}`);
+            } else if (type === 'chapter') {
+               await this.prisma.chapter.update({
+                  where: { id },
+                  data: {
+                     isActive: true,
+                     scheduledAt: null,
+                  },
+               });
+               console.log(`Activated scheduled chapter ${id}`);
+            }
+         } catch (error) {
+            // console.error('Scheduled activation failed:', error);
             throw error;
          }
       });
@@ -223,6 +293,119 @@ export class BackgroundJobService {
    }
 
    /**
+    * Schedule audiobook duration calculation
+    * This job calculates the total duration of an audiobook by summing all chapter durations
+    */
+   async scheduleAudiobookDurationCalculation(audiobookId: string): Promise<void> {
+      try {
+         await this.durationQueue.add('calculate-duration', {
+            audiobookId,
+         }, {
+            delay: 500, // 0.5 second delay
+            attempts: 3,
+            backoff: {
+               type: 'exponential',
+               delay: 1000,
+            },
+         });
+      } catch (_error) {
+         throw new ApiError('Failed to schedule duration calculation', 500);
+      }
+   }
+
+   /**
+    * Schedule activation job for audiobook or chapter
+    * Creates a delayed job that will activate the item at the specified time
+    */
+   async scheduleActivationJob(type: 'audiobook' | 'chapter', id: string, scheduledAt: Date): Promise<void> {
+      try {
+         // Calculate delay in milliseconds
+         const delay = scheduledAt.getTime() - Date.now();
+
+         // If scheduled time is in the past, activate immediately
+         if (delay <= 0) {
+            // Activate immediately
+            if (type === 'audiobook') {
+               await this.prisma.audioBook.update({
+                  where: { id },
+                  data: {
+                     isActive: true,
+                     scheduledAt: null,
+                  },
+               });
+            } else {
+               await this.prisma.chapter.update({
+                  where: { id },
+                  data: {
+                     isActive: true,
+                     scheduledAt: null,
+                  },
+               });
+            }
+            return;
+         }
+
+         // Create unique job ID to prevent duplicates
+         const jobId = `activation-${type}-${id}`;
+
+         // Remove any existing job with the same ID
+         const existingJob = await this.activationQueue.getJob(jobId);
+         if (existingJob) {
+            await existingJob.remove();
+         }
+
+         // Schedule the activation job
+         await this.activationQueue.add('activate-scheduled', {
+            type,
+            id,
+         } as ScheduledActivationJobData, {
+            jobId,
+            delay,
+            attempts: 1, // Only attempt once
+         });
+      } catch (_error) {
+         throw new ApiError('Failed to schedule activation job', 500);
+      }
+   }
+
+   /**
+    * Calculate audiobook duration by summing all chapter durations
+    */
+   private async calculateAudiobookDuration(audiobookId: string): Promise<void> {
+      try {
+         // Verify audiobook exists
+         const audiobook = await this.prisma.audioBook.findUnique({
+            where: { id: audiobookId },
+         });
+
+         if (!audiobook) {
+            console.warn(`Audiobook with ID ${audiobookId} not found, skipping duration calculation`);
+            return;
+         }
+
+         // Get all chapters for this audiobook and sum their durations
+         const chapters = await this.prisma.chapter.findMany({
+            where: { audiobookId },
+            select: { duration: true },
+         });
+
+         // Calculate total duration by summing all chapter durations
+         const totalDuration = chapters.reduce((sum, chapter) => sum + chapter.duration, 0);
+
+         // Update audiobook duration
+         await this.prisma.audioBook.update({
+            where: { id: audiobookId },
+            data: { duration: totalDuration },
+         });
+
+         console.log(`Updated audiobook ${audiobookId} duration to ${totalDuration} seconds`);
+      } catch (error) {
+         // console.error('Failed to calculate audiobook duration:', error);
+         throw error;
+      }
+   }
+
+   /**
     * Schedule offline download
     */
    async scheduleOfflineDownload(
@@ -252,10 +435,10 @@ export class BackgroundJobService {
    /**
     * Validate if a string is a valid UUID
     */
-   private isValidUUID(uuid: string): boolean {
-      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-      return uuidRegex.test(uuid);
-   }
+   // private isValidUUID(uuid: string): boolean {
+   //    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+   //    return uuidRegex.test(uuid);
+   // }
 
    /**
     * Calculate progress for all audiobooks for all users
@@ -501,18 +684,24 @@ export class BackgroundJobService {
       progressQueue: any;
       downloadQueue: any;
       cleanupQueue: any;
+      durationQueue: any;
+      activationQueue: any;
    }> {
       try {
-         const [progressStats, downloadStats, cleanupStats] = await Promise.all([
+         const [progressStats, downloadStats, cleanupStats, durationStats, activationStats] = await Promise.all([
             this.progressQueue.getJobCounts(),
             this.downloadQueue.getJobCounts(),
             this.cleanupQueue.getJobCounts(),
+            this.durationQueue.getJobCounts(),
+            this.activationQueue.getJobCounts(),
          ]);
 
          return {
             progressQueue: progressStats,
             downloadQueue: downloadStats,
             cleanupQueue: cleanupStats,
+            durationQueue: durationStats,
+            activationQueue: activationStats,
          };
       } catch (_error) {
          throw new ApiError('Failed to retrieve queue statistics', 500);
@@ -528,6 +717,8 @@ export class BackgroundJobService {
             this.progressQueue.close(),
             this.downloadQueue.close(),
             this.cleanupQueue.close(),
+            this.durationQueue.close(),
+            this.activationQueue.close(),
          ]);
       } catch (_error) {
          // console.error('Error during queue shutdown:', _error);

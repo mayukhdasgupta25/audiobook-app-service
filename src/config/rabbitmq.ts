@@ -187,6 +187,9 @@ export class RabbitMQConnection {
       // Setup users exchange and queue for user creation events
       await this.setupUsersExchangeAndQueue(queuePrefix);
 
+      // Setup chapters exchange and queue for chapter deletion events
+      await this.setupChaptersExchangeAndQueue(queuePrefix);
+
       rabbitmqLogger.info('RabbitMQ exchanges and queues setup completed');
    }
 
@@ -220,9 +223,35 @@ export class RabbitMQConnection {
       rabbitmqLogger.info('Users exchange and queue setup completed');
    }
 
+   /**
+    * Setup chapters exchange and queue for chapter deletion events
+    */
+   private async setupChaptersExchangeAndQueue(queuePrefix: string): Promise<void> {
+      if (!this.channel) {
+         throw new Error('Channel not available');
+      }
 
+      // Chapters exchange (topic type)
+      await this.channel.assertExchange('chapters', 'topic', {
+         durable: true,
+         autoDelete: false
+      });
 
+      // Chapter deletion queue
+      await this.channel.assertQueue(`${queuePrefix}.chapters.deleted`, {
+         durable: true,
+         exclusive: false,
+         autoDelete: false,
+         arguments: {
+            'x-message-ttl': 3600000 // 1 hour TTL
+         }
+      });
 
+      // Bind queue to exchange with routing key
+      await this.channel.bindQueue(`${queuePrefix}.chapters.deleted`, 'chapters', 'chapter.deleted');
+
+      rabbitmqLogger.info('Chapters exchange and queue setup completed');
+   }
 
    /**
     * Publish transcoding job
@@ -269,6 +298,47 @@ export class RabbitMQConnection {
          }
       } catch (error) {
          rabbitmqLogger.error({ err: error }, 'Error publishing transcoding job');
+         return false;
+      }
+   }
+
+   /**
+    * Publish chapter deletion event
+    */
+   public async publishChapterDeletion(chapterId: string): Promise<boolean> {
+      if (!this.channel) {
+         throw new Error('Channel not available');
+      }
+
+      const routingKey = 'chapter.deleted';
+
+      try {
+         const message = Buffer.from(JSON.stringify({
+            chapterId,
+            timestamp: new Date().toISOString()
+         }));
+
+         const published = this.channel.publish(
+            'chapters',
+            routingKey,
+            message,
+            {
+               persistent: true,
+               messageId: `chapter-deleted-${chapterId}-${Date.now()}`
+            }
+         );
+
+         if (published) {
+            rabbitmqLogger.info({
+               chapterId,
+            }, 'Chapter deletion event published');
+            return true;
+         } else {
+            rabbitmqLogger.error('Failed to publish chapter deletion event - channel buffer full');
+            return false;
+         }
+      } catch (error) {
+         rabbitmqLogger.error({ err: error, chapterId }, 'Error publishing chapter deletion event');
          return false;
       }
    }
