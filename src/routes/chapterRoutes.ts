@@ -5,12 +5,15 @@
 import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { ChapterController } from '../controllers/ChapterController';
+import { BackgroundJobService } from '../services/BackgroundJobService';
 import { ValidationMiddleware } from '../middleware/ValidationMiddleware';
 import { UploadMiddleware } from '../middleware/UploadMiddleware';
 
 export function createChapterRoutes(prisma: PrismaClient): Router {
    const router = Router();
-   const chapterController = new ChapterController(prisma);
+   // Create BackgroundJobService instance to pass to ChapterController
+   const backgroundJobService = new BackgroundJobService(prisma);
+   const chapterController = new ChapterController(prisma, backgroundJobService);
 
    // Get chapters by audiobook ID
    router.get(
@@ -38,7 +41,7 @@ export function createChapterRoutes(prisma: PrismaClient): Router {
    // Create new chapter
    router.post(
       '/chapters',
-      UploadMiddleware.handleAudioUpload,
+      UploadMiddleware.handleImageAndAudioUpload,
       ValidationMiddleware.validateChapterCreation,
       chapterController.createChapter
    );
@@ -47,6 +50,8 @@ export function createChapterRoutes(prisma: PrismaClient): Router {
    router.put(
       '/chapters/:id',
       ValidationMiddleware.validateId,
+      UploadMiddleware.handleImageUpload,
+      UploadMiddleware.handleAudioUpload,
       chapterController.updateChapter
    );
 

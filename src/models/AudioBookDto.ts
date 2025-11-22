@@ -10,8 +10,8 @@ export interface AudioBookDto {
   author: string;
   narrator?: string | undefined;
   description?: string | undefined;
-  duration: number;
-  fileSize: number;
+  duration?: number | undefined;
+  fileSize?: number | undefined;
   coverImage?: string | undefined;
   language: string;
   publisher?: string | undefined;
@@ -21,6 +21,7 @@ export interface AudioBookDto {
   isPublic: boolean;
   createdAt: Date;
   updatedAt: Date;
+  scheduledAt?: Date | undefined;
   audiobookTags?: AudioBookTagDto[] | undefined;
   genre?: GenreDto | undefined;
 }
@@ -39,16 +40,17 @@ export interface CreateAudioBookDto {
   author: string;
   narrator?: string;
   description?: string;
-  duration: number;
-  fileSize: number;
+  duration?: number;
+  fileSize?: number;
   coverImage?: string;
-  genreId?: string;
+  genreId: string; // Required - genre is now mandatory
   language?: string;
   publisher?: string;
   publishDate?: Date;
   isbn?: string;
   isActive?: boolean;
   isPublic?: boolean;
+  scheduledAt?: Date;
 }
 
 export interface UpdateAudioBookDto {
@@ -66,6 +68,7 @@ export interface UpdateAudioBookDto {
   isbn?: string;
   isActive?: boolean;
   isPublic?: boolean;
+  scheduledAt?: Date;
 }
 
 export interface AudioBookQueryParams {
@@ -80,6 +83,8 @@ export interface AudioBookQueryParams {
   isActive?: boolean | undefined;
   isPublic?: boolean | undefined;
   search?: string | undefined;
+  active?: boolean | undefined;
+  scheduled?: boolean | undefined;
 }
 
 /**
@@ -95,8 +100,8 @@ export function toAudioBookDto(audiobook: PrismaAudioBook & {
     author: audiobook.author,
     narrator: audiobook.narrator || undefined,
     description: audiobook.description || undefined,
-    duration: audiobook.duration,
-    fileSize: Number(audiobook.fileSize),
+    duration: audiobook.duration ?? undefined,
+    fileSize: audiobook.fileSize ? Number(audiobook.fileSize) : undefined,
     coverImage: audiobook.coverImage || undefined,
     language: audiobook.language,
     publisher: audiobook.publisher || undefined,
@@ -106,6 +111,7 @@ export function toAudioBookDto(audiobook: PrismaAudioBook & {
     isPublic: audiobook.isPublic,
     createdAt: audiobook.createdAt,
     updatedAt: audiobook.updatedAt,
+    scheduledAt: audiobook.scheduledAt || undefined,
     audiobookTags: audiobook.audiobookTags?.map(tag => ({
       name: tag.tag.name,
       type: tag.tag.type

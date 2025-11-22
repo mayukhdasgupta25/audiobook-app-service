@@ -5,12 +5,16 @@
 import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { AudioBookController } from '../controllers/AudioBookController';
+import { BackgroundJobService } from '../services/BackgroundJobService';
 import { ValidationMiddleware } from '../middleware/ValidationMiddleware';
 import { UploadMiddleware } from '../middleware/UploadMiddleware';
+import { requireAdmin, requireUserOrAdmin } from '../middleware/RoleMiddleware';
 
 export function createAudioBookRoutes(prisma: PrismaClient): Router {
    const router = Router();
-   const audioBookController = new AudioBookController(prisma);
+   // Create BackgroundJobService instance to pass to AudioBookController
+   const backgroundJobService = new BackgroundJobService(prisma);
+   const audioBookController = new AudioBookController(prisma, backgroundJobService);
 
    /**
     * @swagger
@@ -42,6 +46,7 @@ export function createAudioBookRoutes(prisma: PrismaClient): Router {
     */
    router.get(
       '/',
+      requireUserOrAdmin(),
       ValidationMiddleware.validatePagination,
       ValidationMiddleware.validateAudioBookFilters,
       ValidationMiddleware.sanitizeQueryParams,
@@ -261,6 +266,7 @@ export function createAudioBookRoutes(prisma: PrismaClient): Router {
     */
    router.get(
       '/:id',
+      requireUserOrAdmin(),
       ValidationMiddleware.validateId,
       audioBookController.getAudioBookById
    );
@@ -304,8 +310,8 @@ export function createAudioBookRoutes(prisma: PrismaClient): Router {
     */
    router.post(
       '/',
-      UploadMiddleware.handleAudioUpload,
-      UploadMiddleware.handleImageUpload,
+      requireAdmin(),
+      UploadMiddleware.handleRequiredImageUpload,
       audioBookController.createAudioBook
    );
 
@@ -353,7 +359,6 @@ export function createAudioBookRoutes(prisma: PrismaClient): Router {
    router.put(
       '/:id',
       ValidationMiddleware.validateId,
-      UploadMiddleware.handleAudioUpload,
       UploadMiddleware.handleImageUpload,
       audioBookController.updateAudioBook
    );

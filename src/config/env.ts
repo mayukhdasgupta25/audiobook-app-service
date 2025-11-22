@@ -15,6 +15,12 @@ export const config = {
    DATABASE_URL: process.env['DATABASE_URL'] || '',
    SESSION_SECRET: process.env['SESSION_SECRET'] || '',
    CLIENT_URL: process.env['CLIENT_URL'] || 'http://localhost:3000',
+   // Multiple allowed client URLs for CORS
+   CLIENT_URLS: process.env['CLIENT_URLS']?.split(',').map(url => url.trim()) || [
+      'http://localhost:5173',
+      'http://localhost:3000',
+      'http://localhost:3001'
+   ],
 
    // Database configuration
    DB_HOST: process.env['DB_HOST'] || 'localhost',
@@ -29,7 +35,8 @@ export const config = {
 
    // Development upload paths
    DEV_UPLOAD_DIR: nodeEnv === 'development' ? './src/uploads' : './uploads',
-   DEV_IMAGE_DIR: nodeEnv === 'development' ? './src/uploads/images' : './uploads/images',
+   DEV_AUDIOBOOK_IMAGE_DIR: nodeEnv === 'development' ? './src/uploads/images/audiobooks' : './uploads/images/audiobooks',
+   DEV_CHAPTER_IMAGE_DIR: nodeEnv === 'development' ? './src/uploads/images/chapters' : './uploads/images/chapters',
    DEV_AUDIO_DIR: nodeEnv === 'development' ? './src/uploads/audio' : './uploads/audio',
 
    // Security settings
@@ -41,7 +48,36 @@ export const config = {
    ENABLE_PASSWORD_RESET: process.env['ENABLE_PASSWORD_RESET'] === 'true',
 
    // Streaming service configuration
-   TRANSCODING_BITRATES: process.env['TRANSCODING_BITRATES']?.split(',').map(b => parseInt(b, 10)) || [64, 128, 256], // kbps
+   TRANSCODING_BITRATES: (() => {
+      if (!process.env['TRANSCODING_BITRATES']) {
+         return [64, 128, 256];
+      }
+      const envValue = process.env['TRANSCODING_BITRATES'].trim();
+
+      // Try to parse as JSON array first (handles '[64, 128, 256]' format)
+      if (envValue.startsWith('[') && envValue.endsWith(']')) {
+         try {
+            const parsed = JSON.parse(envValue);
+            if (Array.isArray(parsed)) {
+               const bitrates = parsed
+                  .map(b => typeof b === 'number' ? b : parseInt(String(b), 10))
+                  .filter(b => !isNaN(b) && b > 0);
+               return bitrates.length > 0 ? bitrates : [64, 128, 256];
+            }
+         } catch (_error) {
+            // If JSON parsing fails, fall through to comma-separated parsing
+         }
+      }
+
+      // Fall back to comma-separated parsing (handles '64,128,256' format)
+      const bitrates = envValue
+         .split(',')
+         .map(b => b.trim())
+         .filter(b => b.length > 0)
+         .map(b => parseInt(b, 10))
+         .filter(b => !isNaN(b) && b > 0);
+      return bitrates.length > 0 ? bitrates : [64, 128, 256];
+   })(), // kbps
    STREAMING_CACHE_TTL: parseInt(process.env['STREAMING_CACHE_TTL'] || '3600', 10), // seconds
 
    // RabbitMQ configuration

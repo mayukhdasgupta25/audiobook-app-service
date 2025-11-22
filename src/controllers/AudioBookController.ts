@@ -5,6 +5,7 @@
 import { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { AudioBookService } from '../services/AudioBookService';
+import { BackgroundJobService } from '../services/BackgroundJobService';
 import { ResponseHandler } from '../utils/ResponseHandler';
 import { AudioBookQueryParams } from '../models/AudioBookDto';
 import { ErrorHandler } from '../middleware/ErrorHandler';
@@ -14,8 +15,8 @@ import { getFileUrl } from '../middleware/UploadMiddleware';
 export class AudioBookController {
   private audioBookService: AudioBookService;
 
-  constructor(prisma: PrismaClient) {
-    this.audioBookService = new AudioBookService(prisma);
+  constructor(prisma: PrismaClient, backgroundJobService?: BackgroundJobService) {
+    this.audioBookService = new AudioBookService(prisma, backgroundJobService);
   }
 
   /**
@@ -57,7 +58,9 @@ export class AudioBookController {
       narrator: req.query['narrator'] as string,
       isActive: req.query['isActive'] !== undefined ? req.query['isActive'] === 'true' : undefined,
       isPublic: req.query['isPublic'] !== undefined ? req.query['isPublic'] === 'true' : undefined,
-      search: req.query['search'] as string
+      search: req.query['search'] as string,
+      active: req.query['active'] !== undefined ? req.query['active'] === 'true' : undefined,
+      scheduled: req.query['scheduled'] !== undefined ? req.query['scheduled'] === 'true' : undefined
     };
 
     const { audiobooks, totalCount } = await this.audioBookService.getAllAudioBooks(queryParams);
@@ -138,30 +141,56 @@ export class AudioBookController {
    *     summary: Create a new audiobook
    *     description: Create a new audiobook with the provided information
    *     tags: [AudioBooks]
-   *     requestBody:
-   *       required: true
-   *       content:
-   *         application/json:
-   *           schema:
-   *             $ref: '#/components/schemas/CreateAudioBookRequest'
-   *           examples:
-   *             example1:
-   *               summary: Example audiobook
-   *               value:
-   *                 title: "The Great Gatsby"
-   *                 author: "F. Scott Fitzgerald"
-   *                 narrator: "Jake Gyllenhaal"
-   *                 description: "A classic American novel set in the Jazz Age"
-   *                 duration: 180
-   *                 fileSize: 52428800
-   *                 coverImage: "https://example.com/covers/great-gatsby.jpg"
-   *                 genre: "Fiction"
-   *                 language: "English"
-   *                 publisher: "Penguin Random House"
-   *                 publishDate: "1925-04-10"
-   *                 isbn: "978-0-7432-7356-5"
-   *                 isActive: true
-   *                 isPublic: true
+    *     requestBody:
+    *       required: true
+    *       content:
+    *         multipart/form-data:
+    *           schema:
+    *             type: object
+    *             required:
+    *               - title
+    *               - author
+    *               - genreId
+    *               - coverImage
+    *             properties:
+    *               title:
+    *                 type: string
+    *                 description: Audiobook title
+    *               author:
+    *                 type: string
+    *                 description: Author name
+    *               narrator:
+    *                 type: string
+    *                 description: Narrator name
+    *               description:
+    *                 type: string
+    *                 description: Audiobook description
+    *               genreId:
+    *                 type: string
+    *                 description: Genre ID
+    *               language:
+    *                 type: string
+    *                 description: Language code
+    *               publisher:
+    *                 type: string
+    *                 description: Publisher name
+    *               publishDate:
+    *                 type: string
+    *                 format: date
+    *                 description: Publication date
+    *               isbn:
+    *                 type: string
+    *                 description: ISBN number
+    *               isActive:
+    *                 type: boolean
+    *                 description: Whether the audiobook is active
+    *               isPublic:
+    *                 type: boolean
+    *                 description: Whether the audiobook is public
+    *               coverImage:
+    *                 type: string
+    *                 format: binary
+    *                 description: Cover image (required, max 50MB)
    *     responses:
    *       201:
    *         description: AudioBook created successfully
@@ -180,29 +209,46 @@ export class AudioBookController {
    *         $ref: '#/components/responses/InternalServerError'
    */
   createAudioBook = ErrorHandler.asyncHandler(async (req: Request, res: Response): Promise<void> => {
-    const audiobookData = req.body;
+    // Get cover image from upload middleware (audio file not required for audiobook creation)
+    const uploadedCoverImage = (req as any).coverImageFile as Express.Multer.File | undefined;
 
-    // Handle uploaded files
-    if (req.files) {
-      const files = req.files as { [fieldname: string]: Express.Multer.File[] } | Express.Multer.File[];
+    // Cover image is already validated by middleware, but double-check for safety
+    if (!uploadedCoverImage) {
+      ResponseHandler.validationError(res, 'Cover image is required');
+      return;
+    }
 
-      // Handle cover image upload
-      if (Array.isArray(files)) {
-        // Single file upload
-        const imageFile = files.find(file => file.fieldname === 'coverImage');
-        if (imageFile) {
-          audiobookData.coverImage = getFileUrl(imageFile.path);
-        }
-      } else {
-        // Multiple file uploads
-        if (files['coverImage'] && files['coverImage'].length > 0) {
-          const imageFile = files['coverImage'][0];
-          if (imageFile) {
-            audiobookData.coverImage = getFileUrl(imageFile.path);
+    // Parse tagIds from form-data (can be string, array, or JSON string)
+    let tagIds: string[] | undefined = undefined;
+    if (req.body.tagIds) {
+      if (Array.isArray(req.body.tagIds)) {
+        tagIds = req.body.tagIds;
+      } else if (typeof req.body.tagIds === 'string') {
+        // Try to parse as JSON first (handles JSON string arrays like "[\"id1\",\"id2\"]")
+        try {
+          const parsed = JSON.parse(req.body.tagIds);
+          if (Array.isArray(parsed)) {
+            tagIds = parsed;
+          } else {
+            // If not JSON array, treat as comma-separated string
+            tagIds = req.body.tagIds.split(',').map((id: string) => id.trim()).filter((id: string) => id.length > 0);
           }
+        } catch {
+          // If JSON parse fails, treat as comma-separated string
+          tagIds = req.body.tagIds.split(',').map((id: string) => id.trim()).filter((id: string) => id.length > 0);
         }
       }
     }
+
+    const audiobookData: any = {
+      ...req.body,
+      // Parse scheduledAt if provided (can be ISO string or Date)
+      scheduledAt: req.body.scheduledAt ? new Date(req.body.scheduledAt) : undefined,
+      // Cover image from uploaded file
+      coverImage: getFileUrl(uploadedCoverImage.path),
+      // Include tagIds in the data object (service expects it as part of data)
+      tagIds: tagIds
+    };
 
     const audiobook = await this.audioBookService.createAudioBook(audiobookData);
 
@@ -252,31 +298,38 @@ export class AudioBookController {
    */
   updateAudioBook = ErrorHandler.asyncHandler(async (req: Request, res: Response): Promise<void> => {
     const { id } = req.params;
-    const updateData = req.body;
 
-    // Handle uploaded files
-    if (req.files) {
-      const files = req.files as { [fieldname: string]: Express.Multer.File[] } | Express.Multer.File[];
-
-      // Handle cover image upload
-      if (Array.isArray(files)) {
-        // Single file upload
-        const imageFile = files.find(file => file.fieldname === 'coverImage');
-        if (imageFile) {
-          updateData.coverImage = getFileUrl(imageFile.path);
-        }
+    // Extract tagIds before creating updateData
+    // Handle both array and string formats (form-data might send as string)
+    let tagIds: string[] | undefined = undefined;
+    if (req.body.tagIds) {
+      if (Array.isArray(req.body.tagIds)) {
+        tagIds = req.body.tagIds;
+      } else if (typeof req.body.tagIds === 'string') {
+        // If it's a comma-separated string, split it
+        tagIds = req.body.tagIds.split(',').map((id: string) => id.trim()).filter((id: string) => id.length > 0);
       } else {
-        // Multiple file uploads
-        if (files['coverImage'] && files['coverImage'].length > 0) {
-          const imageFile = files['coverImage'][0];
-          if (imageFile) {
-            updateData.coverImage = getFileUrl(imageFile.path);
-          }
-        }
+        tagIds = [req.body.tagIds];
       }
     }
 
-    const audiobook = await this.audioBookService.updateAudioBook(id as string, updateData);
+    const updateData = {
+      ...req.body,
+      // Parse scheduledAt if provided (can be ISO string or Date)
+      scheduledAt: req.body.scheduledAt ? new Date(req.body.scheduledAt) : undefined
+    };
+
+    // Remove tagIds from updateData as it will be handled separately
+    delete updateData.tagIds;
+    delete updateData.audiobookId;
+
+    // Handle uploaded file - use req.file (singular) for single file upload
+    // The middleware uploadSingleImage populates req.file, not req.files
+    if (req.file) {
+      updateData.coverImage = getFileUrl(req.file.path);
+    }
+
+    const audiobook = await this.audioBookService.updateAudioBook(id as string, updateData, tagIds);
 
     ResponseHandler.success(res, audiobook, MessageHandler.getSuccessMessage('audiobooks.updated'));
   });
