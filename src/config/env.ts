@@ -11,7 +11,7 @@ dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
 
 export const config = {
    NODE_ENV: nodeEnv,
-   PORT: parseInt(process.env['PORT'] || '8081', 10),
+   PORT: parseInt(process.env['PORT'] || '8082', 10),
    DATABASE_URL: process.env['DATABASE_URL'] || '',
    SESSION_SECRET: process.env['SESSION_SECRET'] || '',
    CLIENT_URL: process.env['CLIENT_URL'] || 'http://localhost:3000',
@@ -100,7 +100,7 @@ export const config = {
    STREAMING_SERVICE_STORAGE_PATH: process.env['STREAMING_SERVICE_STORAGE_PATH'] || 'C:\\Users\\mayuk\\Desktop\\Projects\\AudioBook\\backend\\streaming-service\\storage',
 
    // External streaming service URL
-   STREAMING_SERVICE_URL: process.env['STREAMING_SERVICE_URL'] || 'http://localhost:8081/api/v1/stream',
+   STREAMING_SERVICE_URL: process.env['STREAMING_SERVICE_URL'] || 'http://localhost:8083/api/v1/stream',
 
    // Auth service configuration
    AUTH_SERVICE_URL: process.env['AUTH_SERVICE_URL'] || 'http://localhost:8080',

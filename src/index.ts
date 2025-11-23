@@ -25,8 +25,7 @@ app.use(helmet());
 
 // CORS configuration - allow multiple client origins
 const allowedOrigins = [
-   ...config.CLIENT_URLS,
-   ...(process.env['CLIENT_URL'] ? [process.env['CLIENT_URL']] : [])
+   ...config.CLIENT_URLS
 ];
 
 app.use(cors({
@@ -34,6 +33,7 @@ app.use(cors({
       // Allow requests with no origin (like mobile apps or curl requests)
       if (!origin) return callback(null, true);
 
+      console.log(origin)
       if (allowedOrigins.includes(origin)) {
          callback(null, true);
       } else {

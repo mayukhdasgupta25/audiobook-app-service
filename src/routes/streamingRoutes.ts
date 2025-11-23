@@ -50,7 +50,7 @@ export function createStreamingRoutes(_prisma: PrismaClient): Router {
     */
    const proxyToStreamingService = async (req: Request, res: Response): Promise<void> => {
       try {
-         const userId = req.session.userId;
+         const userId = req.query["user"] as string;
          if (!userId) {
             ResponseHandler.unauthorized(res, MessageHandler.getErrorMessage('unauthorized.not_authenticated'));
             return;
@@ -59,12 +59,14 @@ export function createStreamingRoutes(_prisma: PrismaClient): Router {
          // Construct the external service URL
          const externalUrl = `${config.STREAMING_SERVICE_URL}${req.path}`;
 
+         const isBinaryResponse = req.path.includes('/segments/');
          // Make request to external streaming service
          const response: AxiosResponse = await axios.get(externalUrl, {
             headers: {
                'user_id': userId,
                'Content-Type': 'application/json'
             },
+            responseType: isBinaryResponse ? 'arraybuffer' : 'text',
             timeout: 30000 // 30 second timeout
          });
 
