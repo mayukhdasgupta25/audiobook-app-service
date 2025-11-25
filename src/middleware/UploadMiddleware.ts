@@ -88,10 +88,16 @@ const audioFilter = (_req: Request, file: Express.Multer.File, cb: multer.FileFi
       'audio/ogg',
       'audio/m4a',
       'audio/aac',
+      'audio/x-aac',
+      'audio/aacp',
       'audio/flac'
    ];
 
-   if (allowedMimes.includes(file.mimetype)) {
+   // Get file extension as fallback
+   const ext = path.extname(file.originalname).toLowerCase();
+   const allowedExtensions = ['.mp3', '.wav', '.ogg', '.m4a', '.aac', '.flac'];
+
+   if (allowedMimes.includes(file.mimetype) || allowedExtensions.includes(ext)) {
       cb(null, true);
    } else {
       cb(new Error('Only audio files (MP3, WAV, OGG, M4A, AAC, FLAC) are allowed'));
@@ -168,9 +174,16 @@ const combinedFilter = (_req: Request, file: Express.Multer.File, cb: multer.Fil
          'audio/ogg',
          'audio/m4a',
          'audio/aac',
+         'audio/x-aac',
+         'audio/aacp',
          'audio/flac'
       ];
-      if (allowedMimes.includes(file.mimetype)) {
+
+      // Get file extension as fallback
+      const ext = path.extname(file.originalname).toLowerCase();
+      const allowedExtensions = ['.mp3', '.wav', '.ogg', '.m4a', '.aac', '.flac'];
+
+      if (allowedMimes.includes(file.mimetype) || allowedExtensions.includes(ext)) {
          cb(null, true);
       } else {
          cb(new Error('Only audio files (MP3, WAV, OGG, M4A, AAC, FLAC) are allowed for audio file'));
