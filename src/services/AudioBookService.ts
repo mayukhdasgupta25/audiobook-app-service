@@ -573,8 +573,6 @@ export class AudioBookService {
         }
       };
 
-      console.log(tags)
-
       // Build orderBy clause
       const orderBy: Prisma.AudioBookOrderByWithRelationInput = {
         [sortBy]: sortOrder

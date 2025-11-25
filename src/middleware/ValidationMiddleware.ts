@@ -274,7 +274,6 @@ export class ValidationMiddleware {
   static validateChapterCreation(req: Request, res: Response, next: NextFunction): void {
     const { audiobookId, title, chapterNumber, duration, startPosition, endPosition } = req.body;
 
-    console.log(req.body);
     // Validate required fields
     if (!audiobookId) {
       ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.audiobook_id_required'));
