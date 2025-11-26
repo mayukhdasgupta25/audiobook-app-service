@@ -44,8 +44,6 @@ interface MessagesConfig {
          file_path_required: string;
          isbn_format: string;
          chapter_id_required: string;
-         bitrate_required: string;
-         segment_id_required: string;
       };
       not_found: {
          audiobook: string;
@@ -73,7 +71,6 @@ interface MessagesConfig {
          update_audiobook: string;
          delete_audiobook: string;
          fetch_stats: string;
-         streaming_service_unavailable: string;
       };
    };
    api: {
@@ -168,9 +165,7 @@ export class MessageHandler {
                file_size_positive: 'File size must be a positive number',
                file_path_required: 'File path is required',
                isbn_format: 'Invalid ISBN format',
-               chapter_id_required: 'Chapter ID is required',
-               bitrate_required: 'Bitrate is required',
-               segment_id_required: 'Segment ID is required'
+               chapter_id_required: 'Chapter ID is required'
             },
             not_found: {
                audiobook: 'AudioBook not found',
@@ -198,7 +193,6 @@ export class MessageHandler {
                update_audiobook: 'Failed to update audiobook',
                delete_audiobook: 'Failed to delete audiobook',
                fetch_stats: 'Failed to fetch audiobook statistics',
-               streaming_service_unavailable: 'Streaming service is currently unavailable'
             }
          },
          api: {

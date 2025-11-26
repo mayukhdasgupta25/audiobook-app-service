@@ -1,6 +1,6 @@
 /**
  * Playback Routes
- * Handles real-time playback controls, session management, and audio streaming
+ * Handles real-time playback controls and session management
  */
 import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';

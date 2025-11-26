@@ -47,38 +47,6 @@ export const config = {
    ENABLE_REGISTRATION: process.env['ENABLE_REGISTRATION'] === 'true',
    ENABLE_PASSWORD_RESET: process.env['ENABLE_PASSWORD_RESET'] === 'true',
 
-   // Streaming service configuration
-   TRANSCODING_BITRATES: (() => {
-      if (!process.env['TRANSCODING_BITRATES']) {
-         return [64, 128, 256];
-      }
-      const envValue = process.env['TRANSCODING_BITRATES'].trim();
-
-      // Try to parse as JSON array first (handles '[64, 128, 256]' format)
-      if (envValue.startsWith('[') && envValue.endsWith(']')) {
-         try {
-            const parsed = JSON.parse(envValue);
-            if (Array.isArray(parsed)) {
-               const bitrates = parsed
-                  .map(b => typeof b === 'number' ? b : parseInt(String(b), 10))
-                  .filter(b => !isNaN(b) && b > 0);
-               return bitrates.length > 0 ? bitrates : [64, 128, 256];
-            }
-         } catch (_error) {
-            // If JSON parsing fails, fall through to comma-separated parsing
-         }
-      }
-
-      // Fall back to comma-separated parsing (handles '64,128,256' format)
-      const bitrates = envValue
-         .split(',')
-         .map(b => b.trim())
-         .filter(b => b.length > 0)
-         .map(b => parseInt(b, 10))
-         .filter(b => !isNaN(b) && b > 0);
-      return bitrates.length > 0 ? bitrates : [64, 128, 256];
-   })(), // kbps
-   STREAMING_CACHE_TTL: parseInt(process.env['STREAMING_CACHE_TTL'] || '3600', 10), // seconds
 
    // RabbitMQ configuration
    RABBITMQ_URL: process.env['RABBITMQ_URL'] || 'amqp://localhost:5672',
@@ -95,12 +63,6 @@ export const config = {
 
    // Storage provider selection
    STORAGE_PROVIDER: process.env['STORAGE_PROVIDER'] || 'local', // local, s3
-
-   // Streaming service storage path for development
-   STREAMING_SERVICE_STORAGE_PATH: process.env['STREAMING_SERVICE_STORAGE_PATH'] || 'C:\\Users\\mayuk\\Desktop\\Projects\\AudioBook\\backend\\streaming-service\\storage',
-
-   // External streaming service URL
-   STREAMING_SERVICE_URL: process.env['STREAMING_SERVICE_URL'] || 'http://localhost:8083/api/v1/stream',
 
    // Auth service configuration
    AUTH_SERVICE_URL: process.env['AUTH_SERVICE_URL'] || 'http://localhost:8080',

@@ -174,46 +174,6 @@ export class ValidationMiddleware {
     next();
   }
 
-  /**
-   * Validate bitrate parameter
-   */
-  static validateBitrate(req: Request, res: Response, next: NextFunction): void {
-    const { bitrate } = req.params;
-
-    if (!bitrate) {
-      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.bitrate_required'));
-      return;
-    }
-
-    const bitrateNum = parseInt(bitrate, 10);
-    if (isNaN(bitrateNum) || bitrateNum < 32 || bitrateNum > 512) {
-      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.bitrate_range'));
-      return;
-    }
-
-    next();
-  }
-
-  /**
-   * Validate segment ID parameter
-   */
-  static validateSegmentId(req: Request, res: Response, next: NextFunction): void {
-    const { segmentId } = req.params;
-
-    if (!segmentId) {
-      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.segment_id_required'));
-      return;
-    }
-
-    // Validate segment ID format (e.g., segment_001.ts)
-    const segmentRegex = /^segment_\d{3}\.ts$/;
-    if (!segmentRegex.test(segmentId)) {
-      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.segment_id_format'));
-      return;
-    }
-
-    next();
-  }
 
   /**
    * Validate transcoding request body

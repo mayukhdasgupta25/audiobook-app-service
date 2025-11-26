@@ -1,6 +1,6 @@
 /**
  * RabbitMQ Configuration
- * Manages RabbitMQ connection and queue setup for audio streaming service
+ * Manages RabbitMQ connection and queue setup for transcoding and messaging
  */
 import * as amqp from 'amqplib';
 import { config } from './env';

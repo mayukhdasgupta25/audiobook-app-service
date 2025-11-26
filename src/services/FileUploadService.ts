@@ -50,7 +50,7 @@ export class FileUploadService {
          const filename = `audio-${uniqueSuffix}${ext}`;
 
          // Construct full path
-         const fullPath = path.join(config.STREAMING_SERVICE_STORAGE_PATH, relativePath, filename);
+         const fullPath = path.join(config.UPLOAD_DIR, relativePath, filename);
 
          // Ensure directory exists
          const dir = path.dirname(fullPath);
@@ -159,7 +159,7 @@ export class FileUploadService {
     */
    private deleteFromLocalStorage(filePath: string): boolean {
       try {
-         const fullPath = path.join(config.STREAMING_SERVICE_STORAGE_PATH, filePath);
+         const fullPath = path.join(config.UPLOAD_DIR, filePath);
 
          if (fs.existsSync(fullPath)) {
             fs.unlinkSync(fullPath);
@@ -180,7 +180,7 @@ export class FileUploadService {
    async fileExists(filePath: string): Promise<boolean> {
       try {
          if (config.NODE_ENV === 'development') {
-            const fullPath = path.join(config.STREAMING_SERVICE_STORAGE_PATH, filePath);
+            const fullPath = path.join(config.UPLOAD_DIR, filePath);
             return fs.existsSync(fullPath);
          } else {
             return await this.storageProvider.fileExists(filePath);
@@ -201,7 +201,7 @@ export class FileUploadService {
    } | null> {
       try {
          if (config.NODE_ENV === 'development') {
-            const fullPath = path.join(config.STREAMING_SERVICE_STORAGE_PATH, filePath);
+            const fullPath = path.join(config.UPLOAD_DIR, filePath);
 
             if (!fs.existsSync(fullPath)) {
                return null;
