@@ -90,13 +90,8 @@ export interface AudioBookQueryParams {
  * Convert Prisma AudioBook to DTO
  */
 export function toAudioBookDto(audiobook: PrismaAudioBook & {
-<<<<<<< Updated upstream
-  audiobookTags?: Array<{ id: string; audiobookId: string; tagId: string; createdAt: Date; tag: { id: string; name: string; type: string; createdAt: Date; updatedAt: Date } }>;
-  genre?: { id: string; name: string; createdAt: Date; updatedAt: Date } | null;
-=======
   audiobookTags?: Array<{ id: string; audiobookId: string; tagId: string; createdAt: Date; tag: { id: string; name: string; createdAt: Date; updatedAt: Date } }>;
-  genres?: Array<{ id: string; audiobookId: string; genreId: string; createdAt: Date; genre: { id: string; name: string; createdAt: Date; updatedAt: Date } }>;
->>>>>>> Stashed changes
+  genre?: { id: string; name: string; createdAt: Date; updatedAt: Date } | null;
 }): AudioBookDto {
   return {
     id: audiobook.id,
