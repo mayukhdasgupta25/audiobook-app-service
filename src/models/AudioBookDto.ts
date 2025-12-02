@@ -28,7 +28,6 @@ export interface AudioBookDto {
 
 export interface AudioBookTagDto {
   name: string;
-  type: string;
 }
 
 export interface GenreDto {
@@ -91,8 +90,13 @@ export interface AudioBookQueryParams {
  * Convert Prisma AudioBook to DTO
  */
 export function toAudioBookDto(audiobook: PrismaAudioBook & {
+<<<<<<< Updated upstream
   audiobookTags?: Array<{ id: string; audiobookId: string; tagId: string; createdAt: Date; tag: { id: string; name: string; type: string; createdAt: Date; updatedAt: Date } }>;
   genre?: { id: string; name: string; createdAt: Date; updatedAt: Date } | null;
+=======
+  audiobookTags?: Array<{ id: string; audiobookId: string; tagId: string; createdAt: Date; tag: { id: string; name: string; createdAt: Date; updatedAt: Date } }>;
+  genres?: Array<{ id: string; audiobookId: string; genreId: string; createdAt: Date; genre: { id: string; name: string; createdAt: Date; updatedAt: Date } }>;
+>>>>>>> Stashed changes
 }): AudioBookDto {
   return {
     id: audiobook.id,
@@ -113,8 +117,7 @@ export function toAudioBookDto(audiobook: PrismaAudioBook & {
     updatedAt: audiobook.updatedAt,
     scheduledAt: audiobook.scheduledAt || undefined,
     audiobookTags: audiobook.audiobookTags?.map(tag => ({
-      name: tag.tag.name,
-      type: tag.tag.type
+      name: tag.tag.name
     })) || undefined,
     genre: audiobook.genre ? {
       name: audiobook.genre.name

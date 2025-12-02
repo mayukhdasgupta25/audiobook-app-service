@@ -19,10 +19,29 @@ export class PlaybackService {
    constructor(private prisma: PrismaClient) { }
 
    /**
+    * Get userProfileId from userId
+    * Helper method to resolve UserProfile.id from User.id
+    */
+   private async getUserProfileId(userId: string): Promise<string> {
+      const userProfile = await this.prisma.userProfile.findUnique({
+         where: { userId },
+         select: { id: true },
+      });
+
+      if (!userProfile) {
+         throw new ApiError('User profile not found', 404);
+      }
+
+      return userProfile.id;
+   }
+
+   /**
     * Initialize or get existing playback session
     */
-   async initializePlaybackSession(userProfileId: string, audiobookId: string, chapterId?: string): Promise<PlaybackSession> {
+   async initializePlaybackSession(userId: string, audiobookId: string, chapterId?: string): Promise<PlaybackSession> {
       try {
+         // Resolve userProfileId from userId
+         const userProfileId = await this.getUserProfileId(userId);
          const sessionKey = `${userProfileId}-${audiobookId}`;
 
          // Check if session already exists
@@ -80,7 +99,8 @@ export class PlaybackService {
 
          this.playbackSessions.set(sessionKey, session);
          return session;
-      } catch (_error) {
+      } catch (error) {
+         console.log('error', error);
          throw new ApiError('Failed to initialize playback session', 500);
       }
    }
@@ -88,8 +108,10 @@ export class PlaybackService {
    /**
     * Sync playback state (play, pause, seek)
     */
-   async syncPlayback(userProfileId: string, syncRequest: PlaybackSyncRequest): Promise<PlaybackState> {
+   async syncPlayback(userId: string, syncRequest: PlaybackSyncRequest): Promise<PlaybackState> {
       try {
+         // Resolve userProfileId from userId
+         const userProfileId = await this.getUserProfileId(userId);
          const sessionKey = `${userProfileId}-${syncRequest.audiobookId}`;
          const session = this.playbackSessions.get(sessionKey);
 
@@ -193,6 +215,7 @@ export class PlaybackService {
             });
          }
       } catch (error) {
+         console.log('error', error);
          if (error instanceof ApiError) {
             throw error;
          }
@@ -247,8 +270,10 @@ export class PlaybackService {
    /**
     * Get playback statistics for a user
     */
-   async getPlaybackStats(userProfileId: string, audiobookId?: string): Promise<PlaybackStats> {
+   async getPlaybackStats(userId: string, audiobookId?: string): Promise<PlaybackStats> {
       try {
+         // Resolve userProfileId from userId
+         const userProfileId = await this.getUserProfileId(userId);
          const whereClause = audiobookId
             ? { userProfileId, audiobookId }
             : { userProfileId };

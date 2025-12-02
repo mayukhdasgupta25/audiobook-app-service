@@ -30,7 +30,6 @@ describe('AudioBookDto', () => {
          isActive: true,
          isPublic: true,
          isOfflineAvailable: false,
-         overallProgress: 0.0,
          createdAt: new Date('2024-01-01'),
          updatedAt: new Date('2024-01-02'),
          audiobookTags: [],

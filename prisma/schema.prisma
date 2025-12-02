@@ -67,9 +67,6 @@ model AudioBook {
   // Offline availability
   isOfflineAvailable Boolean @default(false)
 
-  // Calculated progress (updated by background job)
-  overallProgress Float @default(0.0) // Percentage (0-100)
-
   // Timestamps
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
@@ -106,6 +103,42 @@ model Genre {
   @@map("genres")
 }
 
+<<<<<<< Updated upstream
+=======
+// Author model for storing author information
+model Author {
+  id        String  @id @default(cuid())
+  firstName String
+  lastName  String
+  email     String? @unique
+  address   String?
+  contact   String?
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("authors")
+}
+
+// Junction table for many-to-many relationship between AudioBook and Genre
+model AudioBookGenre {
+  id          String @id @default(cuid())
+  audiobookId String
+  genreId     String
+
+  // Timestamps
+  createdAt DateTime @default(now())
+
+  // Relations
+  audiobook AudioBook @relation(fields: [audiobookId], references: [id], onDelete: Cascade)
+  genre     Genre     @relation(fields: [genreId], references: [id], onDelete: Cascade)
+
+  @@unique([audiobookId, genreId])
+  @@map("audiobook_genres")
+}
+
+>>>>>>> Stashed changes
 // Junction table for user-audiobook relationships (ownership, uploads, etc.)
 model UserAudioBook {
   id            String @id @default(cuid())
@@ -114,6 +147,9 @@ model UserAudioBook {
 
   // Relationship type
   type UserAudioBookType @default(OWNED) // OWNED, UPLOADED, PURCHASED
+
+  // User-specific progress (updated by background job)
+  progress Float @default(0.0) // Percentage (0-100)
 
   // Timestamps
   createdAt DateTime @default(now())
@@ -215,6 +251,11 @@ model Chapter {
   filePath      String // Path to chapter audio file
   fileSize      BigInt // File size in bytes
   coverImage    String // URL to chapter cover image (required)
+
+  // Chapter thumbnail images for different display contexts
+  chapterCardCoverImage      String? // URL to chapter card cover image (240×360px, 2:3 aspect ratio)
+  maximizedChapterCoverImage String? // URL to maximized player cover image (600×600px, 1:1 aspect ratio)
+  minimizedChapterCoverImage String? // URL to minimized player cover image (150×150px, 1:1 aspect ratio)
 
   // Chapter start/end positions in main audiobook file
   startPosition Int // Start position in seconds within main audiobook
@@ -364,9 +405,8 @@ model ListeningHistory {
 
 // Tags model for categorizing audiobooks
 model Tag {
-  id   String  @id @default(cuid())
-  name String  @unique
-  type TagType
+  id   String @id @default(cuid())
+  name String @unique
 
   // Timestamps
   createdAt DateTime @default(now())
@@ -408,9 +448,4 @@ enum DownloadStatus {
   COMPLETED
   FAILED
   CANCELLED
-}
-
-enum TagType {
-  TRENDING
-  NEW_RELEASES
 }

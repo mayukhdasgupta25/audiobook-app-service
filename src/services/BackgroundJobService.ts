@@ -108,7 +108,6 @@ export class BackgroundJobService {
                await this.calculateChapterProgress(userProfileId, audiobookId);
             }
 
-            console.log(`Progress calculation completed for user ${userProfileId}, audiobook ${audiobookId}`);
          } catch (error) {
             // console.error('Progress calculation failed:', error);
             throw error;
@@ -494,10 +493,23 @@ export class BackgroundJobService {
 
          const overallProgress = await this.chapterService.calculateAudiobookProgress(userProfileId, audiobookId);
 
-         // Update audiobook overall progress
-         await this.prisma.audioBook.update({
-            where: { id: audiobookId },
-            data: { overallProgress },
+         // Update user-audiobook progress
+         await this.prisma.userAudioBook.upsert({
+            where: {
+               userProfileId_audiobookId: {
+                  userProfileId,
+                  audiobookId
+               }
+            },
+            update: {
+               progress: overallProgress
+            },
+            create: {
+               userProfileId,
+               audiobookId,
+               type: 'OWNED', // Default type, can be updated later if needed
+               progress: overallProgress
+            }
          });
 
          // Update listening history

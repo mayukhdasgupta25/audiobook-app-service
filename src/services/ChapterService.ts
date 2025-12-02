@@ -19,15 +19,20 @@ import { RabbitMQFactory, TranscodingJobData } from '../config/rabbitmq';
 import { config } from '../config/env';
 import { FileUploadService } from './FileUploadService';
 import { BackgroundJobService } from './BackgroundJobService';
+import { ImageProcessingService } from './ImageProcessingService';
+import { validateChapterCoverImageOrThrow } from '../utils/ImageValidator';
+import path from 'path';
 import { getFileUrl } from '../middleware/UploadMiddleware';
 
 export class ChapterService {
    private fileUploadService: FileUploadService;
    private backgroundJobService: BackgroundJobService | undefined;
+   private imageProcessingService: ImageProcessingService;
 
    constructor(private prisma: PrismaClient, backgroundJobService?: BackgroundJobService) {
       this.fileUploadService = new FileUploadService();
       this.backgroundJobService = backgroundJobService;
+      this.imageProcessingService = new ImageProcessingService();
    }
 
    /**
@@ -76,6 +81,9 @@ export class ChapterService {
                filePath: chapter.filePath,
                fileSize: Number(chapter.fileSize),
                coverImage: chapter.coverImage,
+               chapterCardCoverImage: chapter.chapterCardCoverImage || undefined,
+               maximizedChapterCoverImage: chapter.maximizedChapterCoverImage || undefined,
+               minimizedChapterCoverImage: chapter.minimizedChapterCoverImage || undefined,
                startPosition: chapter.startPosition,
                endPosition: chapter.endPosition,
                isActive: chapter.isActive,
@@ -129,6 +137,9 @@ export class ChapterService {
             filePath: chapter.filePath,
             fileSize: Number(chapter.fileSize),
             coverImage: chapter.coverImage,
+            chapterCardCoverImage: chapter.chapterCardCoverImage || undefined,
+            maximizedChapterCoverImage: chapter.maximizedChapterCoverImage || undefined,
+            minimizedChapterCoverImage: chapter.minimizedChapterCoverImage || undefined,
             startPosition: chapter.startPosition,
             endPosition: chapter.endPosition,
             isActive: chapter.isActive,
@@ -193,7 +204,23 @@ export class ChapterService {
 
          // Handle coverImage - it's required, so it must be provided via upload or in chapterData
          let coverImage = chapterData.coverImage;
+         let coverImagePath: string | undefined;
+
          if (uploadedCoverImage) {
+            // Validate cover image dimensions
+            try {
+               validateChapterCoverImageOrThrow(uploadedCoverImage.path);
+            } catch (validationError: any) {
+               // Delete the uploaded file if validation fails
+               const fs = require('fs');
+               if (fs.existsSync(uploadedCoverImage.path)) {
+                  fs.unlinkSync(uploadedCoverImage.path);
+               }
+               throw new ApiError(validationError.message || 'Invalid chapter cover image dimensions', 400);
+            }
+
+            // Store the path for thumbnail generation
+            coverImagePath = uploadedCoverImage.path;
             // In local environment, multer already saved the file to the correct directory
             // Just convert the path to a URL using getFileUrl (similar to audiobooks)
             coverImage = getFileUrl(uploadedCoverImage.path);
@@ -211,6 +238,20 @@ export class ChapterService {
             fileSize: BigInt(fileSize),
             coverImage,
          };
+
+         // Generate thumbnails from cover image if provided
+         if (coverImagePath) {
+            try {
+               const thumbnailOutputDir = path.join(config.DEV_UPLOAD_DIR, 'images', 'chapters', 'thumbnails');
+               const thumbnails = await this.imageProcessingService.generateChapterThumbnails(coverImagePath, thumbnailOutputDir);
+               createData.chapterCardCoverImage = thumbnails.chapterCard;
+               createData.maximizedChapterCoverImage = thumbnails.maximized;
+               createData.minimizedChapterCoverImage = thumbnails.minimized;
+            } catch (thumbnailError: any) {
+               console.error('Failed to generate chapter thumbnails from cover image:', thumbnailError);
+               // Don't fail chapter creation if thumbnail generation fails
+            }
+         }
 
          if (chapterData.scheduledAt !== undefined) {
             createData.scheduledAt = chapterData.scheduledAt;
@@ -288,6 +329,9 @@ export class ChapterService {
             filePath: chapter.filePath,
             fileSize: Number(chapter.fileSize),
             coverImage: chapter.coverImage,
+            chapterCardCoverImage: chapter.chapterCardCoverImage || undefined,
+            maximizedChapterCoverImage: chapter.maximizedChapterCoverImage || undefined,
+            minimizedChapterCoverImage: chapter.minimizedChapterCoverImage || undefined,
             startPosition: chapter.startPosition,
             endPosition: chapter.endPosition,
             isActive: chapter.isActive,
@@ -369,8 +413,22 @@ export class ChapterService {
 
          // Handle coverImage upload if provided
          let coverImage = updateData.coverImage;
+         let coverImagePath: string | undefined;
+
          if (uploadedCoverImage) {
-            // Delete old cover image if it exists
+            // Validate cover image dimensions
+            try {
+               validateChapterCoverImageOrThrow(uploadedCoverImage.path);
+            } catch (validationError: any) {
+               // Delete the uploaded file if validation fails
+               const fs = require('fs');
+               if (fs.existsSync(uploadedCoverImage.path)) {
+                  fs.unlinkSync(uploadedCoverImage.path);
+               }
+               throw new ApiError(validationError.message || 'Invalid chapter cover image dimensions', 400);
+            }
+
+            // Delete old cover image and thumbnails if they exist
             if (existingChapter.coverImage) {
                try {
                   const fs = require('fs');
@@ -384,12 +442,35 @@ export class ChapterService {
                   if (fs.existsSync(oldImagePath)) {
                      fs.unlinkSync(oldImagePath);
                   }
+
+                  // Delete old thumbnails if they exist (in development)
+                  if (config.NODE_ENV === 'development') {
+                     const oldThumbnails = [
+                        existingChapter.chapterCardCoverImage,
+                        existingChapter.maximizedChapterCoverImage,
+                        existingChapter.minimizedChapterCoverImage
+                     ];
+                     oldThumbnails.forEach(thumbnailUrl => {
+                        if (thumbnailUrl && thumbnailUrl.startsWith('/uploads')) {
+                           const thumbnailPath = path.join(config.DEV_UPLOAD_DIR, thumbnailUrl.replace('/uploads', ''));
+                           if (fs.existsSync(thumbnailPath)) {
+                              try {
+                                 fs.unlinkSync(thumbnailPath);
+                              } catch (_err) {
+                                 // Ignore errors when deleting old thumbnails
+                              }
+                           }
+                        }
+                     });
+                  }
                } catch (_error) {
                   // Log error but don't fail update
                   console.error(`Error deleting old cover image for chapter ${chapterId}:`, _error);
                }
             }
 
+            // Store the path for thumbnail generation
+            coverImagePath = uploadedCoverImage.path;
             // In local environment, multer already saved the file to the correct directory
             // Just convert the path to a URL using getFileUrl (similar to audiobooks)
             coverImage = getFileUrl(uploadedCoverImage.path);
@@ -409,6 +490,20 @@ export class ChapterService {
          }
          if (coverImage !== undefined) {
             updatePayload.coverImage = coverImage;
+         }
+
+         // Generate thumbnails from cover image if a new one was uploaded
+         if (coverImagePath) {
+            try {
+               const thumbnailOutputDir = path.join(config.DEV_UPLOAD_DIR, 'images', 'chapters', 'thumbnails');
+               const thumbnails = await this.imageProcessingService.generateChapterThumbnails(coverImagePath, thumbnailOutputDir);
+               updatePayload.chapterCardCoverImage = thumbnails.chapterCard;
+               updatePayload.maximizedChapterCoverImage = thumbnails.maximized;
+               updatePayload.minimizedChapterCoverImage = thumbnails.minimized;
+            } catch (thumbnailError: any) {
+               console.error('Failed to generate chapter thumbnails from cover image:', thumbnailError);
+               // Don't fail chapter update if thumbnail generation fails
+            }
          }
 
          // Handle scheduledAt: if provided, set isActive=false
@@ -451,6 +546,9 @@ export class ChapterService {
             filePath: chapter.filePath,
             fileSize: Number(chapter.fileSize),
             coverImage: chapter.coverImage,
+            chapterCardCoverImage: chapter.chapterCardCoverImage || undefined,
+            maximizedChapterCoverImage: chapter.maximizedChapterCoverImage || undefined,
+            minimizedChapterCoverImage: chapter.minimizedChapterCoverImage || undefined,
             startPosition: chapter.startPosition,
             endPosition: chapter.endPosition,
             isActive: chapter.isActive,
