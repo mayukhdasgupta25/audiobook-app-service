@@ -28,13 +28,12 @@ async function main() {
 
    console.log('✅ Created test user profile:', userProfile.username);
 
-   // Create Tags first
+   // Create Tags (standalone, not associated with any user)
    const trendingTag = await prisma.tag.upsert({
       where: { name: 'Trending' },
       update: {},
       create: {
-         name: 'Trending',
-         type: 'TRENDING'
+         name: 'Trending'
       }
    });
 
@@ -42,8 +41,7 @@ async function main() {
       where: { name: 'New Releases' },
       update: {},
       create: {
-         name: 'New Releases',
-         type: 'NEW_RELEASES'
+         name: 'New Releases'
       }
    });
 
@@ -652,7 +650,7 @@ async function main() {
       genreMap.set(genre.name, genre.id);
    });
 
-   const createdAudiobooks: Array<{ audiobook: any; tags: string[] }> = [];
+   const createdAudiobooks: Array<{ audiobook: any; tags: string[]; genreId: string | null }> = [];
    for (const bookData of audiobookData) {
       const { tags, genre, ...bookInfo } = bookData;
 
@@ -664,11 +662,15 @@ async function main() {
          update: {},
          create: {
             ...bookInfo,
-            genreId
+            genres: genreId ? {
+               create: {
+                  genreId
+               }
+            } : undefined
          }
       });
 
-      createdAudiobooks.push({ audiobook, tags });
+      createdAudiobooks.push({ audiobook, tags, genreId });
    }
 
    console.log('✅ Created 30 audiobooks');

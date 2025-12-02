@@ -1,53 +1,41 @@
 /**
- * Tag Routes
- * Handles tag-related HTTP endpoints
+ * Author Routes
+ * Handles author-related HTTP endpoints
  */
 import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
-import { TagController } from '../controllers/TagController';
+import { AuthorController } from '../controllers/AuthorController';
 import { ValidationMiddleware } from '../middleware/ValidationMiddleware';
 
-export function createTagRoutes(prisma: PrismaClient): Router {
+export function createAuthorRoutes(prisma: PrismaClient): Router {
    const router = Router();
-   const tagController = new TagController(prisma);
+   const authorController = new AuthorController(prisma);
 
    /**
     * @swagger
-    * /api/v1/tags:
+    * /api/v1/authors:
     *   get:
-    *     summary: Get all available tags
-    *     description: Retrieve a list of all available tags in the system (requires authentication)
-    *     tags: [Tags]
+    *     summary: Get all authors
+    *     description: Retrieve a list of all authors in the system
+    *     tags: [Authors]
     *     security:
     *       - bearerAuth: []
     *     responses:
     *       200:
-    *         description: Tags retrieved successfully
-    *         content:
-    *           application/json:
-    *             schema:
-    *               allOf:
-    *                 - $ref: '#/components/schemas/ApiResponse'
-    *                 - type: object
-    *                   properties:
-    *                     data:
-    *                       type: array
-    *                       items:
-    *                         $ref: '#/components/schemas/Tag'
+    *         description: Authors retrieved successfully
     *       401:
     *         $ref: '#/components/responses/Unauthorized'
     *       500:
     *         $ref: '#/components/responses/InternalServerError'
     */
-   router.get('/', tagController.getAllTags);
+   router.get('/', authorController.getAllAuthors);
 
    /**
     * @swagger
-    * /api/v1/tags/{id}:
+    * /api/v1/authors/{id}:
     *   get:
-    *     summary: Get a tag by ID
-    *     description: Retrieve a specific tag by its ID (requires authentication)
-    *     tags: [Tags]
+    *     summary: Get an author by ID
+    *     tags: [Authors]
     *     security:
     *       - bearerAuth: []
     *     parameters:
@@ -58,7 +46,7 @@ export function createTagRoutes(prisma: PrismaClient): Router {
     *           type: string
     *     responses:
     *       200:
-    *         description: Tag retrieved successfully
+    *         description: Author retrieved successfully
     *       401:
     *         $ref: '#/components/responses/Unauthorized'
     *       404:
@@ -66,15 +54,14 @@ export function createTagRoutes(prisma: PrismaClient): Router {
     *       500:
     *         $ref: '#/components/responses/InternalServerError'
     */
-   router.get('/:id', ValidationMiddleware.validateId, tagController.getTagById);
+   router.get('/:id', ValidationMiddleware.validateId, authorController.getAuthorById);
 
    /**
     * @swagger
-    * /api/v1/tags:
+    * /api/v1/authors:
     *   post:
-    *     summary: Create a new tag
-    *     description: Create a new global tag (requires authentication)
-    *     tags: [Tags]
+    *     summary: Create a new author
+    *     tags: [Authors]
     *     security:
     *       - bearerAuth: []
     *     requestBody:
@@ -84,36 +71,43 @@ export function createTagRoutes(prisma: PrismaClient): Router {
     *           schema:
     *             type: object
     *             required:
-    *               - name
+    *               - firstName
+    *               - lastName
     *             properties:
-    *               name:
+    *               firstName:
     *                 type: string
-    *                 example: "Fiction"
+    *               lastName:
+    *                 type: string
+    *               email:
+    *                 type: string
+    *               address:
+    *                 type: string
+    *               contact:
+    *                 type: string
     *     responses:
     *       201:
-    *         description: Tag created successfully
+    *         description: Author created successfully
     *       400:
     *         $ref: '#/components/responses/BadRequest'
     *       401:
     *         $ref: '#/components/responses/Unauthorized'
     *       409:
-    *         description: Tag with this name already exists
+    *         description: Author with this email already exists
     *       500:
     *         $ref: '#/components/responses/InternalServerError'
     */
    router.post(
       '/',
-      ValidationMiddleware.validateCreateTag,
-      tagController.createTag
+      ValidationMiddleware.validateCreateAuthor,
+      authorController.createAuthor
    );
 
    /**
     * @swagger
-    * /api/v1/tags/{id}:
+    * /api/v1/authors/{id}:
     *   put:
-    *     summary: Update a tag
-    *     description: Update an existing global tag (requires authentication)
-    *     tags: [Tags]
+    *     summary: Update an author
+    *     tags: [Authors]
     *     security:
     *       - bearerAuth: []
     *     parameters:
@@ -129,12 +123,19 @@ export function createTagRoutes(prisma: PrismaClient): Router {
     *           schema:
     *             type: object
     *             properties:
-    *               name:
+    *               firstName:
     *                 type: string
-    *                 example: "Updated Tag Name"
+    *               lastName:
+    *                 type: string
+    *               email:
+    *                 type: string
+    *               address:
+    *                 type: string
+    *               contact:
+    *                 type: string
     *     responses:
     *       200:
-    *         description: Tag updated successfully
+    *         description: Author updated successfully
     *       400:
     *         $ref: '#/components/responses/BadRequest'
     *       401:
@@ -142,24 +143,23 @@ export function createTagRoutes(prisma: PrismaClient): Router {
     *       404:
     *         $ref: '#/components/responses/NotFound'
     *       409:
-    *         description: Tag with this name already exists
+    *         description: Author with this email already exists
     *       500:
     *         $ref: '#/components/responses/InternalServerError'
     */
    router.put(
       '/:id',
       ValidationMiddleware.validateId,
-      ValidationMiddleware.validateUpdateTag,
-      tagController.updateTag
+      ValidationMiddleware.validateUpdateAuthor,
+      authorController.updateAuthor
    );
 
    /**
     * @swagger
-    * /api/v1/tags/{id}:
+    * /api/v1/authors/{id}:
     *   delete:
-    *     summary: Delete a tag
-    *     description: Delete an existing global tag and all associated audiobook-tag relationships (requires authentication)
-    *     tags: [Tags]
+    *     summary: Delete an author
+    *     tags: [Authors]
     *     security:
     *       - bearerAuth: []
     *     parameters:
@@ -170,7 +170,7 @@ export function createTagRoutes(prisma: PrismaClient): Router {
     *           type: string
     *     responses:
     *       200:
-    *         description: Tag deleted successfully
+    *         description: Author deleted successfully
     *       401:
     *         $ref: '#/components/responses/Unauthorized'
     *       404:
@@ -178,7 +178,7 @@ export function createTagRoutes(prisma: PrismaClient): Router {
     *       500:
     *         $ref: '#/components/responses/InternalServerError'
     */
-   router.delete('/:id', ValidationMiddleware.validateId, tagController.deleteTag);
+   router.delete('/:id', ValidationMiddleware.validateId, authorController.deleteAuthor);
 
    return router;
 }

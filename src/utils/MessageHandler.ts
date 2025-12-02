@@ -19,6 +19,12 @@ interface MessagesConfig {
          by_genre: string;
          by_author: string;
       };
+      playback: {
+         session_initialized: string;
+         sync_executed: string;
+         stats_retrieved: string;
+         cleanup_completed: string;
+      };
       general: {
          success: string;
          health_check: string;
@@ -143,6 +149,12 @@ export class MessageHandler {
                stats_retrieved: 'AudioBook statistics retrieved successfully',
                by_genre: 'AudioBooks in genre "{genre}" retrieved successfully',
                by_author: 'AudioBooks by "{author}" retrieved successfully'
+            },
+            playback: {
+               session_initialized: 'Playback session initialized successfully',
+               sync_executed: 'Playback sync executed successfully',
+               stats_retrieved: 'Playback statistics retrieved successfully',
+               cleanup_completed: 'Playback session cleanup completed successfully'
             },
             general: {
                success: 'Success',

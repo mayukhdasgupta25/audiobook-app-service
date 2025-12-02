@@ -474,18 +474,41 @@ export class AudioBookService {
   }
 
   /**
-   * Update audiobook overall progress
+   * Update user-audiobook progress
    */
-  async updateAudiobookProgress(id: string, progress: number): Promise<AudioBookDto> {
+  async updateAudiobookProgress(id: string, userProfileId: string, progress: number): Promise<AudioBookDto> {
     try {
       // Validate progress value
       if (progress < 0 || progress > 100) {
         throw ApiError.validationError('Progress must be between 0 and 100');
       }
 
-      const audiobook = await this.prisma.audioBook.update({
-        where: { id },
-        data: { overallProgress: progress }
+      // Verify audiobook exists
+      const audiobook = await this.prisma.audioBook.findUnique({
+        where: { id }
+      });
+
+      if (!audiobook) {
+        throw ApiError.notFound(MessageHandler.getErrorMessage('not_found.audiobook'));
+      }
+
+      // Update user-audiobook progress
+      await this.prisma.userAudioBook.upsert({
+        where: {
+          userProfileId_audiobookId: {
+            userProfileId,
+            audiobookId: id
+          }
+        },
+        update: {
+          progress: progress
+        },
+        create: {
+          userProfileId,
+          audiobookId: id,
+          type: 'OWNED', // Default type, can be updated later if needed
+          progress: progress
+        }
       });
 
       return toAudioBookDto(audiobook);

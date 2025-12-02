@@ -16,6 +16,9 @@ export interface ChapterData {
    filePath: string;
    fileSize: number;
    coverImage: string; // Required
+   chapterCardCoverImage?: string; // URL to chapter card cover image (240×360px, 2:3 aspect ratio)
+   maximizedChapterCoverImage?: string; // URL to maximized player cover image (600×600px, 1:1 aspect ratio)
+   minimizedChapterCoverImage?: string; // URL to minimized player cover image (150×150px, 1:1 aspect ratio)
    startPosition: number;
    endPosition: number;
    isActive: boolean;
@@ -46,6 +49,9 @@ export interface CreateChapterRequest {
    filePath?: string; // Made optional for file uploads
    fileSize?: number; // Made optional for file uploads
    coverImage?: string; // Optional in request, will be set from uploaded file
+   chapterCardCoverImage?: string; // Optional, auto-generated from coverImage
+   maximizedChapterCoverImage?: string; // Optional, auto-generated from coverImage
+   minimizedChapterCoverImage?: string; // Optional, auto-generated from coverImage
    startPosition: number;
    endPosition: number;
    isActive?: boolean;
@@ -61,6 +67,9 @@ export interface UpdateChapterRequest {
    filePath?: string;
    fileSize?: number;
    coverImage?: string;
+   chapterCardCoverImage?: string; // Optional, auto-generated from coverImage if coverImage is updated
+   maximizedChapterCoverImage?: string; // Optional, auto-generated from coverImage if coverImage is updated
+   minimizedChapterCoverImage?: string; // Optional, auto-generated from coverImage if coverImage is updated
    startPosition?: number;
    endPosition?: number;
    isActive?: boolean;
