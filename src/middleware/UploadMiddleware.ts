@@ -7,10 +7,7 @@ import path from 'path';
 import fs from 'fs';
 import { Request, Response, NextFunction } from 'express';
 import { config } from '../config/env';
-<<<<<<< Updated upstream
-=======
 import { validateCoverImageOrThrow, validateChapterCoverImageOrThrow } from '../utils/ImageValidator';
->>>>>>> Stashed changes
 
 // Ensure upload directories exist
 const ensureUploadDirs = (): void => {
@@ -369,8 +366,6 @@ export class UploadMiddleware {
             return;
          }
 
-<<<<<<< Updated upstream
-=======
          // Validate cover image dimensions and aspect ratio
          const isChapterRoute = req.path?.includes('/chapters') || req.originalUrl?.includes('/chapters');
          if (coverImageFiles[0]) {
@@ -396,7 +391,6 @@ export class UploadMiddleware {
             }
          }
 
->>>>>>> Stashed changes
          // Store files in convenient properties for controllers
          (req as any).coverImageFile = coverImageFiles[0];
          (req as any).audioFile = audioFiles[0];
@@ -423,8 +417,6 @@ export class UploadMiddleware {
          // Store image file in custom property to avoid conflict with audio file
          // This allows both image and audio files to be uploaded in the same request
          if (req.file) {
-<<<<<<< Updated upstream
-=======
             // Validate cover image dimensions and aspect ratio
             const isChapterRoute = req.path?.includes('/chapters') || req.originalUrl?.includes('/chapters');
             if (isChapterRoute || !isChapterRoute) {
@@ -449,7 +441,6 @@ export class UploadMiddleware {
                   return;
                }
             }
->>>>>>> Stashed changes
             (req as any).coverImageFile = req.file;
             // Clear req.file so audio middleware can use it
             delete (req as any).file;

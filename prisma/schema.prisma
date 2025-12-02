@@ -54,7 +54,6 @@ model AudioBook {
   coverImage String? // URL to cover image
 
   // Metadata
-  genreId     String
   language    String    @default("bn")
   publisher   String?
   publishDate DateTime?
@@ -73,7 +72,6 @@ model AudioBook {
   scheduledAt DateTime? // Optional scheduled date/time
 
   // Relations
-  genre            Genre              @relation(fields: [genreId], references: [id])
   userAudioBooks   UserAudioBook[]
   reviews          Review[]
   favorites        Favorite[]
@@ -84,6 +82,9 @@ model AudioBook {
   notes            Note[]
   offlineDownloads OfflineDownload[]
   audiobookTags    AudioBookTag[]
+  audioBookGenres  AudioBookGenre[]
+  genre            Genre?             @relation(fields: [genreId], references: [id])
+  genreId          String?
 
   @@map("audiobooks")
 }
@@ -98,13 +99,12 @@ model Genre {
   updatedAt DateTime @updatedAt
 
   // Relations
-  audiobooks AudioBook[]
+  audiobooks      AudioBook[]
+  audioBookGenres AudioBookGenre[]
 
   @@map("genres")
 }
 
-<<<<<<< Updated upstream
-=======
 // Author model for storing author information
 model Author {
   id        String  @id @default(cuid())
@@ -138,7 +138,6 @@ model AudioBookGenre {
   @@map("audiobook_genres")
 }
 
->>>>>>> Stashed changes
 // Junction table for user-audiobook relationships (ownership, uploads, etc.)
 model UserAudioBook {
   id            String @id @default(cuid())
