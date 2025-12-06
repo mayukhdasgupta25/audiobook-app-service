@@ -23,7 +23,7 @@ export interface AudioBookDto {
   updatedAt: Date;
   scheduledAt?: Date | undefined;
   audiobookTags?: AudioBookTagDto[] | undefined;
-  genre?: GenreDto | undefined;
+  genres?: GenreDto[] | undefined;
 }
 
 export interface AudioBookTagDto {
@@ -42,7 +42,7 @@ export interface CreateAudioBookDto {
   duration?: number;
   fileSize?: number;
   coverImage?: string;
-  genreId: string; // Required - genre is now mandatory
+  genreIds: string[]; // Required - at least one genre is mandatory
   language?: string;
   publisher?: string;
   publishDate?: Date;
@@ -60,7 +60,7 @@ export interface UpdateAudioBookDto {
   duration?: number;
   fileSize?: number;
   coverImage?: string;
-  genreId?: string;
+  genreIds?: string[];
   language?: string;
   publisher?: string;
   publishDate?: Date;
@@ -75,7 +75,7 @@ export interface AudioBookQueryParams {
   limit?: number;
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
-  genreId?: string | undefined;
+  genreIds?: string[] | undefined;
   language?: string | undefined;
   author?: string | undefined;
   narrator?: string | undefined;
@@ -91,7 +91,7 @@ export interface AudioBookQueryParams {
  */
 export function toAudioBookDto(audiobook: PrismaAudioBook & {
   audiobookTags?: Array<{ id: string; audiobookId: string; tagId: string; createdAt: Date; tag: { id: string; name: string; createdAt: Date; updatedAt: Date } }>;
-  genre?: { id: string; name: string; createdAt: Date; updatedAt: Date } | null;
+  audioBookGenres?: Array<{ id: string; audiobookId: string; genreId: string; createdAt: Date; genre: { id: string; name: string; createdAt: Date; updatedAt: Date } }>;
 }): AudioBookDto {
   return {
     id: audiobook.id,
@@ -114,8 +114,8 @@ export function toAudioBookDto(audiobook: PrismaAudioBook & {
     audiobookTags: audiobook.audiobookTags?.map(tag => ({
       name: tag.tag.name
     })) || undefined,
-    genre: audiobook.genre ? {
-      name: audiobook.genre.name
-    } : undefined
+    genres: audiobook.audioBookGenres?.map(abg => ({
+      name: abg.genre.name
+    })) || undefined
   };
 }

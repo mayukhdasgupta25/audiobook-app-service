@@ -45,6 +45,7 @@ interface MessagesConfig {
          search_required: string;
          title_required: string;
          author_required: string;
+         genre_required: string;
          duration_positive: string;
          file_size_positive: string;
          file_path_required: string;
@@ -176,6 +177,7 @@ export class MessageHandler {
                search_required: 'Search query is required',
                title_required: 'Title is required',
                author_required: 'Author is required',
+               genre_required: 'Genre is required',
                duration_positive: 'Duration must be a positive number',
                file_size_positive: 'File size must be a positive number',
                file_path_required: 'File path is required',
