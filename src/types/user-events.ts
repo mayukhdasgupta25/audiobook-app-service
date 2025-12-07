@@ -8,6 +8,8 @@
  */
 export interface UserCreationMessage {
    userId: string;
+   firstName?: string;
+   lastName?: string;
 }
 
 /**
