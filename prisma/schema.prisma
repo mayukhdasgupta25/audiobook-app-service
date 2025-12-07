@@ -83,8 +83,6 @@ model AudioBook {
   offlineDownloads OfflineDownload[]
   audiobookTags    AudioBookTag[]
   audioBookGenres  AudioBookGenre[]
-  genre            Genre?             @relation(fields: [genreId], references: [id])
-  genreId          String?
 
   @@map("audiobooks")
 }
@@ -99,7 +97,6 @@ model Genre {
   updatedAt DateTime @updatedAt
 
   // Relations
-  audiobooks      AudioBook[]
   audioBookGenres AudioBookGenre[]
 
   @@map("genres")

@@ -106,6 +106,7 @@ errors:
     # AudioBook specific validation
     title_required: "Title is required"
     author_required: "Author is required"
+    genre_required: "Genre is required"
     duration_positive: "Duration must be a positive number"
     file_size_positive: "File size must be a positive number"
     file_path_required: "File path is required"
