@@ -38,6 +38,23 @@ success:
     updated: "User-audiobook relationship updated successfully"
     deleted: "User-audiobook relationship deleted successfully"
 
+  subscription_plans:
+    retrieved: "Subscription plans retrieved successfully"
+    retrieved_by_id: "Subscription plan retrieved successfully"
+    created: "Subscription plan created successfully"
+    updated: "Subscription plan updated successfully"
+    deleted: "Subscription plan deleted successfully"
+    deactivated: "Subscription plan deactivated successfully"
+
+  user_subscriptions:
+    retrieved: "Subscriptions retrieved successfully"
+    retrieved_by_id: "Subscription retrieved successfully"
+    created: "Subscription created successfully"
+    updated: "Subscription updated successfully"
+    deleted: "Subscription deleted successfully"
+    canceled: "Subscription canceled successfully"
+    renewed: "Subscription renewed successfully"
+
   auth:
     signup_success: "User account created successfully"
     login_success: "Login successful"
@@ -154,6 +171,29 @@ errors:
   tags:
     not_found: "Tag not found"
     fetch_failed: "Failed to fetch tags"
+
+  subscription_plans:
+    not_found: "Subscription plan not found"
+    fetch_failed: "Failed to fetch subscription plans"
+    create_failed: "Failed to create subscription plan"
+    update_failed: "Failed to update subscription plan"
+    delete_failed: "Failed to delete subscription plan"
+    name_exists: "A subscription plan with this name already exists"
+    price_invalid: "Subscription plan price must be non-negative"
+    inactive: "Subscription plan is inactive"
+
+  user_subscriptions:
+    not_found: "Subscription not found"
+    fetch_failed: "Failed to fetch subscriptions"
+    create_failed: "Failed to create subscription"
+    update_failed: "Failed to update subscription"
+    delete_failed: "Failed to delete subscription"
+    cancel_failed: "Failed to cancel subscription"
+    renew_failed: "Failed to renew subscription"
+    already_subscribed: "User already has an active subscription"
+    already_canceled: "Subscription is already canceled or expired"
+    cannot_renew_canceled: "Canceled subscriptions cannot be renewed"
+    lifetime_no_renew: "Lifetime subscriptions do not require renewal"
 
   internal:
     default: "Internal server error"
