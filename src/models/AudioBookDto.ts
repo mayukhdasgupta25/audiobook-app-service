@@ -19,6 +19,7 @@ export interface AudioBookDto {
   isbn?: string | undefined;
   isActive: boolean;
   isPublic: boolean;
+  organizationId?: string | undefined;
   createdAt: Date;
   updatedAt: Date;
   scheduledAt?: Date | undefined;
@@ -49,6 +50,7 @@ export interface CreateAudioBookDto {
   isbn?: string;
   isActive?: boolean;
   isPublic?: boolean;
+  organizationId?: string; // Optional owning organization
   scheduledAt?: Date;
 }
 
@@ -67,6 +69,7 @@ export interface UpdateAudioBookDto {
   isbn?: string;
   isActive?: boolean;
   isPublic?: boolean;
+  organizationId?: string | null;
   scheduledAt?: Date;
 }
 
@@ -84,6 +87,7 @@ export interface AudioBookQueryParams {
   search?: string | undefined;
   active?: boolean | undefined;
   scheduled?: boolean | undefined;
+  organizationId?: string | undefined;
 }
 
 /**
@@ -108,6 +112,7 @@ export function toAudioBookDto(audiobook: PrismaAudioBook & {
     isbn: audiobook.isbn || undefined,
     isActive: audiobook.isActive,
     isPublic: audiobook.isPublic,
+    organizationId: audiobook.organizationId || undefined,
     createdAt: audiobook.createdAt,
     updatedAt: audiobook.updatedAt,
     scheduledAt: audiobook.scheduledAt || undefined,

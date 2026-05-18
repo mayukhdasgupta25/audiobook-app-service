@@ -73,7 +73,8 @@ export class AudioBookController {
       isPublic: req.query['isPublic'] !== undefined ? req.query['isPublic'] === 'true' : undefined,
       search: req.query['search'] as string,
       active: req.query['active'] !== undefined ? req.query['active'] === 'true' : undefined,
-      scheduled: req.query['scheduled'] !== undefined ? req.query['scheduled'] === 'true' : undefined
+      scheduled: req.query['scheduled'] !== undefined ? req.query['scheduled'] === 'true' : undefined,
+      organizationId: typeof req.query['organizationId'] === 'string' ? req.query['organizationId'] : undefined
     };
 
     const { audiobooks, totalCount } = await this.audioBookService.getAllAudioBooks(queryParams);

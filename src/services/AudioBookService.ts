@@ -60,6 +60,7 @@ export class AudioBookService {
         // Handle active and scheduled query params (mutually exclusive)
         ...(active === true && { isActive: true }),
         ...(scheduled === true && { isActive: false }),
+        ...(params.organizationId && { organizationId: params.organizationId }),
         ...(search && {
           OR: [
             { title: { contains: search, mode: 'insensitive' } },
@@ -153,6 +154,7 @@ export class AudioBookService {
         // Handle active and scheduled query params (mutually exclusive)
         ...(active === true && { isActive: true }),
         ...(scheduled === true && { isActive: false }),
+        ...(params.organizationId && { organizationId: params.organizationId }),
         ...(search && {
           OR: [
             { title: { contains: search, mode: 'insensitive' } },
@@ -321,6 +323,7 @@ export class AudioBookService {
       if (audiobookData.publisher !== undefined) createData.publisher = audiobookData.publisher;
       if (audiobookData.publishDate !== undefined) createData.publishDate = audiobookData.publishDate;
       if (audiobookData.isbn !== undefined) createData.isbn = audiobookData.isbn;
+      if (audiobookData.organizationId !== undefined) createData.organizationId = audiobookData.organizationId;
 
       const audiobook = await this.prisma.audioBook.create({
         data: createData
