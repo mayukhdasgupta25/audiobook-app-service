@@ -185,7 +185,7 @@ describe('AudioBookController', () => {
          mockReq.body = {
             title: 'New Book',
             author: 'Author Name',
-            genreIds: '["genre-123"]',,
+            genreIds: '["genre-123"]',
             organizationId: 'org-1'
          };
          // Simulate UploadMiddleware result expected by the controller
@@ -230,7 +230,11 @@ describe('AudioBookController', () => {
       });
 
       it('should handle file upload for cover image', async () => {
-         mockReq.body = { title: 'Book with Cover', author: 'Author Name' };
+         mockReq.body = {
+            title: 'Book with Cover',
+            author: 'Author Name',
+            organizationId: 'org-1',
+         };
          (mockReq as any).coverImageFile = mockCoverImageFile;
 
          const mockBook = { id: 'book-new', title: 'Book with Cover' };
@@ -242,7 +246,7 @@ describe('AudioBookController', () => {
 
          expect(mockAudioBookService.createAudioBook).toHaveBeenCalled();
          const callArgs = mockAudioBookService.createAudioBook.mock.calls[0]?.[0];
-         expect(callArgs?.coverImage).toBeDefined();
+         expect(callArgs?.coverImage).toBe('https://example.com/uploads/covers/cover.jpg');
       });
 
       it('should return validation error when organizationId is missing', async () => {

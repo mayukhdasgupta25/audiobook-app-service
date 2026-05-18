@@ -32,45 +32,7 @@ export class AudioBookService {
         limit = 10,
         sortBy = 'createdAt',
         sortOrder = 'desc',
-        genreIds,
-        language,
-        author,
-        narrator,
-        isActive,
-        isPublic,
-        search,
-        active,
-        scheduled
       } = params;
-
-      // Build where clause for filtering
-      const where: Prisma.AudioBookWhereInput = {
-        ...(isActive !== undefined && { isActive }),
-        ...(isPublic !== undefined && { isPublic }),
-        ...(genreIds && Array.isArray(genreIds) && genreIds.length > 0 && {
-          audioBookGenres: {
-            some: {
-              genreId: {
-                in: genreIds
-              }
-            }
-          }
-        }),
-        ...(language && { language: { contains: language, mode: 'insensitive' } }),
-        ...(author && { author: { contains: author, mode: 'insensitive' } }),
-        ...(narrator && { narrator: { contains: narrator, mode: 'insensitive' } }),
-        // Handle active and scheduled query params (mutually exclusive)
-        ...(active === true && { isActive: true }),
-        ...(scheduled === true && { isActive: false }),
-        ...(search && {
-          OR: [
-            { title: { contains: search, mode: 'insensitive' } },
-            { author: { contains: search, mode: 'insensitive' } },
-            { narrator: { contains: search, mode: 'insensitive' } },
-            { description: { contains: search, mode: 'insensitive' } }
-          ]
-        })
-      };
 
       // Build orderBy clause
       const orderBy: Prisma.AudioBookOrderByWithRelationInput = {
@@ -91,10 +53,10 @@ export class AudioBookService {
                 tag: true
               }
             },
+            organization: true,
             audioBookGenres: {
               include: {
                 genre: true,
-                organization: true,
               }
             }
           }
@@ -126,45 +88,7 @@ export class AudioBookService {
         limit = 10,
         sortBy = 'createdAt',
         sortOrder = 'desc',
-        genreIds,
-        language,
-        author,
-        narrator,
-        isActive,
-        isPublic,
-        search,
-        active,
-        scheduled
       } = params;
-
-      // Build where clause for filtering
-      const where: Prisma.AudioBookWhereInput = {
-        ...(isActive !== undefined && { isActive }),
-        ...(isPublic !== undefined && { isPublic }),
-        ...(genreIds && Array.isArray(genreIds) && genreIds.length > 0 && {
-          audioBookGenres: {
-            some: {
-              genreId: {
-                in: genreIds
-              }
-            }
-          }
-        }),
-        ...(language && { language: { contains: language, mode: 'insensitive' } }),
-        ...(author && { author: { contains: author, mode: 'insensitive' } }),
-        ...(narrator && { narrator: { contains: narrator, mode: 'insensitive' } }),
-        // Handle active and scheduled query params (mutually exclusive)
-        ...(active === true && { isActive: true }),
-        ...(scheduled === true && { isActive: false }),
-        ...(search && {
-          OR: [
-            { title: { contains: search, mode: 'insensitive' } },
-            { author: { contains: search, mode: 'insensitive' } },
-            { narrator: { contains: search, mode: 'insensitive' } },
-            { description: { contains: search, mode: 'insensitive' } }
-          ]
-        })
-      };
 
       // Build orderBy clause
       const orderBy: Prisma.AudioBookOrderByWithRelationInput = {
@@ -190,10 +114,10 @@ export class AudioBookService {
                 tag: true
               }
             },
+            organization: true,
             audioBookGenres: {
               include: {
                 genre: true,
-                organization: true,
               }
             }
           }
@@ -223,7 +147,7 @@ export class AudioBookService {
    */
   private buildWhereClause(params: AudioBookQueryParams): Prisma.AudioBookWhereInput {
     const {
-      genreId,
+      genreIds,
       organizationId,
       organizationIds,
       language,
@@ -239,7 +163,7 @@ export class AudioBookService {
     const where: Prisma.AudioBookWhereInput = {
       ...(isActive !== undefined && { isActive }),
       ...(isPublic !== undefined && { isPublic }),
-      ...(genreId && { genreId }),
+      ...(genreIds && genreIds.length > 0 && { genreId: { in: genreIds } }),
       ...(organizationId
         ? { organizationId }
         : organizationIds && organizationIds.length > 0
@@ -276,10 +200,10 @@ export class AudioBookService {
               tag: true
             }
           },
+          organization: true,
           audioBookGenres: {
             include: {
               genre: true,
-              organization: true,
             }
           }
         }
@@ -314,10 +238,10 @@ export class AudioBookService {
               tag: true
             }
           },
+          organization: true,
           audioBookGenres: {
             include: {
               genre: true,
-              organization: true,
             }
           }
         }
@@ -420,10 +344,10 @@ export class AudioBookService {
               tag: true
             }
           },
+          organization: true,
           audioBookGenres: {
             include: {
               genre: true,
-              organization: true,
             }
           }
         }
@@ -554,10 +478,10 @@ export class AudioBookService {
               tag: true
             }
           },
+          organization: true,
           audioBookGenres: {
             include: {
               genre: true,
-              organization: true,
             }
           }
         }
@@ -692,43 +616,10 @@ export class AudioBookService {
         limit = 10,
         sortBy = 'createdAt',
         sortOrder = 'desc',
-        genreIds,
-        language,
-        author,
-        narrator,
-        isActive,
-        isPublic,
-        search
       } = params;
 
-      // Build a base where clause from the shared filters, then add the
-      // tag-matching predicate on top so callers can still pass org
-      // filters and free-text search through.
-      const baseWhere = this.buildWhereClause(params);
       const where: Prisma.AudioBookWhereInput = {
-        ...(isActive !== undefined && { isActive }),
-        ...(isPublic !== undefined && { isPublic }),
-        ...(genreIds && Array.isArray(genreIds) && genreIds.length > 0 && {
-          audioBookGenres: {
-            some: {
-              genreId: {
-                in: genreIds
-              }
-            }
-          }
-        }),
-        ...(language && { language: { contains: language, mode: 'insensitive' } }),
-        ...(author && { author: { contains: author, mode: 'insensitive' } }),
-        ...(narrator && { narrator: { contains: narrator, mode: 'insensitive' } }),
-        ...(search && {
-          OR: [
-            { title: { contains: search, mode: 'insensitive' } },
-            { author: { contains: search, mode: 'insensitive' } },
-            { narrator: { contains: search, mode: 'insensitive' } },
-            { description: { contains: search, mode: 'insensitive' } }
-          ]
-        }),
-        // Filter by tags - audiobooks that have ANY of the specified tags
+        ...this.buildWhereClause(params),
         audiobookTags: {
           some: {
             tag: {
@@ -757,10 +648,10 @@ export class AudioBookService {
                 tag: true
               }
             },
+            organization: true,
             audioBookGenres: {
               include: {
                 genre: true,
-                organization: true,
               }
             }
           }
