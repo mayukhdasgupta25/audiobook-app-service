@@ -140,6 +140,15 @@ describe('ChapterController', () => {
       });
    });
 
+   const mockCoverImageFile = {
+      path: '/uploads/covers/chapter-cover.jpg',
+      size: 51200,
+   };
+   const mockAudioFile = {
+      path: '/uploads/audio.mp3',
+      size: 1024000,
+   };
+
    describe('createChapter', () => {
       it('should create chapter with form data', async () => {
          mockReq.body = {
@@ -150,6 +159,8 @@ describe('ChapterController', () => {
             startPosition: '0',
             endPosition: '1800',
          };
+         (mockReq as any).coverImageFile = mockCoverImageFile;
+         (mockReq as any).audioFile = mockAudioFile;
 
          const mockChapter = { id: 'chapter-new', title: 'New Chapter', audiobookId: 'audiobook-123' };
 
@@ -158,13 +169,44 @@ describe('ChapterController', () => {
 
          await chapterController.createChapter(mockReq, mockRes, mockReq.next);
 
-         expect(mockChapterService.createChapter).toHaveBeenCalled();
+         expect(mockChapterService.createChapter).toHaveBeenCalledWith(
+            expect.objectContaining({
+               audiobookId: 'audiobook-123',
+               title: 'New Chapter',
+               chapterNumber: 1,
+               duration: 1800,
+               startPosition: 0,
+               endPosition: 1800,
+            }),
+            mockAudioFile,
+            mockCoverImageFile
+         );
          expect(ResponseHandler.success).toHaveBeenCalledWith(
             mockRes,
             mockChapter,
             'Chapter created',
             HttpStatusCode.CREATED
          );
+      });
+
+      it('should return validation error when cover image is missing', async () => {
+         mockReq.body = {
+            audiobookId: 'audiobook-123',
+            title: 'New Chapter',
+            chapterNumber: '1',
+            duration: '1800',
+            startPosition: '0',
+            endPosition: '1800',
+         };
+         (mockReq as any).audioFile = mockAudioFile;
+
+         await chapterController.createChapter(mockReq, mockRes, mockReq.next);
+
+         expect(ResponseHandler.validationError).toHaveBeenCalledWith(
+            mockRes,
+            'Cover image is required'
+         );
+         expect(mockChapterService.createChapter).not.toHaveBeenCalled();
       });
 
       it('should handle file upload', async () => {
@@ -176,10 +218,8 @@ describe('ChapterController', () => {
             startPosition: '0',
             endPosition: '1800',
          };
-         mockReq.file = {
-            path: '/uploads/audio.mp3',
-            size: 1024000
-         };
+         (mockReq as any).coverImageFile = mockCoverImageFile;
+         (mockReq as any).audioFile = mockAudioFile;
 
          const mockChapter = { id: 'chapter-new', title: 'Chapter with Audio' };
          mockChapterService.createChapter.mockResolvedValue(mockChapter as any);
@@ -193,7 +233,8 @@ describe('ChapterController', () => {
                chapterNumber: 1,
                duration: 1800,
             }),
-            mockReq.file
+            mockAudioFile,
+            mockCoverImageFile
          );
       });
    });
@@ -212,7 +253,12 @@ describe('ChapterController', () => {
 
          await chapterController.updateChapter(mockReq, mockRes, mockReq.next);
 
-         expect(mockChapterService.updateChapter).toHaveBeenCalledWith('chapter-123', mockReq.body);
+         expect(mockChapterService.updateChapter).toHaveBeenCalledWith(
+            'chapter-123',
+            { title: 'Updated Chapter', duration: 1900 },
+            undefined,
+            undefined
+         );
          expect(ResponseHandler.success).toHaveBeenCalledWith(
             mockRes,
             mockChapter,

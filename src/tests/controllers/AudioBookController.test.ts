@@ -113,7 +113,7 @@ describe('AudioBookController', () => {
                limit: 20,
                sortBy: 'title',
                sortOrder: 'asc',
-               genreId: 'genre-123',
+               genreIds: ['genre-123'],
                language: 'English',
                author: 'Test Author',
                narrator: 'Test Narrator',
@@ -161,13 +161,19 @@ describe('AudioBookController', () => {
       });
    });
 
+   const mockCoverImageFile = {
+      path: '/uploads/covers/cover.jpg',
+      size: 102400,
+   };
+
    describe('createAudioBook', () => {
-      it('should create audiobook without file upload', async () => {
+      it('should create audiobook with cover image from upload middleware', async () => {
          mockReq.body = {
             title: 'New Book',
             author: 'Author Name',
-            genre: 'Fiction'
+            genreIds: '["genre-123"]',
          };
+         (mockReq as any).coverImageFile = mockCoverImageFile;
 
          const mockBook = { id: 'book-new', title: 'New Book' };
          mockAudioBookService.createAudioBook.mockResolvedValue(mockBook as any);
@@ -175,7 +181,14 @@ describe('AudioBookController', () => {
 
          await audioBookController.createAudioBook(mockReq, mockRes, mockReq.next);
 
-         expect(mockAudioBookService.createAudioBook).toHaveBeenCalledWith(mockReq.body);
+         expect(mockAudioBookService.createAudioBook).toHaveBeenCalledWith(
+            expect.objectContaining({
+               title: 'New Book',
+               author: 'Author Name',
+               genreIds: ['genre-123'],
+               coverImage: 'https://example.com/uploads/covers/cover.jpg',
+            })
+         );
          expect(ResponseHandler.success).toHaveBeenCalledWith(
             mockRes,
             mockBook,
@@ -184,15 +197,21 @@ describe('AudioBookController', () => {
          );
       });
 
+      it('should return validation error when cover image is missing', async () => {
+         mockReq.body = { title: 'Book without Cover', author: 'Author Name' };
+
+         await audioBookController.createAudioBook(mockReq, mockRes, mockReq.next);
+
+         expect(ResponseHandler.validationError).toHaveBeenCalledWith(
+            mockRes,
+            'Cover image is required'
+         );
+         expect(mockAudioBookService.createAudioBook).not.toHaveBeenCalled();
+      });
+
       it('should handle file upload for cover image', async () => {
-         mockReq.body = { title: 'Book with Cover' };
-         mockReq.files = {
-            coverImage: [{
-               fieldname: 'coverImage',
-               filename: 'cover.jpg',
-               path: '/uploads/covers/cover.jpg'
-            }]
-         };
+         mockReq.body = { title: 'Book with Cover', author: 'Author Name' };
+         (mockReq as any).coverImageFile = mockCoverImageFile;
 
          const mockBook = { id: 'book-new', title: 'Book with Cover' };
          mockAudioBookService.createAudioBook.mockResolvedValue(mockBook as any);
@@ -202,7 +221,7 @@ describe('AudioBookController', () => {
 
          expect(mockAudioBookService.createAudioBook).toHaveBeenCalled();
          const callArgs = mockAudioBookService.createAudioBook.mock.calls[0]?.[0];
-         expect(callArgs?.coverImage).toBeDefined();
+         expect(callArgs?.coverImage).toBe('https://example.com/uploads/covers/cover.jpg');
       });
    });
 
@@ -265,7 +284,7 @@ describe('AudioBookController', () => {
          await audioBookController.getAudioBooksByGenre(mockReq, mockRes, mockReq.next);
 
          expect(mockAudioBookService.getAllAudioBooks).toHaveBeenCalledWith(
-            expect.objectContaining({ genreId: 'genre-123' })
+            expect.objectContaining({ genreIds: ['genre-123'] })
          );
       });
    });
