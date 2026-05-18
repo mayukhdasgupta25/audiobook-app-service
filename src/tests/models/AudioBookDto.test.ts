@@ -22,7 +22,7 @@ describe('AudioBookDto', () => {
          duration: 3600, // 1 hour in seconds
          fileSize: BigInt(1024 * 1024 * 500), // 500 MB
          coverImage: 'https://example.com/cover.jpg',
-         genreId: null,
+         scheduledAt: null,
          language: 'en',
          publisher: 'Test Publisher',
          publishDate: new Date('2024-01-01'),
@@ -33,7 +33,7 @@ describe('AudioBookDto', () => {
          createdAt: new Date('2024-01-01'),
          updatedAt: new Date('2024-01-02'),
          audiobookTags: [],
-         genre: null,
+         audioBookGenres: [],
          ...overrides,
       };
    };
@@ -102,7 +102,7 @@ describe('AudioBookDto', () => {
          expect(typeof result.fileSize).toBe('number');
       });
 
-      it('should handle genre when present', () => {
+      it('should handle genres when present', () => {
          const mockGenre = {
             id: 'genre-id',
             name: 'Fantasy',
@@ -111,23 +111,29 @@ describe('AudioBookDto', () => {
          };
 
          const prismaAudioBook = createMockPrismaAudioBook({
-            genre: mockGenre,
+            audioBookGenres: [{
+               id: 'abg-1',
+               audiobookId: 'test-audiobook-id',
+               genreIds: ['genre-id'],
+               createdAt: new Date(),
+               genre: mockGenre,
+            }],
          });
 
          const result = toAudioBookDto(prismaAudioBook);
 
-         expect(result.genre).toBeDefined();
-         expect(result.genre?.name).toBe('Fantasy');
+         expect(result.genres).toBeDefined();
+         expect(result.genres?.[0]?.name).toBe('Fantasy');
       });
 
-      it('should handle null genre by converting to undefined', () => {
+      it('should handle empty genres array', () => {
          const prismaAudioBook = createMockPrismaAudioBook({
-            genre: null,
+            audioBookGenres: [],
          });
 
          const result = toAudioBookDto(prismaAudioBook);
 
-         expect(result.genre).toBeUndefined();
+         expect(result.genres).toEqual([]);
       });
 
       it('should handle audiobookTags with multiple tags', () => {
@@ -168,14 +174,8 @@ describe('AudioBookDto', () => {
 
          expect(result.audiobookTags).toBeDefined();
          expect(result.audiobookTags?.length).toBe(2);
-         expect(result.audiobookTags?.[0]).toEqual({
-            name: 'Trending',
-            type: 'TRENDING',
-         });
-         expect(result.audiobookTags?.[1]).toEqual({
-            name: 'New Release',
-            type: 'NEW_RELEASES',
-         });
+         expect(result.audiobookTags?.[0]).toEqual({ name: 'Trending' });
+         expect(result.audiobookTags?.[1]).toEqual({ name: 'New Release' });
       });
 
       it('should handle empty audiobookTags array', () => {
@@ -206,6 +206,7 @@ describe('AudioBookDto', () => {
             author: 'New Author',
             duration: 1800,
             fileSize: 1024 * 1024,
+            genreIds: ['genre-id'],
          };
 
          expect(createDto.title).toBe('New Audiobook');
@@ -223,7 +224,7 @@ describe('AudioBookDto', () => {
             narrator: 'Narrator Name',
             description: 'Description',
             coverImage: 'image.jpg',
-            genreId: 'genre-id',
+            genreIds: ['genre-id'],
             language: 'en',
             publisher: 'Publisher',
             publishDate: new Date(),
@@ -234,7 +235,7 @@ describe('AudioBookDto', () => {
 
          expect(createDto.narrator).toBe('Narrator Name');
          expect(createDto.description).toBe('Description');
-         expect(createDto.genreId).toBe('genre-id');
+         expect(createDto.genreIds).toEqual(['genre-id']);
       });
    });
 
@@ -248,7 +249,7 @@ describe('AudioBookDto', () => {
             duration: 2400,
             fileSize: 2048 * 1024,
             coverImage: 'updated.jpg',
-            genreId: 'new-genre-id',
+            genreIds: ['new-genre-id'],
             language: 'fr',
             publisher: 'New Publisher',
             publishDate: new Date(),
@@ -278,7 +279,7 @@ describe('AudioBookDto', () => {
             limit: 20,
             sortBy: 'title',
             sortOrder: 'asc',
-            genreId: 'genre-id',
+            genreIds: ['genre-id'],
             language: 'en',
             author: 'Author Name',
             narrator: 'Narrator Name',
