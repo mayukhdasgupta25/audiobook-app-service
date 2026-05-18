@@ -36,6 +36,7 @@ model UserProfile {
   bookmarks        Bookmark[]
   notes            Note[]
   offlineDownloads OfflineDownload[]
+  subscriptions    UserSubscription[]
 
   @@map("user_profiles")
 }
@@ -431,11 +432,94 @@ model AudioBookTag {
   @@map("audiobook_tags")
 }
 
+// Subscription plan model defining the pricing tiers offered by the service
+model SubscriptionPlan {
+  id          String  @id @default(cuid())
+  name        String  @unique
+  description String?
+
+  // Pricing
+  price    Decimal @db.Decimal(10, 2)
+  currency String  @default("USD") // ISO 4217 currency code
+
+  // Billing
+  billingInterval BillingInterval @default(MONTHLY)
+  trialDays       Int             @default(0)
+
+  // Feature flags / limits stored as JSON for flexibility
+  features Json?
+
+  // Status
+  isActive Boolean @default(true)
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  subscriptions UserSubscription[]
+
+  @@map("subscription_plans")
+}
+
+// User subscription model tracking each user's subscription lifecycle
+model UserSubscription {
+  id            String @id @default(cuid())
+  userProfileId String
+  planId        String
+
+  // Lifecycle
+  status             SubscriptionStatus @default(PENDING)
+  startDate          DateTime           @default(now())
+  endDate            DateTime?
+  currentPeriodStart DateTime           @default(now())
+  currentPeriodEnd   DateTime
+  trialEndsAt        DateTime?
+
+  // Cancellation
+  cancelAtPeriodEnd Boolean   @default(false)
+  canceledAt        DateTime?
+
+  // Renewal & payment
+  autoRenew     Boolean @default(true)
+  paymentMethod String? // e.g. STRIPE, PAYPAL, MANUAL - identifier for the payment provider
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  userProfile UserProfile      @relation(fields: [userProfileId], references: [id], onDelete: Cascade)
+  plan        SubscriptionPlan @relation(fields: [planId], references: [id])
+
+  @@index([userProfileId])
+  @@index([planId])
+  @@index([status])
+  @@map("user_subscriptions")
+}
+
 // Enums
 enum UserAudioBookType {
   OWNED
   UPLOADED
   PURCHASED
+}
+
+enum BillingInterval {
+  MONTHLY
+  QUARTERLY
+  YEARLY
+  LIFETIME
+}
+
+enum SubscriptionStatus {
+  PENDING
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  PAUSED
+  CANCELED
+  EXPIRED
 }
 
 enum DownloadStatus {
