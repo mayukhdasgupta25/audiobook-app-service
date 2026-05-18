@@ -24,6 +24,14 @@ export interface AudioBookDto {
   scheduledAt?: Date | undefined;
   audiobookTags?: AudioBookTagDto[] | undefined;
   genre?: GenreDto | undefined;
+  organizationId: string;
+  organization?: AudioBookOrganizationDto | undefined;
+}
+
+export interface AudioBookOrganizationDto {
+  id: string;
+  name: string;
+  slug: string;
 }
 
 export interface AudioBookTagDto {
@@ -44,6 +52,7 @@ export interface CreateAudioBookDto {
   fileSize?: number;
   coverImage?: string;
   genreId: string; // Required - genre is now mandatory
+  organizationId: string; // Required - audiobook must belong to an organization
   language?: string;
   publisher?: string;
   publishDate?: Date;
@@ -62,6 +71,7 @@ export interface UpdateAudioBookDto {
   fileSize?: number;
   coverImage?: string;
   genreId?: string;
+  organizationId?: string;
   language?: string;
   publisher?: string;
   publishDate?: Date;
@@ -77,6 +87,8 @@ export interface AudioBookQueryParams {
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
   genreId?: string | undefined;
+  organizationId?: string | undefined;
+  organizationIds?: string[] | undefined;
   language?: string | undefined;
   author?: string | undefined;
   narrator?: string | undefined;
@@ -93,6 +105,7 @@ export interface AudioBookQueryParams {
 export function toAudioBookDto(audiobook: PrismaAudioBook & {
   audiobookTags?: Array<{ id: string; audiobookId: string; tagId: string; createdAt: Date; tag: { id: string; name: string; type: string; createdAt: Date; updatedAt: Date } }>;
   genre?: { id: string; name: string; createdAt: Date; updatedAt: Date } | null;
+  organization?: { id: string; name: string; slug: string } | null;
 }): AudioBookDto {
   return {
     id: audiobook.id,
@@ -118,6 +131,14 @@ export function toAudioBookDto(audiobook: PrismaAudioBook & {
     })) || undefined,
     genre: audiobook.genre ? {
       name: audiobook.genre.name
-    } : undefined
+    } : undefined,
+    organizationId: audiobook.organizationId,
+    organization: audiobook.organization
+      ? {
+          id: audiobook.organization.id,
+          name: audiobook.organization.name,
+          slug: audiobook.organization.slug,
+        }
+      : undefined,
   };
 }
