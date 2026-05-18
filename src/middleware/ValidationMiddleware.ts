@@ -800,4 +800,147 @@ export class ValidationMiddleware {
 
     next();
   }
+
+  /**
+   * Validate organization creation request body.
+   * Requires name and slug; description is optional.
+   */
+  static validateCreateOrganization(req: Request, res: Response, next: NextFunction): void {
+    const { name, slug, description } = req.body || {};
+
+    if (typeof name !== 'string' || name.trim().length === 0) {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('organizations.name_required'));
+      return;
+    }
+    if (name.trim().length > 100) {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('organizations.name_too_long'));
+      return;
+    }
+
+    if (typeof slug !== 'string' || slug.trim().length === 0) {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('organizations.slug_required'));
+      return;
+    }
+    if (slug.trim().length > 100) {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('organizations.slug_too_long'));
+      return;
+    }
+    const slugRegex = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+    if (!slugRegex.test(slug.trim().toLowerCase())) {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('organizations.slug_invalid'));
+      return;
+    }
+
+    if (description !== undefined && description !== null) {
+      if (typeof description !== 'string') {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('organizations.description_too_long'));
+        return;
+      }
+      if (description.trim().length > 500) {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('organizations.description_too_long'));
+        return;
+      }
+    }
+
+    req.body.name = name.trim();
+    req.body.slug = slug.trim().toLowerCase();
+    if (typeof description === 'string') {
+      req.body.description = description.trim();
+    }
+
+    next();
+  }
+
+  /**
+   * Validate organization update request body. All fields are optional but
+   * at least one must be present.
+   */
+  static validateUpdateOrganization(req: Request, res: Response, next: NextFunction): void {
+    const { name, slug, description } = req.body || {};
+
+    if (name === undefined && slug === undefined && description === undefined) {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.no_update_fields'));
+      return;
+    }
+
+    if (name !== undefined) {
+      if (typeof name !== 'string' || name.trim().length === 0) {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('organizations.name_required'));
+        return;
+      }
+      if (name.trim().length > 100) {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('organizations.name_too_long'));
+        return;
+      }
+      req.body.name = name.trim();
+    }
+
+    if (slug !== undefined) {
+      if (typeof slug !== 'string' || slug.trim().length === 0) {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('organizations.slug_required'));
+        return;
+      }
+      if (slug.trim().length > 100) {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('organizations.slug_too_long'));
+        return;
+      }
+      const slugRegex = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+      if (!slugRegex.test(slug.trim().toLowerCase())) {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('organizations.slug_invalid'));
+        return;
+      }
+      req.body.slug = slug.trim().toLowerCase();
+    }
+
+    if (description !== undefined && description !== null) {
+      if (typeof description !== 'string') {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('organizations.description_too_long'));
+        return;
+      }
+      if (description.trim().length > 500) {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('organizations.description_too_long'));
+        return;
+      }
+      req.body.description = description.trim();
+    }
+
+    next();
+  }
+
+  /**
+   * Validate body for adding a member to an organization.
+   */
+  static validateAddOrganizationMember(req: Request, res: Response, next: NextFunction): void {
+    const { userProfileId, role } = req.body || {};
+
+    if (typeof userProfileId !== 'string' || userProfileId.trim().length === 0) {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('organizations.user_profile_required'));
+      return;
+    }
+
+    if (role !== undefined) {
+      if (!['OWNER', 'ADMIN', 'MEMBER'].includes(role)) {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('organizations.role_invalid'));
+        return;
+      }
+    }
+
+    req.body.userProfileId = userProfileId.trim();
+
+    next();
+  }
+
+  /**
+   * Validate body for updating a member's role.
+   */
+  static validateUpdateOrganizationMember(req: Request, res: Response, next: NextFunction): void {
+    const { role } = req.body || {};
+
+    if (!['OWNER', 'ADMIN', 'MEMBER'].includes(role)) {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('organizations.role_invalid'));
+      return;
+    }
+
+    next();
+  }
 }

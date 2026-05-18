@@ -19,6 +19,7 @@ import { createTagRoutes } from './tagRoutes';
 import { createAuthorRoutes } from './authorRoutes';
 import { createSubscriptionPlanRoutes } from './subscriptionPlanRoutes';
 import { createUserSubscriptionRoutes } from './userSubscriptionRoutes';
+import { createOrganizationRoutes } from './organizationRoutes';
 
 export class ApiRouter {
   private static instance: ApiRouter;
@@ -84,6 +85,7 @@ export class ApiRouter {
     v1Router.use('/user-audiobooks', createUserAudioBookRoutes(this.prisma));
     v1Router.use('/subscription-plans', createSubscriptionPlanRoutes(this.prisma));
     v1Router.use('/subscriptions', createUserSubscriptionRoutes(this.prisma));
+    v1Router.use('/organizations', createOrganizationRoutes(this.prisma));
 
     // Mount v1 routes
     this.router.use('/v1', v1Router);
