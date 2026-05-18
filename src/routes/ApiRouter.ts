@@ -16,6 +16,7 @@ import { createStreamingRoutes } from './streamingRoutes';
 import { createUserProfileRoutes } from './userProfileRoutes';
 import { createUserAudioBookRoutes } from './userAudioBookRoutes';
 import { createTagRoutes } from './tagRoutes';
+import { createOrganizationRoutes } from './organizationRoutes';
 
 export class ApiRouter {
   private static instance: ApiRouter;
@@ -78,6 +79,7 @@ export class ApiRouter {
     v1Router.use('/stream', createStreamingRoutes(this.prisma));
     v1Router.use('/', createUserProfileRoutes(this.prisma));
     v1Router.use('/user-audiobooks', createUserAudioBookRoutes(this.prisma));
+    v1Router.use('/organizations', createOrganizationRoutes(this.prisma));
 
     // Mount v1 routes
     this.router.use('/v1', v1Router);

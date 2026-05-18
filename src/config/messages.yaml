@@ -38,6 +38,18 @@ success:
     updated: "User-audiobook relationship updated successfully"
     deleted: "User-audiobook relationship deleted successfully"
 
+  organizations:
+    retrieved: "Organizations retrieved successfully"
+    retrieved_by_id: "Organization retrieved successfully"
+    created: "Organization created successfully"
+    updated: "Organization updated successfully"
+    deleted: "Organization deleted successfully"
+    members_retrieved: "Organization members retrieved successfully"
+    member_added: "Member added to organization successfully"
+    member_updated: "Member role updated successfully"
+    member_removed: "Member removed from organization successfully"
+    audiobooks_retrieved: "Organization audiobooks retrieved successfully"
+
   auth:
     signup_success: "User account created successfully"
     login_success: "Login successful"
@@ -82,6 +94,8 @@ errors:
     isbn_format: "Invalid ISBN format"
     audiobook_id_required: "Audiobook ID is required"
     user_profile_id_required: "User profile ID is required"
+    organization_id_required: "Organization ID is required"
+    genre_required: "Genre is required"
     user_audiobook_type_invalid: "User-audiobook type must be one of: OWNED, UPLOADED, PURCHASED"
     no_update_fields: "At least one field must be provided for update"
 
@@ -154,6 +168,28 @@ errors:
   tags:
     not_found: "Tag not found"
     fetch_failed: "Failed to fetch tags"
+
+  organizations:
+    not_found: "Organization not found"
+    member_not_found: "Organization member not found"
+    fetch_failed: "Failed to fetch organizations"
+    fetch_members_failed: "Failed to fetch organization members"
+    create_failed: "Failed to create organization"
+    update_failed: "Failed to update organization"
+    delete_failed: "Failed to delete organization"
+    add_member_failed: "Failed to add organization member"
+    update_member_failed: "Failed to update organization member"
+    remove_member_failed: "Failed to remove organization member"
+    slug_exists: "An organization with this slug already exists"
+    slug_invalid: "Invalid organization slug"
+    name_required: "Organization name is required"
+    name_too_long: "Organization name must be less than 100 characters"
+    role_invalid: "Role must be one of: OWNER, ADMIN, MEMBER"
+    member_exists: "User is already a member of this organization"
+    last_owner: "Cannot demote or remove the last owner of the organization"
+    access_denied: "You do not have access to this organization"
+    admin_required: "Organization admin access required"
+    owner_required: "Organization owner access required"
 
   internal:
     default: "Internal server error"
