@@ -27,16 +27,18 @@ model UserProfile {
   updatedAt DateTime @updatedAt
 
   // Relations
-  audiobooks       UserAudioBook[]
-  playlists        Playlist[]
-  reviews          Review[]
-  favorites        Favorite[]
-  listeningHistory ListeningHistory[]
-  chapterProgress  ChapterProgress[]
-  bookmarks        Bookmark[]
-  notes            Note[]
-  offlineDownloads OfflineDownload[]
-  subscriptions    UserSubscription[]
+  audiobooks              UserAudioBook[]
+  playlists               Playlist[]
+  reviews                 Review[]
+  favorites               Favorite[]
+  listeningHistory        ListeningHistory[]
+  chapterProgress         ChapterProgress[]
+  bookmarks               Bookmark[]
+  notes                   Note[]
+  offlineDownloads        OfflineDownload[]
+  subscriptions           UserSubscription[]
+  ownedOrganizations      Organization[]       @relation("OwnedOrganizations")
+  organizationMemberships OrganizationMember[]
 
   @@map("user_profiles")
 }
@@ -67,6 +69,12 @@ model AudioBook {
   // Offline availability
   isOfflineAvailable Boolean @default(false)
 
+  // Owning organization
+  // Nullable for backward compatibility with existing rows, but new
+  // audiobooks must belong to an organization (enforced in the service layer).
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
   // Timestamps
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
@@ -85,6 +93,7 @@ model AudioBook {
   audiobookTags    AudioBookTag[]
   audioBookGenres  AudioBookGenre[]
 
+  @@index([organizationId])
   @@map("audiobooks")
 }
 
@@ -498,7 +507,62 @@ model UserSubscription {
   @@map("user_subscriptions")
 }
 
+// Organization model representing a tenant that owns audiobooks
+// Users can be members of multiple organizations.
+model Organization {
+  id          String  @id @default(cuid())
+  name        String
+  slug        String  @unique
+  description String?
+
+  // Owner is the user who created the organization. Ownership can be
+  // transferred by promoting another member to OWNER and demoting the
+  // previous owner (handled in the service layer).
+  ownerId String
+  owner   UserProfile @relation("OwnedOrganizations", fields: [ownerId], references: [id], onDelete: Restrict)
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  members    OrganizationMember[]
+  audiobooks AudioBook[]
+
+  @@index([ownerId])
+  @@map("organizations")
+}
+
+// Junction model describing a user's membership in an organization.
+// A user can belong to multiple organizations, each with an independent role.
+model OrganizationMember {
+  id             String @id @default(cuid())
+  organizationId String
+  userProfileId  String
+
+  role OrganizationRole @default(MEMBER)
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userProfile  UserProfile  @relation(fields: [userProfileId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userProfileId])
+  @@index([userProfileId])
+  @@index([organizationId])
+  @@map("organization_members")
+}
+
 // Enums
+enum OrganizationRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
 enum UserAudioBookType {
   OWNED
   UPLOADED
