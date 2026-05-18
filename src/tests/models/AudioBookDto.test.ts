@@ -22,7 +22,7 @@ describe('AudioBookDto', () => {
          duration: 3600, // 1 hour in seconds
          fileSize: BigInt(1024 * 1024 * 500), // 500 MB
          coverImage: 'https://example.com/cover.jpg',
-         scheduledAt: 'genre-1',
+         genreId: 'genre-1',
          organizationId: 'org-1',
          language: 'en',
          publisher: 'Test Publisher',
@@ -63,6 +63,25 @@ describe('AudioBookDto', () => {
          expect(result.isPublic).toBe(prismaAudioBook.isPublic);
          expect(result.createdAt).toEqual(prismaAudioBook.createdAt);
          expect(result.updatedAt).toEqual(prismaAudioBook.updatedAt);
+         expect(result.organizationId).toBe('org-1');
+      });
+
+      it('should map organization when present', () => {
+         const prismaAudioBook = createMockPrismaAudioBook({
+            organization: {
+               id: 'org-1',
+               name: 'Test Org',
+               slug: 'test-org',
+            },
+         });
+
+         const result = toAudioBookDto(prismaAudioBook);
+
+         expect(result.organization).toEqual({
+            id: 'org-1',
+            name: 'Test Org',
+            slug: 'test-org',
+         });
       });
 
       it('should handle null optional string fields by converting to undefined', () => {
@@ -117,7 +136,7 @@ describe('AudioBookDto', () => {
             audioBookGenres: [{
                id: 'abg-1',
                audiobookId: 'test-audiobook-id',
-               genreIds: ['genre-id'],
+               genreId: 'genre-id',
                createdAt: new Date(),
                genre: mockGenre,
             }],
@@ -209,7 +228,6 @@ describe('AudioBookDto', () => {
             author: 'New Author',
             duration: 1800,
             fileSize: 1024 * 1024,
-            genreId: 'genre-id',
             organizationId: 'org-id',
             genreIds: ['genre-id'],
          };
