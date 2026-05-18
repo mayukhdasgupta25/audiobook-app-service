@@ -64,6 +64,18 @@ success:
     canceled: "Subscription canceled successfully"
     renewed: "Subscription renewed successfully"
 
+  organizations:
+    retrieved: "Organizations retrieved successfully"
+    retrieved_by_id: "Organization retrieved successfully"
+    created: "Organization created successfully"
+    updated: "Organization updated successfully"
+    deleted: "Organization deleted successfully"
+    members_retrieved: "Organization members retrieved successfully"
+    member_added: "Member added to organization successfully"
+    member_updated: "Member role updated successfully"
+    member_removed: "Member removed from organization successfully"
+    audiobooks_retrieved: "Organization audiobooks retrieved successfully"
+
   auth:
     signup_success: "User account created successfully"
     login_success: "Login successful"
@@ -130,6 +142,8 @@ errors:
     isbn_format: "Invalid ISBN format"
     audiobook_id_required: "Audiobook ID is required"
     user_profile_id_required: "User profile ID is required"
+    organization_id_required: "Organization ID is required"
+    genre_required: "Genre is required"
     user_audiobook_type_invalid: "User-audiobook type must be one of: OWNED, UPLOADED, PURCHASED"
     no_update_fields: "At least one field must be provided for update"
 
@@ -206,43 +220,28 @@ errors:
   tags:
     not_found: "Tag not found"
     fetch_failed: "Failed to fetch tags"
-    create_failed: "Failed to create tag"
-    update_failed: "Failed to update tag"
-    delete_failed: "Failed to delete tag"
-    already_exists: "Tag with this name already exists"
-    access_denied: "Access denied - tag does not belong to you"
-    invalid_name: "Tag name is invalid"
 
-  authors:
-    not_found: "Author not found"
-    fetch_failed: "Failed to fetch authors"
-    create_failed: "Failed to create author"
-    update_failed: "Failed to update author"
-    delete_failed: "Failed to delete author"
-    email_exists: "Author with this email already exists"
-
-  subscription_plans:
-    not_found: "Subscription plan not found"
-    fetch_failed: "Failed to fetch subscription plans"
-    create_failed: "Failed to create subscription plan"
-    update_failed: "Failed to update subscription plan"
-    delete_failed: "Failed to delete subscription plan"
-    name_exists: "A subscription plan with this name already exists"
-    price_invalid: "Subscription plan price must be non-negative"
-    inactive: "Subscription plan is inactive"
-
-  user_subscriptions:
-    not_found: "Subscription not found"
-    fetch_failed: "Failed to fetch subscriptions"
-    create_failed: "Failed to create subscription"
-    update_failed: "Failed to update subscription"
-    delete_failed: "Failed to delete subscription"
-    cancel_failed: "Failed to cancel subscription"
-    renew_failed: "Failed to renew subscription"
-    already_subscribed: "User already has an active subscription"
-    already_canceled: "Subscription is already canceled or expired"
-    cannot_renew_canceled: "Canceled subscriptions cannot be renewed"
-    lifetime_no_renew: "Lifetime subscriptions do not require renewal"
+  organizations:
+    not_found: "Organization not found"
+    member_not_found: "Organization member not found"
+    fetch_failed: "Failed to fetch organizations"
+    fetch_members_failed: "Failed to fetch organization members"
+    create_failed: "Failed to create organization"
+    update_failed: "Failed to update organization"
+    delete_failed: "Failed to delete organization"
+    add_member_failed: "Failed to add organization member"
+    update_member_failed: "Failed to update organization member"
+    remove_member_failed: "Failed to remove organization member"
+    slug_exists: "An organization with this slug already exists"
+    slug_invalid: "Invalid organization slug"
+    name_required: "Organization name is required"
+    name_too_long: "Organization name must be less than 100 characters"
+    role_invalid: "Role must be one of: OWNER, ADMIN, MEMBER"
+    member_exists: "User is already a member of this organization"
+    last_owner: "Cannot demote or remove the last owner of the organization"
+    access_denied: "You do not have access to this organization"
+    admin_required: "Organization admin access required"
+    owner_required: "Organization owner access required"
 
   internal:
     default: "Internal server error"

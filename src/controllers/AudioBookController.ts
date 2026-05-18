@@ -11,12 +11,41 @@ import { AudioBookQueryParams } from '../models/AudioBookDto';
 import { ErrorHandler } from '../middleware/ErrorHandler';
 import { MessageHandler } from '../utils/MessageHandler';
 import { getFileUrl } from '../middleware/UploadMiddleware';
+import { OrganizationService } from '../services/OrganizationService';
+import { AuthenticatedRequest } from '../types/auth';
 
 export class AudioBookController {
   private audioBookService: AudioBookService;
+  private organizationService: OrganizationService;
+  private prisma: PrismaClient;
 
   constructor(prisma: PrismaClient, backgroundJobService?: BackgroundJobService) {
+    this.prisma = prisma;
     this.audioBookService = new AudioBookService(prisma, backgroundJobService);
+    this.organizationService = new OrganizationService(prisma);
+  }
+
+  /**
+   * Resolve the list of organization IDs the authenticated user can see.
+   * Global admins are not scoped (returns null = no restriction). Non-admin
+   * users get the set of organizations they are a member of.
+   */
+  private async getAccessibleOrganizationIds(req: Request): Promise<string[] | null> {
+    const authReq = req as AuthenticatedRequest;
+    const role = (authReq.user?.role || '').trim().toLowerCase();
+    if (role === 'admin') {
+      return null;
+    }
+    const externalUserId = authReq.user?.id;
+    if (!externalUserId) {
+      return [];
+    }
+    const profile = await this.prisma.userProfile.findUnique({
+      where: { userId: externalUserId },
+      select: { id: true }
+    });
+    if (!profile) return [];
+    return this.organizationService.getOrganizationIdsForUser(profile.id);
   }
 
   /**
@@ -60,12 +89,15 @@ export class AudioBookController {
       genreIds = [req.query['genreId'] as string];
     }
 
+    const accessibleOrgIds = await this.getAccessibleOrganizationIds(req);
+
     const queryParams: AudioBookQueryParams = {
       page: req.query['page'] ? parseInt(req.query['page'] as string, 10) : 1,
       limit: req.query['limit'] ? parseInt(req.query['limit'] as string, 10) : 10,
       sortBy: req.query['sortBy'] as string || 'createdAt',
       sortOrder: (req.query['sortOrder'] as 'asc' | 'desc') || 'desc',
       genreIds: genreIds,
+      organizationId: req.query['organizationId'] as string,
       language: req.query['language'] as string,
       author: req.query['author'] as string,
       narrator: req.query['narrator'] as string,
@@ -73,8 +105,31 @@ export class AudioBookController {
       isPublic: req.query['isPublic'] !== undefined ? req.query['isPublic'] === 'true' : undefined,
       search: req.query['search'] as string,
       active: req.query['active'] !== undefined ? req.query['active'] === 'true' : undefined,
-      scheduled: req.query['scheduled'] !== undefined ? req.query['scheduled'] === 'true' : undefined
+      scheduled: req.query['scheduled'] !== undefined ? req.query['scheduled'] === 'true' : undefined,
+      ...(accessibleOrgIds !== null ? { organizationIds: accessibleOrgIds } : {})
     };
+
+    // If the caller is scoped to a specific organization, ensure it is one
+    // they have access to. Global admins bypass this check.
+    if (
+      accessibleOrgIds !== null &&
+      queryParams.organizationId &&
+      !accessibleOrgIds.includes(queryParams.organizationId)
+    ) {
+      ResponseHandler.forbidden(res, MessageHandler.getErrorMessage('organizations.access_denied'));
+      return;
+    }
+
+    // If the user has no org memberships and is not admin, return empty list.
+    if (accessibleOrgIds !== null && accessibleOrgIds.length === 0) {
+      ResponseHandler.paginated(
+        res,
+        [],
+        ResponseHandler.calculatePagination(queryParams.page!, queryParams.limit!, 0),
+        MessageHandler.getSuccessMessage('audiobooks.retrieved')
+      );
+      return;
+    }
 
     const { audiobooks, totalCount } = await this.audioBookService.getAllAudioBooks(queryParams);
 
@@ -143,6 +198,14 @@ export class AudioBookController {
     const { id } = req.params;
 
     const audiobook = await this.audioBookService.getAudioBookById(id as string);
+
+    // Enforce organization-scoped access: only members of the audiobook's
+    // organization (or global admins) may fetch it.
+    const accessibleOrgIds = await this.getAccessibleOrganizationIds(req);
+    if (accessibleOrgIds !== null && !accessibleOrgIds.includes(audiobook.organizationId)) {
+      ResponseHandler.forbidden(res, MessageHandler.getErrorMessage('organizations.access_denied'));
+      return;
+    }
 
     ResponseHandler.success(res, audiobook, MessageHandler.getSuccessMessage('audiobooks.retrieved_by_id'));
   });
@@ -231,6 +294,40 @@ export class AudioBookController {
     if (!uploadedCoverImage) {
       ResponseHandler.validationError(res, 'Cover image is required');
       return;
+    }
+
+    // organizationId is required (every audiobook belongs to an organization)
+    const organizationId = req.body.organizationId as string | undefined;
+    if (!organizationId || organizationId.trim().length === 0) {
+      ResponseHandler.validationError(
+        res,
+        MessageHandler.getErrorMessage('validation.organization_id_required')
+      );
+      return;
+    }
+
+    // Non-admin users may only create audiobooks in organizations they
+    // are an OWNER or ADMIN of. Global admins bypass this check.
+    const authReq = req as AuthenticatedRequest;
+    const role = (authReq.user?.role || '').trim().toLowerCase();
+    if (role !== 'admin') {
+      const externalUserId = authReq.user?.id;
+      const profile = externalUserId
+        ? await this.prisma.userProfile.findUnique({
+          where: { userId: externalUserId },
+          select: { id: true }
+        })
+        : null;
+      const allowed = profile
+        ? await this.organizationService.isAdmin(organizationId, profile.id)
+        : false;
+      if (!allowed) {
+        ResponseHandler.forbidden(
+          res,
+          MessageHandler.getErrorMessage('organizations.admin_required')
+        );
+        return;
+      }
     }
 
     // Parse tagIds from form-data (can be string, array, or JSON string)

@@ -27,16 +27,17 @@ model UserProfile {
   updatedAt DateTime @updatedAt
 
   // Relations
-  audiobooks       UserAudioBook[]
-  playlists        Playlist[]
-  reviews          Review[]
-  favorites        Favorite[]
-  listeningHistory ListeningHistory[]
-  chapterProgress  ChapterProgress[]
-  bookmarks        Bookmark[]
-  notes            Note[]
-  offlineDownloads OfflineDownload[]
-  subscriptions    UserSubscription[]
+  audiobooks          UserAudioBook[]
+  playlists           Playlist[]
+  reviews             Review[]
+  favorites           Favorite[]
+  listeningHistory    ListeningHistory[]
+  chapterProgress     ChapterProgress[]
+  bookmarks           Bookmark[]
+  notes               Note[]
+  offlineDownloads    OfflineDownload[]
+  organizationMembers OrganizationMember[]
+  subscriptions       UserSubscription[]
 
   @@map("user_profiles")
 }
@@ -55,10 +56,12 @@ model AudioBook {
   coverImage String? // URL to cover image
 
   // Metadata
-  language    String    @default("bn")
-  publisher   String?
-  publishDate DateTime?
-  isbn        String?   @unique
+  genreId        String
+  organizationId String
+  language       String    @default("bn")
+  publisher      String?
+  publishDate    DateTime?
+  isbn           String?   @unique
 
   // Status
   isActive Boolean @default(true)
@@ -73,6 +76,7 @@ model AudioBook {
   scheduledAt DateTime? // Optional scheduled date/time
 
   // Relations
+  organization     Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   userAudioBooks   UserAudioBook[]
   reviews          Review[]
   favorites        Favorite[]
@@ -85,6 +89,7 @@ model AudioBook {
   audiobookTags    AudioBookTag[]
   audioBookGenres  AudioBookGenre[]
 
+  @@index([organizationId])
   @@map("audiobooks")
 }
 
@@ -432,6 +437,46 @@ model AudioBookTag {
   @@map("audiobook_tags")
 }
 
+// Organization model
+// An organization owns audiobooks and groups users who can access them.
+model Organization {
+  id          String  @id @default(cuid())
+  name        String
+  slug        String  @unique
+  description String?
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  audiobooks AudioBook[]
+  members    OrganizationMember[]
+
+  @@map("organizations")
+}
+
+// Junction table linking users to organizations (many-to-many with role)
+model OrganizationMember {
+  id             String           @id @default(cuid())
+  userProfileId  String
+  organizationId String
+  role           OrganizationRole @default(MEMBER)
+
+  // Timestamps
+  joinedAt  DateTime @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  userProfile  UserProfile  @relation(fields: [userProfileId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([userProfileId, organizationId])
+  @@index([organizationId])
+  @@map("organization_members")
+}
+
 // Subscription plan model defining the pricing tiers offered by the service
 model SubscriptionPlan {
   id          String  @id @default(cuid())
@@ -503,6 +548,12 @@ enum UserAudioBookType {
   OWNED
   UPLOADED
   PURCHASED
+}
+
+enum OrganizationRole {
+  OWNER
+  ADMIN
+  MEMBER
 }
 
 enum BillingInterval {
