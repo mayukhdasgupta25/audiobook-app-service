@@ -19,6 +19,12 @@ interface MessagesConfig {
          by_genre: string;
          by_author: string;
       };
+      playback: {
+         session_initialized: string;
+         sync_executed: string;
+         stats_retrieved: string;
+         cleanup_completed: string;
+      };
       general: {
          success: string;
          health_check: string;
@@ -39,6 +45,7 @@ interface MessagesConfig {
          search_required: string;
          title_required: string;
          author_required: string;
+         genre_required: string;
          duration_positive: string;
          file_size_positive: string;
          file_path_required: string;
@@ -144,6 +151,12 @@ export class MessageHandler {
                by_genre: 'AudioBooks in genre "{genre}" retrieved successfully',
                by_author: 'AudioBooks by "{author}" retrieved successfully'
             },
+            playback: {
+               session_initialized: 'Playback session initialized successfully',
+               sync_executed: 'Playback sync executed successfully',
+               stats_retrieved: 'Playback statistics retrieved successfully',
+               cleanup_completed: 'Playback session cleanup completed successfully'
+            },
             general: {
                success: 'Success',
                health_check: 'Service is healthy',
@@ -164,6 +177,7 @@ export class MessageHandler {
                search_required: 'Search query is required',
                title_required: 'Title is required',
                author_required: 'Author is required',
+               genre_required: 'Genre is required',
                duration_positive: 'Duration must be a positive number',
                file_size_positive: 'File size must be a positive number',
                file_path_required: 'File path is required',

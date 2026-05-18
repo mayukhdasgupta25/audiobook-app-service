@@ -27,6 +27,8 @@ describe('ChapterDto', () => {
          duration: 1800, // 30 minutes
          filePath: '/path/to/chapter.mp3',
          fileSize: 1024 * 1024 * 10, // 10 MB
+         coverImage: 'https://example.com/covers/chapter.jpg',
+         isActive: true,
          startPosition: 0,
          endPosition: 1800,
          createdAt: new Date('2024-01-01'),
@@ -101,6 +103,8 @@ describe('ChapterDto', () => {
          expect(chapter.duration).toBe(1800);
          expect(chapter.filePath).toBe('/path/to/chapter.mp3');
          expect(chapter.fileSize).toBe(1024 * 1024 * 10);
+         expect(chapter.coverImage).toBe('https://example.com/covers/chapter.jpg');
+         expect(chapter.isActive).toBe(true);
          expect(chapter.startPosition).toBe(0);
          expect(chapter.endPosition).toBe(1800);
       });
@@ -122,6 +126,8 @@ describe('ChapterDto', () => {
             duration: 60,
             filePath: '/path/to/file.mp3',
             fileSize: 1024,
+            coverImage: 'https://example.com/covers/minimal.jpg',
+            isActive: true,
             startPosition: 0,
             endPosition: 60,
             createdAt: new Date(),

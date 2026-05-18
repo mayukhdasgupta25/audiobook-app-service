@@ -16,6 +16,9 @@ import { createStreamingRoutes } from './streamingRoutes';
 import { createUserProfileRoutes } from './userProfileRoutes';
 import { createUserAudioBookRoutes } from './userAudioBookRoutes';
 import { createTagRoutes } from './tagRoutes';
+import { createAuthorRoutes } from './authorRoutes';
+import { createSubscriptionPlanRoutes } from './subscriptionPlanRoutes';
+import { createUserSubscriptionRoutes } from './userSubscriptionRoutes';
 import { createOrganizationRoutes } from './organizationRoutes';
 
 export class ApiRouter {
@@ -68,7 +71,7 @@ export class ApiRouter {
     // This ensures all API endpoints require valid JWT tokens
     v1Router.use(authenticateJWT);
 
-    // Mount all route modules
+    // Mount all route modules (protected routes)
     v1Router.use('/audiobooks', createAudioBookRoutes(this.prisma));
     v1Router.use('/', createChapterRoutes(this.prisma));
     v1Router.use('/playback', createPlaybackRoutes(this.prisma));
@@ -76,9 +79,12 @@ export class ApiRouter {
     v1Router.use('/', createOfflineDownloadRoutes(this.prisma));
     v1Router.use('/genres', createGenreRoutes(this.prisma));
     v1Router.use('/tags', createTagRoutes(this.prisma));
+    v1Router.use('/authors', createAuthorRoutes(this.prisma));
     v1Router.use('/stream', createStreamingRoutes(this.prisma));
     v1Router.use('/', createUserProfileRoutes(this.prisma));
     v1Router.use('/user-audiobooks', createUserAudioBookRoutes(this.prisma));
+    v1Router.use('/subscription-plans', createSubscriptionPlanRoutes(this.prisma));
+    v1Router.use('/subscriptions', createUserSubscriptionRoutes(this.prisma));
     v1Router.use('/organizations', createOrganizationRoutes(this.prisma));
 
     // Mount v1 routes

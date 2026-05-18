@@ -7,9 +7,16 @@ import { Tag as PrismaTag } from '@prisma/client';
 export interface TagDto {
    id: string;
    name: string;
-   type: string;
    createdAt: Date;
    updatedAt: Date;
+}
+
+export interface CreateTagDto {
+   name: string;
+}
+
+export interface UpdateTagDto {
+   name?: string;
 }
 
 /**
@@ -20,7 +27,6 @@ export function toTagDto(tag: PrismaTag): TagDto {
    return {
       id: tag.id,
       name: tag.name,
-      type: tag.type,
       createdAt: tag.createdAt,
       updatedAt: tag.updatedAt
    };

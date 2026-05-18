@@ -32,8 +32,47 @@ export class AudioBookService {
         limit = 10,
         sortBy = 'createdAt',
         sortOrder = 'desc',
+        genreIds,
+        language,
+        author,
+        narrator,
+        isActive,
+        isPublic,
+        search,
+        active,
+        scheduled
       } = params;
 
+      // Build where clause for filtering
+      const where: Prisma.AudioBookWhereInput = {
+        ...(isActive !== undefined && { isActive }),
+        ...(isPublic !== undefined && { isPublic }),
+        ...(genreIds && Array.isArray(genreIds) && genreIds.length > 0 && {
+          audioBookGenres: {
+            some: {
+              genreId: {
+                in: genreIds
+              }
+            }
+          }
+        }),
+        ...(language && { language: { contains: language, mode: 'insensitive' } }),
+        ...(author && { author: { contains: author, mode: 'insensitive' } }),
+        ...(narrator && { narrator: { contains: narrator, mode: 'insensitive' } }),
+        // Handle active and scheduled query params (mutually exclusive)
+        ...(active === true && { isActive: true }),
+        ...(scheduled === true && { isActive: false }),
+        ...(search && {
+          OR: [
+            { title: { contains: search, mode: 'insensitive' } },
+            { author: { contains: search, mode: 'insensitive' } },
+            { narrator: { contains: search, mode: 'insensitive' } },
+            { description: { contains: search, mode: 'insensitive' } }
+          ]
+        })
+      };
+
+      // Build orderBy clause
       const orderBy: Prisma.AudioBookOrderByWithRelationInput = {
         [sortBy]: sortOrder
       };
@@ -52,8 +91,12 @@ export class AudioBookService {
                 tag: true
               }
             },
-            genre: true,
-            organization: true,
+            audioBookGenres: {
+              include: {
+                genre: true,
+                organization: true,
+              }
+            }
           }
         }),
         this.prisma.audioBook.count({ where })
@@ -83,8 +126,47 @@ export class AudioBookService {
         limit = 10,
         sortBy = 'createdAt',
         sortOrder = 'desc',
+        genreIds,
+        language,
+        author,
+        narrator,
+        isActive,
+        isPublic,
+        search,
+        active,
+        scheduled
       } = params;
 
+      // Build where clause for filtering
+      const where: Prisma.AudioBookWhereInput = {
+        ...(isActive !== undefined && { isActive }),
+        ...(isPublic !== undefined && { isPublic }),
+        ...(genreIds && Array.isArray(genreIds) && genreIds.length > 0 && {
+          audioBookGenres: {
+            some: {
+              genreId: {
+                in: genreIds
+              }
+            }
+          }
+        }),
+        ...(language && { language: { contains: language, mode: 'insensitive' } }),
+        ...(author && { author: { contains: author, mode: 'insensitive' } }),
+        ...(narrator && { narrator: { contains: narrator, mode: 'insensitive' } }),
+        // Handle active and scheduled query params (mutually exclusive)
+        ...(active === true && { isActive: true }),
+        ...(scheduled === true && { isActive: false }),
+        ...(search && {
+          OR: [
+            { title: { contains: search, mode: 'insensitive' } },
+            { author: { contains: search, mode: 'insensitive' } },
+            { narrator: { contains: search, mode: 'insensitive' } },
+            { description: { contains: search, mode: 'insensitive' } }
+          ]
+        })
+      };
+
+      // Build orderBy clause
       const orderBy: Prisma.AudioBookOrderByWithRelationInput = {
         [sortBy]: sortOrder
       };
@@ -108,8 +190,12 @@ export class AudioBookService {
                 tag: true
               }
             },
-            genre: true,
-            organization: true,
+            audioBookGenres: {
+              include: {
+                genre: true,
+                organization: true,
+              }
+            }
           }
         }),
         this.prisma.audioBook.count({ where })
@@ -190,8 +276,12 @@ export class AudioBookService {
               tag: true
             }
           },
-          genre: true,
-          organization: true,
+          audioBookGenres: {
+            include: {
+              genre: true,
+              organization: true,
+            }
+          }
         }
       });
 
@@ -224,8 +314,12 @@ export class AudioBookService {
               tag: true
             }
           },
-          genre: true,
-          organization: true,
+          audioBookGenres: {
+            include: {
+              genre: true,
+              organization: true,
+            }
+          }
         }
       });
 
@@ -248,19 +342,18 @@ export class AudioBookService {
   /**
    * Create a new audiobook
    */
-  async createAudioBook(data: CreateAudioBookDto & { tagIds?: string[] }): Promise<AudioBookDto> {
+  async createAudioBook(data: CreateAudioBookDto & { tagIds?: string[]; genreIds?: string[] }): Promise<AudioBookDto> {
     try {
-      // Extract tagIds from data before validation
-      const { tagIds, ...audiobookData } = data;
+      // Extract tagIds and genreIds from data before validation
+      const { tagIds, genreIds, ...audiobookData } = data;
 
       // Validate required fields
-      this.validateCreateData(audiobookData);
+      this.validateCreateData(audiobookData, genreIds);
 
       // Construct data object, only including defined values for optional fields
       const createData: any = {
         title: audiobookData.title,
         author: audiobookData.author,
-        genreId: audiobookData.genreId, // Required
         organizationId: audiobookData.organizationId, // Required
         language: audiobookData.language || 'bn', // Default language is now Bengali
         isPublic: audiobookData.isPublic ?? true,
@@ -288,6 +381,21 @@ export class AudioBookService {
         data: createData
       });
 
+      // Create AudioBookGenre records if genreIds are provided
+      // Ensure genreIds is an array before using map
+      if (genreIds && Array.isArray(genreIds) && genreIds.length > 0) {
+        await Promise.all(
+          genreIds.map(genreId =>
+            this.prisma.audioBookGenre.create({
+              data: {
+                audiobookId: audiobook.id,
+                genreId: genreId
+              }
+            })
+          )
+        );
+      }
+
       // Create AudioBookTag records if tagIds are provided
       // Ensure tagIds is an array before using map
       if (tagIds && Array.isArray(tagIds) && tagIds.length > 0) {
@@ -312,8 +420,12 @@ export class AudioBookService {
               tag: true
             }
           },
-          genre: true,
-          organization: true,
+          audioBookGenres: {
+            include: {
+              genre: true,
+              organization: true,
+            }
+          }
         }
       });
 
@@ -349,7 +461,7 @@ export class AudioBookService {
   /**
    * Update an existing audiobook
    */
-  async updateAudioBook(id: string, data: UpdateAudioBookDto, tagIds?: string[]): Promise<AudioBookDto> {
+  async updateAudioBook(id: string, data: UpdateAudioBookDto, tagIds?: string[], genreIds?: string[]): Promise<AudioBookDto> {
     try {
       // Check if audiobook exists
       const existingAudioBook = await this.prisma.audioBook.findUnique({
@@ -378,6 +490,28 @@ export class AudioBookService {
         where: { id },
         data: updateData
       });
+
+      // Update AudioBookGenre records if genreIds are provided
+      if (genreIds !== undefined) {
+        // Delete existing genres
+        await this.prisma.audioBookGenre.deleteMany({
+          where: { audiobookId: id }
+        });
+
+        // Create new genres if genreIds array is not empty
+        if (genreIds.length > 0) {
+          await Promise.all(
+            genreIds.map(genreId =>
+              this.prisma.audioBookGenre.create({
+                data: {
+                  audiobookId: id,
+                  genreId: genreId
+                }
+              })
+            )
+          );
+        }
+      }
 
       // Update AudioBookTag records if tagIds are provided
       if (tagIds !== undefined) {
@@ -420,8 +554,12 @@ export class AudioBookService {
               tag: true
             }
           },
-          genre: true,
-          organization: true,
+          audioBookGenres: {
+            include: {
+              genre: true,
+              organization: true,
+            }
+          }
         }
       });
 
@@ -469,18 +607,41 @@ export class AudioBookService {
   }
 
   /**
-   * Update audiobook overall progress
+   * Update user-audiobook progress
    */
-  async updateAudiobookProgress(id: string, progress: number): Promise<AudioBookDto> {
+  async updateAudiobookProgress(id: string, userProfileId: string, progress: number): Promise<AudioBookDto> {
     try {
       // Validate progress value
       if (progress < 0 || progress > 100) {
         throw ApiError.validationError('Progress must be between 0 and 100');
       }
 
-      const audiobook = await this.prisma.audioBook.update({
-        where: { id },
-        data: { overallProgress: progress }
+      // Verify audiobook exists
+      const audiobook = await this.prisma.audioBook.findUnique({
+        where: { id }
+      });
+
+      if (!audiobook) {
+        throw ApiError.notFound(MessageHandler.getErrorMessage('not_found.audiobook'));
+      }
+
+      // Update user-audiobook progress
+      await this.prisma.userAudioBook.upsert({
+        where: {
+          userProfileId_audiobookId: {
+            userProfileId,
+            audiobookId: id
+          }
+        },
+        update: {
+          progress: progress
+        },
+        create: {
+          userProfileId,
+          audiobookId: id,
+          type: 'OWNED', // Default type, can be updated later if needed
+          progress: progress
+        }
       });
 
       return toAudioBookDto(audiobook);
@@ -531,6 +692,13 @@ export class AudioBookService {
         limit = 10,
         sortBy = 'createdAt',
         sortOrder = 'desc',
+        genreIds,
+        language,
+        author,
+        narrator,
+        isActive,
+        isPublic,
+        search
       } = params;
 
       // Build a base where clause from the shared filters, then add the
@@ -538,7 +706,29 @@ export class AudioBookService {
       // filters and free-text search through.
       const baseWhere = this.buildWhereClause(params);
       const where: Prisma.AudioBookWhereInput = {
-        ...baseWhere,
+        ...(isActive !== undefined && { isActive }),
+        ...(isPublic !== undefined && { isPublic }),
+        ...(genreIds && Array.isArray(genreIds) && genreIds.length > 0 && {
+          audioBookGenres: {
+            some: {
+              genreId: {
+                in: genreIds
+              }
+            }
+          }
+        }),
+        ...(language && { language: { contains: language, mode: 'insensitive' } }),
+        ...(author && { author: { contains: author, mode: 'insensitive' } }),
+        ...(narrator && { narrator: { contains: narrator, mode: 'insensitive' } }),
+        ...(search && {
+          OR: [
+            { title: { contains: search, mode: 'insensitive' } },
+            { author: { contains: search, mode: 'insensitive' } },
+            { narrator: { contains: search, mode: 'insensitive' } },
+            { description: { contains: search, mode: 'insensitive' } }
+          ]
+        }),
+        // Filter by tags - audiobooks that have ANY of the specified tags
         audiobookTags: {
           some: {
             tag: {
@@ -548,6 +738,7 @@ export class AudioBookService {
         }
       };
 
+      // Build orderBy clause
       const orderBy: Prisma.AudioBookOrderByWithRelationInput = {
         [sortBy]: sortOrder
       };
@@ -566,8 +757,12 @@ export class AudioBookService {
                 tag: true
               }
             },
-            genre: true,
-            organization: true,
+            audioBookGenres: {
+              include: {
+                genre: true,
+                organization: true,
+              }
+            }
           }
         }),
         this.prisma.audioBook.count({ where })
@@ -623,7 +818,7 @@ export class AudioBookService {
   /**
    * Validate create audiobook data
    */
-  private validateCreateData(data: CreateAudioBookDto): void {
+  private validateCreateData(data: Omit<CreateAudioBookDto, 'genreIds'>, genreIds?: string[]): void {
     if (!data.title || data.title.trim().length === 0) {
       throw ApiError.validationError(MessageHandler.getErrorMessage('validation.title_required'));
     }
@@ -632,9 +827,22 @@ export class AudioBookService {
       throw ApiError.validationError(MessageHandler.getErrorMessage('validation.author_required'));
     }
 
-    // Genre is now mandatory
-    if (!data.genreId || data.genreId.trim().length === 0) {
-      throw ApiError.validationError(MessageHandler.getErrorMessage('validation.genre_required') || 'Genre is required');
+    // At least one genre is mandatory
+    if (!genreIds || !Array.isArray(genreIds) || genreIds.length === 0) {
+      throw ApiError.validationError(MessageHandler.getErrorMessage('validation.genre_required') || 'At least one genre is required');
+    }
+
+    // Validate that all genreIds are non-empty strings
+    const invalidGenreIds = genreIds.filter(id => !id || typeof id !== 'string' || id.trim().length === 0);
+    if (invalidGenreIds.length > 0) {
+      throw ApiError.validationError(MessageHandler.getErrorMessage('validation.genre_required') || 'All genre IDs must be valid');
+    }
+
+    // Organization is mandatory - every audiobook belongs to an organization
+    if (!data.organizationId || data.organizationId.trim().length === 0) {
+      throw ApiError.validationError(
+        MessageHandler.getErrorMessage('validation.organization_id_required') || 'Organization is required'
+      );
     }
 
     // Organization is mandatory - every audiobook belongs to an organization

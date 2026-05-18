@@ -76,6 +76,19 @@ export class AudioBookController {
    *         $ref: '#/components/responses/InternalServerError'
    */
   getAllAudioBooks = ErrorHandler.asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    // Parse genreIds from query (can be string or array)
+    let genreIds: string[] | undefined = undefined;
+    if (req.query['genreIds']) {
+      if (Array.isArray(req.query['genreIds'])) {
+        genreIds = req.query['genreIds'] as string[];
+      } else if (typeof req.query['genreIds'] === 'string') {
+        genreIds = req.query['genreIds'].split(',').map((id: string) => id.trim()).filter((id: string) => id.length > 0);
+      }
+    } else if (req.query['genreId']) {
+      // Support legacy genreId parameter for backward compatibility
+      genreIds = [req.query['genreId'] as string];
+    }
+
     const accessibleOrgIds = await this.getAccessibleOrganizationIds(req);
 
     const queryParams: AudioBookQueryParams = {
@@ -83,7 +96,7 @@ export class AudioBookController {
       limit: req.query['limit'] ? parseInt(req.query['limit'] as string, 10) : 10,
       sortBy: req.query['sortBy'] as string || 'createdAt',
       sortOrder: (req.query['sortOrder'] as 'asc' | 'desc') || 'desc',
-      genreId: req.query['genreId'] as string,
+      genreIds: genreIds,
       organizationId: req.query['organizationId'] as string,
       language: req.query['language'] as string,
       author: req.query['author'] as string,
@@ -213,7 +226,7 @@ export class AudioBookController {
     *             required:
     *               - title
     *               - author
-    *               - genreId
+    *               - genreIds
     *               - coverImage
     *             properties:
     *               title:
@@ -228,9 +241,11 @@ export class AudioBookController {
     *               description:
     *                 type: string
     *                 description: Audiobook description
-    *               genreId:
-    *                 type: string
-    *                 description: Genre ID
+    *               genreIds:
+    *                 type: array
+    *                 items:
+    *                   type: string
+    *                 description: Array of Genre IDs (at least one required)
     *               language:
     *                 type: string
     *                 description: Language code
@@ -299,9 +314,9 @@ export class AudioBookController {
       const externalUserId = authReq.user?.id;
       const profile = externalUserId
         ? await this.prisma.userProfile.findUnique({
-            where: { userId: externalUserId },
-            select: { id: true }
-          })
+          where: { userId: externalUserId },
+          select: { id: true }
+        })
         : null;
       const allowed = profile
         ? await this.organizationService.isAdmin(organizationId, profile.id)
@@ -337,14 +352,37 @@ export class AudioBookController {
       }
     }
 
+    // Parse genreIds from form-data (can be string, array, or JSON string)
+    let genreIds: string[] | undefined = undefined;
+    if (req.body.genreIds) {
+      if (Array.isArray(req.body.genreIds)) {
+        genreIds = req.body.genreIds;
+      } else if (typeof req.body.genreIds === 'string') {
+        // Try to parse as JSON first (handles JSON string arrays like "[\"id1\",\"id2\"]")
+        try {
+          const parsed = JSON.parse(req.body.genreIds);
+          if (Array.isArray(parsed)) {
+            genreIds = parsed;
+          } else {
+            // If not JSON array, treat as comma-separated string
+            genreIds = req.body.genreIds.split(',').map((id: string) => id.trim()).filter((id: string) => id.length > 0);
+          }
+        } catch {
+          // If JSON parse fails, treat as comma-separated string
+          genreIds = req.body.genreIds.split(',').map((id: string) => id.trim()).filter((id: string) => id.length > 0);
+        }
+      }
+    }
+
     const audiobookData: any = {
       ...req.body,
       // Parse scheduledAt if provided (can be ISO string or Date)
       scheduledAt: req.body.scheduledAt ? new Date(req.body.scheduledAt) : undefined,
       // Cover image from uploaded file
       coverImage: getFileUrl(uploadedCoverImage.path),
-      // Include tagIds in the data object (service expects it as part of data)
-      tagIds: tagIds
+      // Include tagIds and genreIds in the data object (service expects them as part of data)
+      tagIds: tagIds,
+      genreIds: genreIds
     };
 
     const audiobook = await this.audioBookService.createAudioBook(audiobookData);
@@ -403,10 +441,46 @@ export class AudioBookController {
       if (Array.isArray(req.body.tagIds)) {
         tagIds = req.body.tagIds;
       } else if (typeof req.body.tagIds === 'string') {
-        // If it's a comma-separated string, split it
-        tagIds = req.body.tagIds.split(',').map((id: string) => id.trim()).filter((id: string) => id.length > 0);
+        // Try to parse as JSON first
+        try {
+          const parsed = JSON.parse(req.body.tagIds);
+          if (Array.isArray(parsed)) {
+            tagIds = parsed;
+          } else {
+            // If not JSON array, treat as comma-separated string
+            tagIds = req.body.tagIds.split(',').map((id: string) => id.trim()).filter((id: string) => id.length > 0);
+          }
+        } catch {
+          // If JSON parse fails, treat as comma-separated string
+          tagIds = req.body.tagIds.split(',').map((id: string) => id.trim()).filter((id: string) => id.length > 0);
+        }
       } else {
         tagIds = [req.body.tagIds];
+      }
+    }
+
+    // Extract genreIds before creating updateData
+    // Handle both array and string formats (form-data might send as string)
+    let genreIds: string[] | undefined = undefined;
+    if (req.body.genreIds) {
+      if (Array.isArray(req.body.genreIds)) {
+        genreIds = req.body.genreIds;
+      } else if (typeof req.body.genreIds === 'string') {
+        // Try to parse as JSON first
+        try {
+          const parsed = JSON.parse(req.body.genreIds);
+          if (Array.isArray(parsed)) {
+            genreIds = parsed;
+          } else {
+            // If not JSON array, treat as comma-separated string
+            genreIds = req.body.genreIds.split(',').map((id: string) => id.trim()).filter((id: string) => id.length > 0);
+          }
+        } catch {
+          // If JSON parse fails, treat as comma-separated string
+          genreIds = req.body.genreIds.split(',').map((id: string) => id.trim()).filter((id: string) => id.length > 0);
+        }
+      } else {
+        genreIds = [req.body.genreIds];
       }
     }
 
@@ -416,8 +490,9 @@ export class AudioBookController {
       scheduledAt: req.body.scheduledAt ? new Date(req.body.scheduledAt) : undefined
     };
 
-    // Remove tagIds from updateData as it will be handled separately
+    // Remove tagIds and genreIds from updateData as they will be handled separately
     delete updateData.tagIds;
+    delete updateData.genreIds;
     delete updateData.audiobookId;
 
     // Handle uploaded file - use req.file (singular) for single file upload
@@ -426,7 +501,7 @@ export class AudioBookController {
       updateData.coverImage = getFileUrl(req.file.path);
     }
 
-    const audiobook = await this.audioBookService.updateAudioBook(id as string, updateData, tagIds);
+    const audiobook = await this.audioBookService.updateAudioBook(id as string, updateData, tagIds, genreIds);
 
     ResponseHandler.success(res, audiobook, MessageHandler.getSuccessMessage('audiobooks.updated'));
   });
@@ -583,7 +658,7 @@ export class AudioBookController {
     const queryParams: AudioBookQueryParams = {
       page: parseInt(page as string, 10),
       limit: parseInt(limit as string, 10),
-      genreId: genre as string,
+      genreIds: genre ? [genre as string] : undefined,
       sortBy: 'createdAt',
       sortOrder: 'desc'
     };
@@ -680,12 +755,25 @@ export class AudioBookController {
     // Get parsed tags from validation middleware
     const tagList = (req as any).parsedTags;
 
+    // Parse genreIds from query (can be string or array)
+    let genreIds: string[] | undefined = undefined;
+    if (req.query['genreIds']) {
+      if (Array.isArray(req.query['genreIds'])) {
+        genreIds = req.query['genreIds'] as string[];
+      } else if (typeof req.query['genreIds'] === 'string') {
+        genreIds = req.query['genreIds'].split(',').map((id: string) => id.trim()).filter((id: string) => id.length > 0);
+      }
+    } else if (req.query['genreId']) {
+      // Support legacy genreId parameter for backward compatibility
+      genreIds = [req.query['genreId'] as string];
+    }
+
     const queryParams: AudioBookQueryParams = {
       page: parseInt(page as string, 10),
       limit: parseInt(limit as string, 10),
       sortBy: sortBy as string,
       sortOrder: sortOrder as 'asc' | 'desc',
-      genreId: req.query['genreId'] as string,
+      genreIds: genreIds,
       language: req.query['language'] as string,
       author: req.query['author'] as string,
       narrator: req.query['narrator'] as string,

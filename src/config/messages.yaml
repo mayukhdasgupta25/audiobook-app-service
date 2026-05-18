@@ -30,6 +30,15 @@ success:
 
   tags:
     retrieved: "Tags retrieved successfully"
+    created: "Tag created successfully"
+    updated: "Tag updated successfully"
+    deleted: "Tag deleted successfully"
+
+  authors:
+    retrieved: "Authors retrieved successfully"
+    created: "Author created successfully"
+    updated: "Author updated successfully"
+    deleted: "Author deleted successfully"
 
   user_audiobooks:
     retrieved: "User-audiobook relationships retrieved successfully"
@@ -37,6 +46,23 @@ success:
     created: "User-audiobook relationship created successfully"
     updated: "User-audiobook relationship updated successfully"
     deleted: "User-audiobook relationship deleted successfully"
+
+  subscription_plans:
+    retrieved: "Subscription plans retrieved successfully"
+    retrieved_by_id: "Subscription plan retrieved successfully"
+    created: "Subscription plan created successfully"
+    updated: "Subscription plan updated successfully"
+    deleted: "Subscription plan deleted successfully"
+    deactivated: "Subscription plan deactivated successfully"
+
+  user_subscriptions:
+    retrieved: "Subscriptions retrieved successfully"
+    retrieved_by_id: "Subscription retrieved successfully"
+    created: "Subscription created successfully"
+    updated: "Subscription updated successfully"
+    deleted: "Subscription deleted successfully"
+    canceled: "Subscription canceled successfully"
+    renewed: "Subscription renewed successfully"
 
   organizations:
     retrieved: "Organizations retrieved successfully"
@@ -62,6 +88,12 @@ success:
     user_retrieved: "User retrieved successfully"
     status_retrieved: "Authentication status retrieved successfully"
 
+  playback:
+    session_initialized: "Playback session initialized successfully"
+    sync_executed: "Playback sync executed successfully"
+    stats_retrieved: "Playback statistics retrieved successfully"
+    cleanup_completed: "Playback session cleanup completed successfully"
+
   general:
     success: "Success"
     health_check: "Service is healthy"
@@ -84,10 +116,26 @@ errors:
     tag_format: "Tag '{tag}' contains invalid characters. Only alphanumeric characters, spaces, hyphens, and underscores are allowed"
     tag_length: "Tag '{tag}' is too long. Maximum length is 50 characters"
     tags_limit: "Maximum 10 tags allowed per request"
+    tag_name_required: "Tag name is required"
+    tag_name_empty: "Tag name cannot be empty"
+    tag_name_too_long: "Tag name must be less than {maxLength} characters"
+    tag_name_invalid: "Tag name must be a valid string"
+    author_first_name_required: "First name is required"
+    author_first_name_invalid: "First name must be a valid string"
+    author_first_name_too_long: "First name must be less than 100 characters"
+    author_last_name_required: "Last name is required"
+    author_last_name_invalid: "Last name must be a valid string"
+    author_last_name_too_long: "Last name must be less than 100 characters"
+    author_address_invalid: "Address must be a valid string"
+    author_address_too_long: "Address must be less than 500 characters"
+    author_contact_invalid: "Contact must be a valid string"
+    author_contact_too_long: "Contact must be less than 50 characters"
+    email_too_long: "Email must be less than 255 characters"
 
     # AudioBook specific validation
     title_required: "Title is required"
     author_required: "Author is required"
+    genre_required: "Genre is required"
     duration_positive: "Duration must be a positive number"
     file_size_positive: "File size must be a positive number"
     file_path_required: "File path is required"
@@ -139,6 +187,9 @@ errors:
     invalid_current_password: "Current password is incorrect"
     already_authenticated: "Already authenticated"
 
+  user:
+    profile_not_found: "User profile not found"
+
   forbidden:
     default: "Access forbidden"
     insufficient_permissions: "Insufficient permissions"
@@ -156,6 +207,7 @@ errors:
     change_password_failed: "Failed to change password"
     delete_user_failed: "Failed to delete user account"
     fetch_users_failed: "Failed to fetch users"
+    unauthorized: "Unauthorized - authentication required"
 
   genres:
     not_found: "Genre not found"

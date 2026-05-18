@@ -52,7 +52,8 @@ This document describes the implementation of the audiobook player functionality
 
 #### Updated Models:
 
-- **AudioBook**: Added `isOfflineAvailable` and `overallProgress` fields
+- **AudioBook**: Added `isOfflineAvailable` field
+- **UserAudioBook**: Added `progress` field for user-specific progress tracking
 - **User**: Added relations to new models
 
 ### Service Layer
