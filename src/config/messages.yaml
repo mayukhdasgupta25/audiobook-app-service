@@ -198,6 +198,10 @@ errors:
     csrf_token_invalid: "Invalid CSRF token"
     audiobook_access: "You don't have access to this audiobook"
 
+  audiobooks:
+    subscription_required: "An active subscription is required to access this audiobook"
+    subscription_tier_insufficient: "Your current subscription plan does not include access to this audiobook. Please upgrade to a higher plan."
+
   auth:
     create_user_failed: "Failed to create user account"
     login_failed: "Login failed"

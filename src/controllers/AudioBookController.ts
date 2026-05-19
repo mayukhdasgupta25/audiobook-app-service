@@ -12,17 +12,75 @@ import { ErrorHandler } from '../middleware/ErrorHandler';
 import { MessageHandler } from '../utils/MessageHandler';
 import { getFileUrl } from '../middleware/UploadMiddleware';
 import { OrganizationService } from '../services/OrganizationService';
+import { SubscriptionAccessService } from '../services/SubscriptionAccessService';
 import { AuthenticatedRequest } from '../types/auth';
 
 export class AudioBookController {
   private audioBookService: AudioBookService;
   private organizationService: OrganizationService;
+  private subscriptionAccessService: SubscriptionAccessService;
   private prisma: PrismaClient;
 
   constructor(prisma: PrismaClient, backgroundJobService?: BackgroundJobService) {
     this.prisma = prisma;
     this.audioBookService = new AudioBookService(prisma, backgroundJobService);
     this.organizationService = new OrganizationService(prisma);
+    this.subscriptionAccessService = new SubscriptionAccessService(prisma);
+  }
+
+  /**
+   * Enforce subscription-tier gating for a single audiobook. Public audiobooks
+   * are always accessible. Private audiobooks require an active subscription
+   * with a plan tier >= the audiobook's minPlanTier. Global admins bypass.
+   *
+   * Returns true when access is allowed and the response should continue.
+   * Returns false after sending a 403 response when access is denied.
+   */
+  private async enforceSubscriptionAccess(
+    req: Request,
+    res: Response,
+    audiobook: { isPublic: boolean; minPlanTier?: number | null | undefined }
+  ): Promise<boolean> {
+    if (audiobook.isPublic) {
+      return true;
+    }
+
+    const authReq = req as AuthenticatedRequest;
+    const role = (authReq.user?.role || '').trim().toLowerCase();
+    if (role === 'admin') {
+      return true;
+    }
+
+    const externalUserId = authReq.user?.id;
+    if (!externalUserId) {
+      ResponseHandler.forbidden(res, MessageHandler.getErrorMessage('audiobooks.subscription_required'));
+      return false;
+    }
+
+    const profile = await this.prisma.userProfile.findUnique({
+      where: { userId: externalUserId },
+      select: { id: true }
+    });
+    if (!profile) {
+      ResponseHandler.forbidden(res, MessageHandler.getErrorMessage('audiobooks.subscription_required'));
+      return false;
+    }
+
+    const result = await this.subscriptionAccessService.checkAudiobookAccess(profile.id, {
+      isPublic: audiobook.isPublic,
+      minPlanTier: audiobook.minPlanTier ?? null,
+    });
+
+    if (!result.allowed) {
+      const message =
+        result.reason === 'insufficient_tier'
+          ? MessageHandler.getErrorMessage('audiobooks.subscription_tier_insufficient')
+          : MessageHandler.getErrorMessage('audiobooks.subscription_required');
+      ResponseHandler.forbidden(res, message);
+      return false;
+    }
+
+    return true;
   }
 
   /**
@@ -204,6 +262,15 @@ export class AudioBookController {
     const accessibleOrgIds = await this.getAccessibleOrganizationIds(req);
     if (accessibleOrgIds !== null && !accessibleOrgIds.includes(audiobook.organizationId)) {
       ResponseHandler.forbidden(res, MessageHandler.getErrorMessage('organizations.access_denied'));
+      return;
+    }
+
+    // Enforce subscription-tier gating for private audiobooks.
+    const accessAllowed = await this.enforceSubscriptionAccess(req, res, {
+      isPublic: audiobook.isPublic,
+      minPlanTier: audiobook.minPlanTier ?? null,
+    });
+    if (!accessAllowed) {
       return;
     }
 

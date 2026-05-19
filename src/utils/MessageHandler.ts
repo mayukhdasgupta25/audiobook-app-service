@@ -71,6 +71,10 @@ interface MessagesConfig {
          default: string;
          insufficient_permissions: string;
       };
+      audiobooks: {
+         subscription_required: string;
+         subscription_tier_insufficient: string;
+      };
       internal: {
          default: string;
          database_operation: string;
@@ -202,6 +206,10 @@ export class MessageHandler {
             forbidden: {
                default: 'Access forbidden',
                insufficient_permissions: 'Insufficient permissions'
+            },
+            audiobooks: {
+               subscription_required: 'An active subscription is required to access this audiobook',
+               subscription_tier_insufficient: 'Your current subscription plan does not include access to this audiobook. Please upgrade to a higher plan.'
             },
             internal: {
                default: 'Internal server error',
