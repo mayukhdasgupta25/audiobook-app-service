@@ -207,6 +207,27 @@ export class AudioBookController {
       return;
     }
 
+    // Enforce subscription-tier gating. This is applied even to global admins
+    // because subscription-gated content is content-level, not org-level: a
+    // user (admin or otherwise) without the required active subscription tier
+    // should not be able to view a gated audiobook. ApiError instances thrown
+    // here are routed by the global ErrorHandler middleware.
+    if (audiobook.minSubscriptionTier !== null && audiobook.minSubscriptionTier !== undefined) {
+      const authReq = req as AuthenticatedRequest;
+      const externalUserId = authReq.user?.id;
+      const profile = externalUserId
+        ? await this.prisma.userProfile.findUnique({
+          where: { userId: externalUserId },
+          select: { id: true }
+        })
+        : null;
+
+      await this.audioBookService.assertUserCanAccessBySubscription(
+        audiobook.id,
+        profile?.id ?? null
+      );
+    }
+
     ResponseHandler.success(res, audiobook, MessageHandler.getSuccessMessage('audiobooks.retrieved_by_id'));
   });
 

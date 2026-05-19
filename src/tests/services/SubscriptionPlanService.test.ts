@@ -70,6 +70,42 @@ describe('SubscriptionPlanService', () => {
          await expect(service.createPlan({ name: 'Premium', price: -1 })).rejects.toBeInstanceOf(ApiError);
       });
 
+      it('throws validation error on negative tierLevel', async () => {
+         mockPrisma.subscriptionPlan.findFirst.mockResolvedValue(null);
+         await expect(
+            service.createPlan({ name: 'Premium', price: 9.99, tierLevel: -1 })
+         ).rejects.toBeInstanceOf(ApiError);
+      });
+
+      it('persists tierLevel when provided', async () => {
+         mockPrisma.subscriptionPlan.findFirst.mockResolvedValue(null);
+         mockPrisma.subscriptionPlan.create.mockResolvedValue({
+            id: 'p1',
+            name: 'Standard',
+            description: null,
+            price: '249',
+            currency: 'INR',
+            tierLevel: 2,
+            billingInterval: 'MONTHLY',
+            trialDays: 0,
+            features: null,
+            isActive: true,
+            createdAt: new Date(),
+            updatedAt: new Date()
+         });
+
+         const result = await service.createPlan({
+            name: 'Standard',
+            price: 249,
+            currency: 'INR',
+            tierLevel: 2
+         });
+
+         expect(result.tierLevel).toBe(2);
+         const createArgs = mockPrisma.subscriptionPlan.create.mock.calls[0][0];
+         expect(createArgs.data.tierLevel).toBe(2);
+      });
+
       it('trims plan name', async () => {
          mockPrisma.subscriptionPlan.findFirst.mockResolvedValue(null);
          mockPrisma.subscriptionPlan.create.mockResolvedValue({
