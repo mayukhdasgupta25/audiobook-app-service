@@ -2,11 +2,12 @@
  * AudioBook Service Layer
  * Handles business logic and database operations following OOP principles
  */
-import { PrismaClient, Prisma } from '@prisma/client';
+import { PrismaClient, Prisma, SubscriptionStatus } from '@prisma/client';
 import { AudioBookDto, CreateAudioBookDto, UpdateAudioBookDto, AudioBookQueryParams, toAudioBookDto } from '../models/AudioBookDto';
 import { ApiError } from '../types/ApiError';
 import { MessageHandler } from '../utils/MessageHandler';
 import { BackgroundJobService } from './BackgroundJobService';
+import { HttpStatusCode, ErrorType } from '../types/common';
 
 export class AudioBookService {
   private prisma: PrismaClient;
@@ -300,6 +301,10 @@ export class AudioBookService {
       if (audiobookData.publisher !== undefined) createData.publisher = audiobookData.publisher;
       if (audiobookData.publishDate !== undefined) createData.publishDate = audiobookData.publishDate;
       if (audiobookData.isbn !== undefined) createData.isbn = audiobookData.isbn;
+      if (audiobookData.minSubscriptionTier !== undefined) {
+        this.validateMinSubscriptionTier(audiobookData.minSubscriptionTier);
+        createData.minSubscriptionTier = audiobookData.minSubscriptionTier;
+      }
 
       const audiobook = await this.prisma.audioBook.create({
         data: createData
@@ -405,6 +410,10 @@ export class AudioBookService {
       const updateData: any = { ...data };
       if (data.scheduledAt !== undefined) {
         updateData.isActive = false;
+      }
+      if (data.minSubscriptionTier !== undefined) {
+        this.validateMinSubscriptionTier(data.minSubscriptionTier);
+        updateData.minSubscriptionTier = data.minSubscriptionTier;
       }
 
       // updateData.duration = parseInt(updateData.duration);
@@ -764,5 +773,105 @@ export class AudioBookService {
     }
 
     return false;
+  }
+
+  /**
+   * Validate a `minSubscriptionTier` value. Null is allowed (means "no
+   * subscription gating"); any other value must be a non-negative integer.
+   */
+  private validateMinSubscriptionTier(value: number | null | undefined): void {
+    if (value === null || value === undefined) return;
+    if (!Number.isInteger(value) || value < 0) {
+      throw ApiError.validationError(
+        MessageHandler.getErrorMessage('validation.min_subscription_tier_invalid')
+      );
+    }
+  }
+
+  /**
+   * Find the highest active subscription tier for a user.
+   * Only ACTIVE and TRIALING subscriptions count toward access. PAST_DUE is
+   * intentionally excluded for content gating: the user has not paid for the
+   * current period, so access to gated content is revoked until renewal.
+   *
+   * Returns the highest `tierLevel` among the user's qualifying subscriptions,
+   * or `null` if the user has no qualifying subscription.
+   */
+  async getUserHighestActiveTier(userProfileId: string): Promise<number | null> {
+    const subs = await this.prisma.userSubscription.findMany({
+      where: {
+        userProfileId,
+        status: { in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.TRIALING] }
+      },
+      include: { plan: true }
+    });
+
+    if (subs.length === 0) {
+      return null;
+    }
+
+    let highest: number | null = null;
+    for (const sub of subs) {
+      const tier = (sub.plan as { tierLevel?: number }).tierLevel ?? 0;
+      if (highest === null || tier > highest) {
+        highest = tier;
+      }
+    }
+    return highest;
+  }
+
+  /**
+   * Enforce subscription-tier gating for the given audiobook against a user.
+   *
+   * Behavior:
+   *  - If the audiobook has no `minSubscriptionTier` (null), this is a no-op.
+   *  - Otherwise, the user must have an active subscription whose plan
+   *    `tierLevel` is >= `minSubscriptionTier`. If not, an ApiError is thrown.
+   *
+   * This is intentionally separate from the public/private organization rules:
+   * a gated audiobook can still be marked private to its organization, but
+   * users in the organization additionally need the right subscription tier.
+   */
+  async assertUserCanAccessBySubscription(
+    audiobookId: string,
+    userProfileId: string | null
+  ): Promise<void> {
+    const audiobook = await this.prisma.audioBook.findUnique({
+      where: { id: audiobookId },
+      select: { id: true, minSubscriptionTier: true }
+    });
+    if (!audiobook) {
+      throw ApiError.notFound(MessageHandler.getErrorMessage('not_found.audiobook'));
+    }
+
+    const requiredTier = (audiobook as { minSubscriptionTier?: number | null }).minSubscriptionTier ?? null;
+    if (requiredTier === null) {
+      return;
+    }
+
+    if (!userProfileId) {
+      throw new ApiError(
+        MessageHandler.getErrorMessage('forbidden.subscription_required'),
+        HttpStatusCode.FORBIDDEN,
+        ErrorType.FORBIDDEN
+      );
+    }
+
+    const userTier = await this.getUserHighestActiveTier(userProfileId);
+    if (userTier === null) {
+      throw new ApiError(
+        MessageHandler.getErrorMessage('forbidden.subscription_required'),
+        HttpStatusCode.FORBIDDEN,
+        ErrorType.FORBIDDEN
+      );
+    }
+
+    if (userTier < requiredTier) {
+      throw new ApiError(
+        MessageHandler.getErrorMessage('forbidden.subscription_tier_too_low'),
+        HttpStatusCode.FORBIDDEN,
+        ErrorType.FORBIDDEN
+      );
+    }
   }
 }

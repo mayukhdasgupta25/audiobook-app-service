@@ -46,12 +46,21 @@ export class SubscriptionPlanService {
             );
          }
 
+         if (data.tierLevel !== undefined && (!Number.isInteger(data.tierLevel) || data.tierLevel < 0)) {
+            throw new ApiError(
+               MessageHandler.getErrorMessage('subscription_plans.tier_invalid'),
+               HttpStatusCode.BAD_REQUEST,
+               ErrorType.VALIDATION_ERROR
+            );
+         }
+
          const created = await this.prisma.subscriptionPlan.create({
             data: {
                name: trimmedName,
                description: data.description ?? null,
                price: new Prisma.Decimal(data.price),
                currency: data.currency ?? 'USD',
+               tierLevel: data.tierLevel ?? 0,
                billingInterval: data.billingInterval ?? BillingInterval.MONTHLY,
                trialDays: data.trialDays ?? 0,
                features: data.features ?? Prisma.JsonNull,
@@ -191,6 +200,16 @@ export class SubscriptionPlanService {
             updateData.price = new Prisma.Decimal(data.price);
          }
          if (data.currency !== undefined) updateData.currency = data.currency;
+         if (data.tierLevel !== undefined) {
+            if (!Number.isInteger(data.tierLevel) || data.tierLevel < 0) {
+               throw new ApiError(
+                  MessageHandler.getErrorMessage('subscription_plans.tier_invalid'),
+                  HttpStatusCode.BAD_REQUEST,
+                  ErrorType.VALIDATION_ERROR
+               );
+            }
+            updateData.tierLevel = data.tierLevel;
+         }
          if (data.billingInterval !== undefined) updateData.billingInterval = data.billingInterval;
          if (data.trialDays !== undefined) updateData.trialDays = data.trialDays;
          if (data.features !== undefined) {

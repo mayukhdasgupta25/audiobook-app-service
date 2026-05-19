@@ -67,6 +67,13 @@ model AudioBook {
   isActive Boolean @default(true)
   isPublic Boolean @default(true)
 
+  // Subscription gating: minimum subscription tier required to access this
+  // audiobook. `null` means no subscription is required (i.e. access falls
+  // back to organization / public visibility rules). The value is compared
+  // against `SubscriptionPlan.tierLevel`; a user's active subscription must
+  // have `tierLevel >= minSubscriptionTier` to be granted access.
+  minSubscriptionTier Int?
+
   // Offline availability
   isOfflineAvailable Boolean @default(false)
 
@@ -486,6 +493,11 @@ model SubscriptionPlan {
   // Pricing
   price    Decimal @db.Decimal(10, 2)
   currency String  @default("USD") // ISO 4217 currency code
+
+  // Hierarchical tier used for subscription-gated content. Higher = more access.
+  // Plans with `tierLevel >= AudioBook.minSubscriptionTier` grant access to a
+  // gated audiobook. Conventionally: 1 = Base, 2 = Standard, 3 = Premium.
+  tierLevel Int @default(0)
 
   // Billing
   billingInterval BillingInterval @default(MONTHLY)
