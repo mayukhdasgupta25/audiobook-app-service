@@ -10,6 +10,7 @@ export interface SubscriptionPlanDto {
    description: string | null;
    price: number;
    currency: string;
+   tier: number;
    billingInterval: BillingInterval;
    trialDays: number;
    features: any;
@@ -23,6 +24,7 @@ export interface CreateSubscriptionPlanDto {
    description?: string;
    price: number;
    currency?: string;
+   tier?: number;
    billingInterval?: BillingInterval;
    trialDays?: number;
    features?: any;
@@ -34,6 +36,7 @@ export interface UpdateSubscriptionPlanDto {
    description?: string | null;
    price?: number;
    currency?: string;
+   tier?: number;
    billingInterval?: BillingInterval;
    trialDays?: number;
    features?: any;
@@ -61,6 +64,7 @@ export function toSubscriptionPlanDto(plan: PrismaSubscriptionPlan): Subscriptio
       description: plan.description ?? null,
       price: typeof plan.price === 'number' ? plan.price : Number(plan.price.toString()),
       currency: plan.currency,
+      tier: plan.tier,
       billingInterval: plan.billingInterval,
       trialDays: plan.trialDays,
       features: plan.features ?? null,

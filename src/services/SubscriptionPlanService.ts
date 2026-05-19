@@ -52,6 +52,7 @@ export class SubscriptionPlanService {
                description: data.description ?? null,
                price: new Prisma.Decimal(data.price),
                currency: data.currency ?? 'USD',
+               tier: data.tier ?? 0,
                billingInterval: data.billingInterval ?? BillingInterval.MONTHLY,
                trialDays: data.trialDays ?? 0,
                features: data.features ?? Prisma.JsonNull,
@@ -191,6 +192,7 @@ export class SubscriptionPlanService {
             updateData.price = new Prisma.Decimal(data.price);
          }
          if (data.currency !== undefined) updateData.currency = data.currency;
+         if (data.tier !== undefined) updateData.tier = data.tier;
          if (data.billingInterval !== undefined) updateData.billingInterval = data.billingInterval;
          if (data.trialDays !== undefined) updateData.trialDays = data.trialDays;
          if (data.features !== undefined) {

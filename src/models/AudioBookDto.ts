@@ -19,6 +19,7 @@ export interface AudioBookDto {
   isbn?: string | undefined;
   isActive: boolean;
   isPublic: boolean;
+  minPlanTier?: number | null | undefined;
   createdAt: Date;
   updatedAt: Date;
   scheduledAt?: Date | undefined;
@@ -58,6 +59,7 @@ export interface CreateAudioBookDto {
   isbn?: string;
   isActive?: boolean;
   isPublic?: boolean;
+  minPlanTier?: number | null;
   scheduledAt?: Date;
 }
 
@@ -77,6 +79,7 @@ export interface UpdateAudioBookDto {
   isbn?: string;
   isActive?: boolean;
   isPublic?: boolean;
+  minPlanTier?: number | null;
   scheduledAt?: Date;
 }
 
@@ -121,6 +124,7 @@ export function toAudioBookDto(audiobook: PrismaAudioBook & {
     isbn: audiobook.isbn || undefined,
     isActive: audiobook.isActive,
     isPublic: audiobook.isPublic,
+    minPlanTier: audiobook.minPlanTier ?? null,
     createdAt: audiobook.createdAt,
     updatedAt: audiobook.updatedAt,
     scheduledAt: audiobook.scheduledAt || undefined,
