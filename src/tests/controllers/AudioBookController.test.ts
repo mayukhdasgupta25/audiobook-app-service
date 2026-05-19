@@ -173,6 +173,135 @@ describe('AudioBookController', () => {
             'Retrieved'
          );
       });
+
+      // These tests exercise the subscription-tier gating logic end to end:
+      // a private audiobook with minPlanTier=2 (Standard) must be denied to a
+      // user on the Base plan (tier 1), and granted to a user on Standard or
+      // higher. Each scenario builds its own Prisma stub so the user / sub
+      // chain can vary per test.
+      describe('subscription gating', () => {
+         it('denies access to a private audiobook when user has Base tier but Standard is required', async () => {
+            mockReq.params.id = 'book-gated';
+            mockReq.user = { id: 'auth-user-base', role: 'USER' };
+
+            const gatedBook = {
+               id: 'book-gated',
+               title: 'Gated Book',
+               organizationId: 'org-1',
+               isPublic: false,
+               minPlanTier: 2 // Standard
+            };
+
+            const prisma = {
+               userProfile: {
+                  findUnique: jest.fn().mockResolvedValue({ id: 'profile-base' })
+               },
+               userSubscription: {
+                  findMany: jest.fn().mockResolvedValue([
+                     { plan: { tier: 1 } } // Base
+                  ])
+               },
+               organizationMember: {
+                  findMany: jest.fn().mockResolvedValue([
+                     { organizationId: 'org-1' }
+                  ])
+               }
+            } as any;
+            const controller = new AudioBookController(prisma);
+            const service = (controller as any).audioBookService as jest.Mocked<AudioBookService>;
+            service.getAudioBookById.mockResolvedValue(gatedBook as any);
+            (MessageHandler.getErrorMessage as jest.Mock).mockReturnValue('subscription required');
+
+            await controller.getAudioBookById(mockReq, mockRes, mockReq.next);
+            await flushPromises();
+
+            expect(service.getAudioBookById).toHaveBeenCalledWith('book-gated');
+            expect(ResponseHandler.forbidden).toHaveBeenCalledWith(
+               mockRes,
+               'subscription required'
+            );
+            expect(ResponseHandler.success).not.toHaveBeenCalled();
+         });
+
+         it('allows access to a private audiobook when user has matching tier', async () => {
+            mockReq.params.id = 'book-gated';
+            mockReq.user = { id: 'auth-user-std', role: 'USER' };
+
+            const gatedBook = {
+               id: 'book-gated',
+               title: 'Gated Book',
+               organizationId: 'org-1',
+               isPublic: false,
+               minPlanTier: 2
+            };
+
+            const prisma = {
+               userProfile: {
+                  findUnique: jest.fn().mockResolvedValue({ id: 'profile-std' })
+               },
+               userSubscription: {
+                  findMany: jest.fn().mockResolvedValue([
+                     { plan: { tier: 2 } } // Standard
+                  ])
+               },
+               organizationMember: {
+                  findMany: jest.fn().mockResolvedValue([
+                     { organizationId: 'org-1' }
+                  ])
+               }
+            } as any;
+            const controller = new AudioBookController(prisma);
+            const service = (controller as any).audioBookService as jest.Mocked<AudioBookService>;
+            service.getAudioBookById.mockResolvedValue(gatedBook as any);
+            (MessageHandler.getSuccessMessage as jest.Mock).mockReturnValue('Retrieved');
+
+            await controller.getAudioBookById(mockReq, mockRes, mockReq.next);
+            await flushPromises();
+
+            expect(ResponseHandler.success).toHaveBeenCalledWith(
+               mockRes,
+               gatedBook,
+               'Retrieved'
+            );
+            expect(ResponseHandler.forbidden).not.toHaveBeenCalled();
+         });
+
+         it('skips subscription check for public audiobooks', async () => {
+            mockReq.params.id = 'book-public';
+            mockReq.user = { id: 'auth-user-nosub', role: 'USER' };
+
+            const publicBook = {
+               id: 'book-public',
+               title: 'Public Book',
+               organizationId: 'org-1',
+               isPublic: true,
+               minPlanTier: null
+            };
+
+            const userSubFindMany = jest.fn();
+            const prisma = {
+               userProfile: {
+                  findUnique: jest.fn().mockResolvedValue({ id: 'profile-nosub' })
+               },
+               userSubscription: { findMany: userSubFindMany },
+               organizationMember: {
+                  findMany: jest.fn().mockResolvedValue([
+                     { organizationId: 'org-1' }
+                  ])
+               }
+            } as any;
+            const controller = new AudioBookController(prisma);
+            const service = (controller as any).audioBookService as jest.Mocked<AudioBookService>;
+            service.getAudioBookById.mockResolvedValue(publicBook as any);
+            (MessageHandler.getSuccessMessage as jest.Mock).mockReturnValue('Retrieved');
+
+            await controller.getAudioBookById(mockReq, mockRes, mockReq.next);
+            await flushPromises();
+
+            expect(userSubFindMany).not.toHaveBeenCalled();
+            expect(ResponseHandler.success).toHaveBeenCalled();
+         });
+      });
    });
 
    const mockCoverImageFile = {
