@@ -4,6 +4,15 @@
  */
 import { AudioBook as PrismaAudioBook } from '@prisma/client';
 
+/** Subscription playback access for a single audiobook (detail responses). */
+export interface AudiobookSubscriptionAccessDto {
+  canAccess: boolean;
+  /** Human-readable reason when `canAccess` is false; omitted when access is granted. */
+  message?: string;
+  requiredTier?: number;
+  userTier?: number | null;
+}
+
 export interface AudioBookDto {
   id: string;
   title: string;
@@ -27,6 +36,7 @@ export interface AudioBookDto {
   genres?: GenreDto[] | undefined;
   organizationId: string;
   organization?: AudioBookOrganizationDto | undefined;
+  subscriptionAccess?: AudiobookSubscriptionAccessDto;
 }
 
 export interface AudioBookOrganizationDto {
@@ -90,6 +100,7 @@ export interface AudioBookQueryParams {
   sortOrder?: 'asc' | 'desc';
   genreIds?: string[] | undefined;
   organizationId?: string | undefined;
+  /** Optional filter: restrict to these publisher org IDs (not access control). */
   organizationIds?: string[] | undefined;
   language?: string | undefined;
   author?: string | undefined;

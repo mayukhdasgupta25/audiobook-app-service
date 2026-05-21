@@ -68,10 +68,9 @@ model AudioBook {
   isPublic Boolean @default(true)
 
   // Subscription gating: minimum subscription tier required to access this
-  // audiobook. `null` means no subscription is required (i.e. access falls
-  // back to organization / public visibility rules). The value is compared
-  // against `SubscriptionPlan.tierLevel`; a user's active subscription must
-  // have `tierLevel >= minSubscriptionTier` to be granted access.
+  // audiobook. `null` means no subscription tier is required. The value is
+  // compared against `SubscriptionPlan.tierLevel`; a user's active subscription
+  // must have `tierLevel >= minSubscriptionTier` to be granted access.
   minSubscriptionTier Int?
 
   // Offline availability
@@ -444,8 +443,9 @@ model AudioBookTag {
   @@map("audiobook_tags")
 }
 
-// Organization model
-// An organization owns audiobooks and groups users who can access them.
+// Organization model — the publisher / company that provides audiobooks to
+// listeners. Catalog access is not tied to organization membership; staff
+// roles are modeled on `OrganizationMember`.
 model Organization {
   id          String  @id @default(cuid())
   name        String
@@ -463,7 +463,9 @@ model Organization {
   @@map("organizations")
 }
 
-// Junction table linking users to organizations (many-to-many with role)
+// Staff who administer an organization (many-to-many with role). Distinct
+// from end-user listeners, who do not need membership to browse or play
+// that organization's catalog.
 model OrganizationMember {
   id             String           @id @default(cuid())
   userProfileId  String
