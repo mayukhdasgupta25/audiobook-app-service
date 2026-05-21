@@ -26,29 +26,6 @@ export class AudioBookController {
   }
 
   /**
-   * Resolve the list of organization IDs the authenticated user can see.
-   * Global admins are not scoped (returns null = no restriction). Non-admin
-   * users get the set of organizations they are a member of.
-   */
-  private async getAccessibleOrganizationIds(req: Request): Promise<string[] | null> {
-    const authReq = req as AuthenticatedRequest;
-    const role = (authReq.user?.role || '').trim().toLowerCase();
-    if (role === 'admin') {
-      return null;
-    }
-    const externalUserId = authReq.user?.id;
-    if (!externalUserId) {
-      return [];
-    }
-    const profile = await this.prisma.userProfile.findUnique({
-      where: { userId: externalUserId },
-      select: { id: true }
-    });
-    if (!profile) return [];
-    return this.organizationService.getOrganizationIdsForUser(profile.id);
-  }
-
-  /**
    * @swagger
    * /api/v1/audiobooks:
    *   get:
@@ -89,8 +66,6 @@ export class AudioBookController {
       genreIds = [req.query['genreId'] as string];
     }
 
-    const accessibleOrgIds = await this.getAccessibleOrganizationIds(req);
-
     const queryParams: AudioBookQueryParams = {
       page: req.query['page'] ? parseInt(req.query['page'] as string, 10) : 1,
       limit: req.query['limit'] ? parseInt(req.query['limit'] as string, 10) : 10,
@@ -106,30 +81,7 @@ export class AudioBookController {
       search: req.query['search'] as string,
       active: req.query['active'] !== undefined ? req.query['active'] === 'true' : undefined,
       scheduled: req.query['scheduled'] !== undefined ? req.query['scheduled'] === 'true' : undefined,
-      ...(accessibleOrgIds !== null ? { organizationIds: accessibleOrgIds } : {})
     };
-
-    // If the caller is scoped to a specific organization, ensure it is one
-    // they have access to. Global admins bypass this check.
-    if (
-      accessibleOrgIds !== null &&
-      queryParams.organizationId &&
-      !accessibleOrgIds.includes(queryParams.organizationId)
-    ) {
-      ResponseHandler.forbidden(res, MessageHandler.getErrorMessage('organizations.access_denied'));
-      return;
-    }
-
-    // If the user has no org memberships and is not admin, return empty list.
-    if (accessibleOrgIds !== null && accessibleOrgIds.length === 0) {
-      ResponseHandler.paginated(
-        res,
-        [],
-        ResponseHandler.calculatePagination(queryParams.page!, queryParams.limit!, 0),
-        MessageHandler.getSuccessMessage('audiobooks.retrieved')
-      );
-      return;
-    }
 
     const { audiobooks, totalCount } = await this.audioBookService.getAllAudioBooks(queryParams);
 
@@ -199,36 +151,27 @@ export class AudioBookController {
 
     const audiobook = await this.audioBookService.getAudioBookById(id as string);
 
-    // Enforce organization-scoped access: only members of the audiobook's
-    // organization (or global admins) may fetch it.
-    const accessibleOrgIds = await this.getAccessibleOrganizationIds(req);
-    if (accessibleOrgIds !== null && !accessibleOrgIds.includes(audiobook.organizationId)) {
-      ResponseHandler.forbidden(res, MessageHandler.getErrorMessage('organizations.access_denied'));
-      return;
-    }
+    const authReq = req as AuthenticatedRequest;
+    const externalUserId = authReq.user?.id;
+    const profile = externalUserId
+      ? await this.prisma.userProfile.findUnique({
+        where: { userId: externalUserId },
+        select: { id: true }
+      })
+      : null;
 
-    // Enforce subscription-tier gating. This is applied even to global admins
-    // because subscription-gated content is content-level, not org-level: a
-    // user (admin or otherwise) without the required active subscription tier
-    // should not be able to view a gated audiobook. ApiError instances thrown
-    // here are routed by the global ErrorHandler middleware.
-    if (audiobook.minSubscriptionTier !== null && audiobook.minSubscriptionTier !== undefined) {
-      const authReq = req as AuthenticatedRequest;
-      const externalUserId = authReq.user?.id;
-      const profile = externalUserId
-        ? await this.prisma.userProfile.findUnique({
-          where: { userId: externalUserId },
-          select: { id: true }
-        })
-        : null;
-
-      await this.audioBookService.assertUserCanAccessBySubscription(
+    const subscriptionAccess =
+      await this.audioBookService.getSubscriptionAccessForAudiobook(
         audiobook.id,
+        audiobook.minSubscriptionTier,
         profile?.id ?? null
       );
-    }
 
-    ResponseHandler.success(res, audiobook, MessageHandler.getSuccessMessage('audiobooks.retrieved_by_id'));
+    ResponseHandler.success(
+      res,
+      { ...audiobook, subscriptionAccess },
+      MessageHandler.getSuccessMessage('audiobooks.retrieved_by_id')
+    );
   });
 
   /**
@@ -327,8 +270,8 @@ export class AudioBookController {
       return;
     }
 
-    // Non-admin users may only create audiobooks in organizations they
-    // are an OWNER or ADMIN of. Global admins bypass this check.
+    // Non-admin users may only create audiobooks as staff (OWNER or ADMIN)
+    // of the target organization. Global admins bypass this check.
     const authReq = req as AuthenticatedRequest;
     const role = (authReq.user?.role || '').trim().toLowerCase();
     if (role !== 'admin') {

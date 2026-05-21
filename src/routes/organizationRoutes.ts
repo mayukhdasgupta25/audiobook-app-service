@@ -3,7 +3,7 @@
  *
  * Mounts CRUD + member endpoints for the Organization feature.
  *
- * Access summary (enforced inside the controller against the org membership):
+ * Access summary (see controller for details; most admin routes require org membership):
  *  - GET   /                          -> list orgs the caller belongs to (any user)
  *  - POST  /                          -> create org (any authenticated user)
  *  - GET   /:id                       -> any member of the org
@@ -13,7 +13,7 @@
  *  - POST  /:id/members               -> OWNER/ADMIN
  *  - PUT   /:id/members/:userId       -> OWNER/ADMIN
  *  - DELETE /:id/members/:userId      -> OWNER/ADMIN
- *  - GET   /:id/audiobooks            -> any member
+ *  - GET   /:id/audiobooks            -> any authenticated user (publisher catalog)
  */
 import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';

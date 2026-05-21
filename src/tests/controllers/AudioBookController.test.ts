@@ -42,8 +42,7 @@ describe('AudioBookController', () => {
          files: undefined,
          file: undefined,
          originalUrl: '/api/v1/audiobooks',
-         // Default the test user to a global ADMIN so org-scoping is bypassed.
-         // Individual tests can override this to exercise org access checks.
+         // Default the test user to a global ADMIN for flows that branch on role.
          user: { id: 'auth-user-1', role: 'ADMIN' },
       } as any;
       mockRes = {

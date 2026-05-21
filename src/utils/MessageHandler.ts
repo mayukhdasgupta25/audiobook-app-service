@@ -70,6 +70,8 @@ interface MessagesConfig {
       forbidden: {
          default: string;
          insufficient_permissions: string;
+         subscription_required?: string;
+         subscription_tier_too_low?: string;
       };
       internal: {
          default: string;
@@ -125,8 +127,8 @@ export class MessageHandler {
             const messagesPath = path.join(__dirname, '..', 'config', 'messages.yaml');
             const fileContents = fs.readFileSync(messagesPath, 'utf8');
             this.messages = yaml.load(fileContents) as MessagesConfig;
-         } catch (_error) {
-            // console.error('Failed to load messages.yaml:', error);
+         } catch (error) {
+            console.error('Failed to load messages.yaml:', error);
             // Fallback to default messages
             this.messages = this.getDefaultMessages();
          }
@@ -201,7 +203,10 @@ export class MessageHandler {
             },
             forbidden: {
                default: 'Access forbidden',
-               insufficient_permissions: 'Insufficient permissions'
+               insufficient_permissions: 'Insufficient permissions',
+               subscription_required: 'This audiobook requires an active subscription',
+               subscription_tier_too_low:
+                  'Your current subscription plan does not include access to this audiobook'
             },
             internal: {
                default: 'Internal server error',

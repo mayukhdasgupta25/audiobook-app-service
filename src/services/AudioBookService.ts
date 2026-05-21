@@ -3,7 +3,14 @@
  * Handles business logic and database operations following OOP principles
  */
 import { PrismaClient, Prisma, SubscriptionStatus } from '@prisma/client';
-import { AudioBookDto, CreateAudioBookDto, UpdateAudioBookDto, AudioBookQueryParams, toAudioBookDto } from '../models/AudioBookDto';
+import {
+  AudioBookDto,
+  AudiobookSubscriptionAccessDto,
+  CreateAudioBookDto,
+  UpdateAudioBookDto,
+  AudioBookQueryParams,
+  toAudioBookDto
+} from '../models/AudioBookDto';
 import { ApiError } from '../types/ApiError';
 import { MessageHandler } from '../utils/MessageHandler';
 import { BackgroundJobService } from './BackgroundJobService';
@@ -142,9 +149,10 @@ export class AudioBookService {
    * Build the Prisma where clause for audiobook list queries. Centralised
    * so list/list-with-counts/tags/etc. all stay in sync.
    *
-   * `organizationIds` (plural) is used to restrict results to the orgs the
-   * caller has access to; `organizationId` (singular) filters to a single
-   * org and takes precedence when both are provided.
+   * `organizationIds` (plural) optionally restricts results to those orgs
+   * (e.g. internal tooling); `organizationId` (singular) filters to a single
+   * org and takes precedence when both are provided. Listing is not gated on
+   * the caller being a member of those organizations.
    */
   private buildWhereClause(params: AudioBookQueryParams): Prisma.AudioBookWhereInput {
     const {
@@ -821,16 +829,54 @@ export class AudioBookService {
   }
 
   /**
-   * Enforce subscription-tier gating for the given audiobook against a user.
-   *
-   * Behavior:
-   *  - If the audiobook has no `minSubscriptionTier` (null), this is a no-op.
-   *  - Otherwise, the user must have an active subscription whose plan
-   *    `tierLevel` is >= `minSubscriptionTier`. If not, an ApiError is thrown.
-   *
-   * This is intentionally separate from the public/private organization rules:
-   * a gated audiobook can still be marked private to its organization, but
-   * users in the organization additionally need the right subscription tier.
+   * Evaluate subscription-tier access for an audiobook without failing the request.
+   * Returns `canAccess: true` when no tier is required or the user qualifies;
+   * otherwise returns the same user-facing messages previously sent as 403 errors.
+   */
+  async getSubscriptionAccessForAudiobook(
+    _audiobookId: string,
+    minSubscriptionTier: number | null | undefined,
+    userProfileId: string | null
+  ): Promise<AudiobookSubscriptionAccessDto> {
+    const requiredTier = minSubscriptionTier ?? null;
+    if (requiredTier === null) {
+      return { canAccess: true };
+    }
+
+    if (!userProfileId) {
+      return {
+        canAccess: false,
+        message: MessageHandler.getErrorMessage('forbidden.subscription_required'),
+        requiredTier,
+        userTier: null
+      };
+    }
+
+    const userTier = await this.getUserHighestActiveTier(userProfileId);
+    if (userTier === null) {
+      return {
+        canAccess: false,
+        message: MessageHandler.getErrorMessage('forbidden.subscription_required'),
+        requiredTier,
+        userTier: null
+      };
+    }
+
+    if (userTier < requiredTier) {
+      return {
+        canAccess: false,
+        message: MessageHandler.getErrorMessage('forbidden.subscription_tier_too_low'),
+        requiredTier,
+        userTier
+      };
+    }
+
+    return { canAccess: true, requiredTier, userTier };
+  }
+
+  /**
+   * @deprecated Use {@link getSubscriptionAccessForAudiobook} for API responses.
+   * Throws only when the audiobook does not exist (for scripts/tests that enforce access).
    */
   async assertUserCanAccessBySubscription(
     audiobookId: string,
@@ -844,31 +890,14 @@ export class AudioBookService {
       throw ApiError.notFound(MessageHandler.getErrorMessage('not_found.audiobook'));
     }
 
-    const requiredTier = (audiobook as { minSubscriptionTier?: number | null }).minSubscriptionTier ?? null;
-    if (requiredTier === null) {
-      return;
-    }
-
-    if (!userProfileId) {
+    const access = await this.getSubscriptionAccessForAudiobook(
+      audiobookId,
+      (audiobook as { minSubscriptionTier?: number | null }).minSubscriptionTier,
+      userProfileId
+    );
+    if (!access.canAccess) {
       throw new ApiError(
-        MessageHandler.getErrorMessage('forbidden.subscription_required'),
-        HttpStatusCode.FORBIDDEN,
-        ErrorType.FORBIDDEN
-      );
-    }
-
-    const userTier = await this.getUserHighestActiveTier(userProfileId);
-    if (userTier === null) {
-      throw new ApiError(
-        MessageHandler.getErrorMessage('forbidden.subscription_required'),
-        HttpStatusCode.FORBIDDEN,
-        ErrorType.FORBIDDEN
-      );
-    }
-
-    if (userTier < requiredTier) {
-      throw new ApiError(
-        MessageHandler.getErrorMessage('forbidden.subscription_tier_too_low'),
+        access.message ?? MessageHandler.getErrorMessage('forbidden.subscription_required'),
         HttpStatusCode.FORBIDDEN,
         ErrorType.FORBIDDEN
       );

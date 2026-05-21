@@ -175,17 +175,24 @@ async function subscribeAdminToBase(
    console.log(`✅ Admin subscribed to Base plan (subscription ${created.id}).`);
 }
 
-async function verifyAccess(audiobookId: string, userProfileId: string): Promise<void> {
+async function verifyAccess(
+   audiobookId: string,
+   userProfileId: string,
+   minSubscriptionTier: number
+): Promise<void> {
    const service = new AudioBookService(prisma);
-   try {
-      await service.assertUserCanAccessBySubscription(audiobookId, userProfileId);
+   const access = await service.getSubscriptionAccessForAudiobook(
+      audiobookId,
+      minSubscriptionTier,
+      userProfileId
+   );
+   if (access.canAccess) {
       console.warn(
          '⚠️  Unexpected: admin with Base plan was granted access to the gated audiobook.'
       );
-   } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+   } else {
       console.log(
-         `✅ Verified: admin on Base plan cannot access the audiobook. Reason: ${message}`
+         `✅ Verified: admin on Base plan cannot access the audiobook. Reason: ${access.message}`
       );
    }
 }
@@ -202,7 +209,7 @@ async function main(): Promise<void> {
 
    const adminProfile = await ensureAdminProfile();
    await subscribeAdminToBase(adminProfile.id, basePlan);
-   await verifyAccess(audiobook.id, adminProfile.id);
+   await verifyAccess(audiobook.id, adminProfile.id, REQUIRED_TIER_FOR_AUDIOBOOK);
 
    console.log('🎉 Subscription setup complete.');
 }

@@ -411,12 +411,16 @@ export class OrganizationController {
     * /api/v1/organizations/{id}/audiobooks:
     *   get:
     *     summary: List audiobooks belonging to an organization
+    *     description: |
+    *       Public catalog listing for that publisher. Does not require org
+    *       membership; returns 404 if the organization id is unknown.
     *     tags: [Organizations]
     */
    listOrganizationAudioBooks = ErrorHandler.asyncHandler(
       async (req: Request, res: Response): Promise<void> => {
          const { id } = req.params as { id: string };
-         await this.assertOrgMember(req, id);
+         // Any authenticated user may browse a publisher's catalog; confirm org exists.
+         await this.organizationService.getOrganizationById(id);
 
          const queryParams: AudioBookQueryParams = {
             page: req.query['page']
