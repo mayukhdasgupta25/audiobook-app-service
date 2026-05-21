@@ -34,7 +34,11 @@ describe('AudioBookController', () => {
    let mockAudioBookService: jest.Mocked<AudioBookService>;
 
    beforeEach(() => {
-      mockPrisma = {} as PrismaClient;
+      mockPrisma = {
+         userProfile: {
+            findUnique: jest.fn().mockResolvedValue({ id: 'profile-1' })
+         }
+      } as unknown as PrismaClient;
       mockReq = {
          params: {},
          query: {},
@@ -56,6 +60,9 @@ describe('AudioBookController', () => {
 
       audioBookController = new AudioBookController(mockPrisma);
       mockAudioBookService = (audioBookController as any).audioBookService;
+      mockAudioBookService.getSubscriptionAccessForAudiobook = jest
+         .fn()
+         .mockResolvedValue({ canAccess: true }) as any;
    });
 
    describe('getAllAudioBooks', () => {
@@ -155,20 +162,29 @@ describe('AudioBookController', () => {
    });
 
    describe('getAudioBookById', () => {
-      it('should retrieve audiobook by ID', async () => {
+      it('should retrieve audiobook by ID with subscription access', async () => {
          mockReq.params.id = 'book-123';
-         const mockBook = { id: 'book-123', title: 'Test Book' };
+         const mockBook = { id: 'book-123', title: 'Test Book', minSubscriptionTier: null };
+         const subscriptionAccess = { canAccess: true };
 
          mockAudioBookService.getAudioBookById.mockResolvedValue(mockBook as any);
+         mockAudioBookService.getSubscriptionAccessForAudiobook.mockResolvedValue(
+            subscriptionAccess as any
+         );
          (MessageHandler.getSuccessMessage as jest.Mock).mockReturnValue('Retrieved');
 
          await audioBookController.getAudioBookById(mockReq, mockRes, mockReq.next);
          await flushPromises();
 
          expect(mockAudioBookService.getAudioBookById).toHaveBeenCalledWith('book-123');
+         expect(mockAudioBookService.getSubscriptionAccessForAudiobook).toHaveBeenCalledWith(
+            'book-123',
+            null,
+            'profile-1'
+         );
          expect(ResponseHandler.success).toHaveBeenCalledWith(
             mockRes,
-            mockBook,
+            { ...mockBook, subscriptionAccess },
             'Retrieved'
          );
       });
