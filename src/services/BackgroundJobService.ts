@@ -5,6 +5,7 @@
 import Bull from 'bull';
 import { PrismaClient } from '@prisma/client';
 import { ChapterService } from './ChapterService';
+import { UserSubscriptionService } from './UserSubscriptionService';
 import { ApiError } from '../types/ApiError';
 import { RedisConfigHelper } from '../config/redis';
 
@@ -36,13 +37,20 @@ export interface ScheduledActivationJobData {
    id: string;
 }
 
+/** Empty payload — processes all due subscriptions in one batch. */
+export interface SubscriptionLifecycleJobData {
+   triggeredAt: string;
+}
+
 export class BackgroundJobService {
    private progressQueue: Bull.Queue<ProgressCalculationJobData>;
    private downloadQueue: Bull.Queue<OfflineDownloadJobData>;
    private cleanupQueue: Bull.Queue<CleanupJobData>;
    private durationQueue: Bull.Queue<DurationCalculationJobData>;
    private activationQueue: Bull.Queue<ScheduledActivationJobData>;
+   private subscriptionLifecycleQueue: Bull.Queue<SubscriptionLifecycleJobData>;
    private chapterService: ChapterService;
+   private subscriptionService: UserSubscriptionService;
 
    constructor(private prisma: PrismaClient) {
       // Get Redis configuration
@@ -70,9 +78,14 @@ export class BackgroundJobService {
          redis: redisUrl,
       });
 
+      this.subscriptionLifecycleQueue = new Bull('subscription-lifecycle', {
+         redis: redisUrl,
+      });
+
       // Initialize ChapterService with reference to this BackgroundJobService
       // This allows ChapterService to schedule duration calculation jobs
       this.chapterService = new ChapterService(prisma, this);
+      this.subscriptionService = new UserSubscriptionService(prisma);
 
       this.setupJobProcessors();
       this.setupScheduledJobs();
@@ -185,6 +198,19 @@ export class BackgroundJobService {
          }
       });
 
+      // Subscription lifecycle: renewals, pending downgrades, dunning (daily at midnight)
+      this.subscriptionLifecycleQueue.process('process-subscriptions', async () => {
+         try {
+            const summary = await this.subscriptionService.processDueSubscriptions();
+            console.log(
+               `Subscription lifecycle completed: processed=${summary.processed} renewed=${summary.renewed} expired=${summary.expired} pastDueEntered=${summary.pastDueEntered}`
+            );
+         } catch (error) {
+            console.error('Subscription lifecycle job failed:', error);
+            throw error;
+         }
+      });
+
       // Scheduled activation processor
       this.activationQueue.process('activate-scheduled', async (job) => {
          const { type, id } = job.data;
@@ -245,6 +271,16 @@ export class BackgroundJobService {
          repeat: { cron: '0 3 * * 0' }, // Weekly on Sunday at 3 AM
          jobId: 'scheduled-cleanup-progress',
       });
+
+      // Subscription renewals / pending plan changes / dunning — daily at midnight (server TZ)
+      this.subscriptionLifecycleQueue.add(
+         'process-subscriptions',
+         { triggeredAt: new Date().toISOString() },
+         {
+            repeat: { cron: '0 0 * * *' },
+            jobId: 'scheduled-subscription-lifecycle',
+         }
+      );
    }
 
    /**

@@ -63,6 +63,8 @@ success:
     deleted: "Subscription deleted successfully"
     canceled: "Subscription canceled successfully"
     renewed: "Subscription renewed successfully"
+    plan_changed: "Subscription plan updated successfully"
+    plan_downgrade_scheduled: "Plan downgrade scheduled for the end of your billing period"
 
   organizations:
     retrieved: "Organizations retrieved successfully"
@@ -246,6 +248,11 @@ errors:
     cancel_failed: "Failed to cancel user subscription"
     renew_failed: "Failed to renew user subscription"
     delete_failed: "Failed to delete user subscription"
+    pending_change_exists: "A plan change is already scheduled for this subscription"
+    invalid_plan_change: "Invalid plan change request"
+    cannot_change_plan_during_trial: "Cannot downgrade or switch plans during a trial; upgrade to a higher tier or cancel"
+    payment_required_for_plan_change: "Resolve your past-due payment before changing plans"
+    plan_change_not_allowed: "Plan cannot be changed while the subscription is in this status"
 
   organizations:
     not_found: "Organization not found"

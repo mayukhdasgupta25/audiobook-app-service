@@ -69,6 +69,15 @@ function validateUpdateSubscription(req: Request, res: Response, next: NextFunct
    next();
 }
 
+function validateChangePlan(req: Request, res: Response, next: NextFunction): void {
+   const { planId } = req.body || {};
+   if (!planId || typeof planId !== 'string' || !CUID_REGEX.test(planId)) {
+      ResponseHandler.validationError(res, 'planId must be a valid CUID');
+      return;
+   }
+   next();
+}
+
 function validateCancelBody(req: Request, res: Response, next: NextFunction): void {
    const { cancelAtPeriodEnd } = req.body || {};
    if (cancelAtPeriodEnd !== undefined && typeof cancelAtPeriodEnd !== 'boolean') {
@@ -121,6 +130,13 @@ export function createUserSubscriptionRoutes(prisma: PrismaClient): Router {
       '/:id/renew',
       ValidationMiddleware.validateId,
       controller.renewSubscription
+   );
+
+   router.patch(
+      '/:id/plan',
+      ValidationMiddleware.validateId,
+      validateChangePlan,
+      controller.changeSubscriptionPlan
    );
 
    router.get('/:id', ValidationMiddleware.validateId, controller.getSubscriptionById);

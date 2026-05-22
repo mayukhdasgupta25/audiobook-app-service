@@ -17,6 +17,8 @@ import { QueueFactory } from './config/queue';
 import { RabbitMQFactory } from './config/rabbitmq';
 import { TranscodingWorkerFactory } from './workers/TranscodingWorker';
 import { UserConsumerWorkerFactory } from './workers/UserConsumerWorker';
+import { PrismaClient } from '@prisma/client';
+import { getBackgroundJobService } from './lib/backgroundJobs';
 
 const app = express();
 
@@ -66,6 +68,9 @@ const queueManager = QueueFactory.getQueueManager();
 queueManager.createProgressQueue();
 queueManager.createDownloadQueue();
 queueManager.createCleanupQueue();
+
+// Background jobs (progress, downloads, subscription lifecycle at midnight, etc.)
+getBackgroundJobService(new PrismaClient());
 
 // Initialize RabbitMQ, transcoding worker, and user consumer worker
 (async (): Promise<void> => {

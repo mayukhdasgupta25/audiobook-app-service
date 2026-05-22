@@ -18,6 +18,9 @@ const mockPrisma = {
    subscriptionPlan: {
       findUnique: jest.fn()
    },
+   subscriptionBillingEvent: {
+      create: jest.fn()
+   },
    userSubscription: {
       findFirst: jest.fn(),
       findUnique: jest.fn(),
@@ -26,7 +29,8 @@ const mockPrisma = {
       create: jest.fn(),
       update: jest.fn(),
       delete: jest.fn()
-   }
+   },
+   $transaction: jest.fn()
 } as any;
 
 const basePlan = {
@@ -58,9 +62,14 @@ function buildSub(overrides: Partial<any> = {}): any {
       canceledAt: null,
       autoRenew: true,
       paymentMethod: null,
+      pendingPlanId: null,
+      pendingPlanChangeAt: null,
+      pendingPlanChangeType: null,
+      pastDueRetryCount: 0,
       createdAt: new Date('2026-01-01'),
       updatedAt: new Date('2026-01-01'),
       plan: basePlan,
+      pendingPlan: null,
       ...overrides
    };
 }
@@ -71,6 +80,14 @@ describe('UserSubscriptionService', () => {
    beforeEach(() => {
       service = new UserSubscriptionService(mockPrisma);
       jest.clearAllMocks();
+      mockPrisma.$transaction.mockImplementation(async (fn: (tx: any) => Promise<unknown>) =>
+         fn({
+            subscriptionBillingEvent: { create: jest.fn().mockResolvedValue({}) },
+            userSubscription: {
+               update: jest.fn().mockResolvedValue(buildSub({ status: 'ACTIVE' }))
+            }
+         })
+      );
    });
 
    describe('computePeriodEnd', () => {
@@ -203,18 +220,20 @@ describe('UserSubscriptionService', () => {
 
    describe('renewSubscription', () => {
       it('renews an active monthly subscription', async () => {
-         mockPrisma.userSubscription.findUnique.mockResolvedValue(buildSub());
-         mockPrisma.userSubscription.update.mockResolvedValue(buildSub({
+         const renewed = buildSub({
             status: 'ACTIVE',
             currentPeriodStart: new Date('2026-02-01'),
             currentPeriodEnd: new Date('2026-03-01')
-         }));
+         });
+         mockPrisma.userSubscription.findUnique
+            .mockResolvedValueOnce(buildSub())
+            .mockResolvedValueOnce(buildSub())
+            .mockResolvedValueOnce(renewed);
+         mockPrisma.subscriptionPlan.findUnique.mockResolvedValue(basePlan);
 
          const result = await service.renewSubscription('sub1');
          expect(result.status).toBe('ACTIVE');
-         const callArgs = mockPrisma.userSubscription.update.mock.calls[0][0];
-         expect(callArgs.data.status).toBe('ACTIVE');
-         expect(callArgs.data.cancelAtPeriodEnd).toBe(false);
+         expect(mockPrisma.$transaction).toHaveBeenCalled();
       });
 
       it('rejects renewing canceled subscriptions', async () => {

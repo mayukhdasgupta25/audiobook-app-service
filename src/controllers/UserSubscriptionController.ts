@@ -14,6 +14,7 @@ import {
    CreateUserSubscriptionDto,
    UpdateUserSubscriptionDto,
    CancelSubscriptionDto,
+   ChangePlanDto,
    UserSubscriptionQueryParams
 } from '../models/UserSubscriptionDto';
 import { AuthenticatedRequest } from '../types/auth';
@@ -290,6 +291,44 @@ export class UserSubscriptionController {
       const data: UpdateUserSubscriptionDto = req.body;
       const updated = await this.subscriptionService.updateSubscription(id, data);
       ResponseHandler.success(res, updated, MessageHandler.getSuccessMessage('user_subscriptions.updated'));
+   });
+
+   /**
+    * @swagger
+    * /api/v1/subscriptions/{id}/plan:
+    *   patch:
+    *     summary: Upgrade or downgrade subscription plan
+    *     description: |
+    *       Upgrades apply immediately with prorated charge. Downgrades take effect
+    *       at the end of the current billing period.
+    *     tags: [Subscriptions]
+    *     parameters:
+    *       - $ref: '#/components/parameters/IdParam'
+    *     requestBody:
+    *       required: true
+    *       content:
+    *         application/json:
+    *           schema:
+    *             type: object
+    *             required: [planId]
+    *             properties:
+    *               planId:
+    *                 type: string
+    *     responses:
+    *       200:
+    *         description: Plan change processed
+    *       402:
+    *         description: Payment required (past-due subscription)
+    */
+   changeSubscriptionPlan = ErrorHandler.asyncHandler(async (req: Request, res: Response): Promise<void> => {
+      const { id } = req.params as { id: string };
+      const { planId } = req.body as ChangePlanDto;
+      const userProfileId = await this.resolveUserProfileId(req);
+      const result = await this.subscriptionService.changePlan(id, planId, userProfileId);
+      const message = result.scheduledChange
+         ? MessageHandler.getSuccessMessage('user_subscriptions.plan_downgrade_scheduled')
+         : MessageHandler.getSuccessMessage('user_subscriptions.plan_changed');
+      ResponseHandler.success(res, result, message);
    });
 
    /**
