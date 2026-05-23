@@ -4,6 +4,15 @@
  */
 import { AudioBook as PrismaAudioBook } from '@prisma/client';
 
+/** Subscription playback access for a single audiobook (detail responses). */
+export interface AudiobookSubscriptionAccessDto {
+  canAccess: boolean;
+  /** Human-readable reason when `canAccess` is false; omitted when access is granted. */
+  message?: string;
+  requiredTier?: number;
+  userTier?: number | null;
+}
+
 export interface AudioBookDto {
   id: string;
   title: string;
@@ -19,16 +28,25 @@ export interface AudioBookDto {
   isbn?: string | undefined;
   isActive: boolean;
   isPublic: boolean;
+  minSubscriptionTier?: number | null | undefined;
   createdAt: Date;
   updatedAt: Date;
   scheduledAt?: Date | undefined;
   audiobookTags?: AudioBookTagDto[] | undefined;
-  genre?: GenreDto | undefined;
+  genres?: GenreDto[] | undefined;
+  organizationId: string;
+  organization?: AudioBookOrganizationDto | undefined;
+  subscriptionAccess?: AudiobookSubscriptionAccessDto;
+}
+
+export interface AudioBookOrganizationDto {
+  id: string;
+  name: string;
+  slug: string;
 }
 
 export interface AudioBookTagDto {
   name: string;
-  type: string;
 }
 
 export interface GenreDto {
@@ -43,13 +61,15 @@ export interface CreateAudioBookDto {
   duration?: number;
   fileSize?: number;
   coverImage?: string;
-  genreId: string; // Required - genre is now mandatory
+  genreIds: string[]; // Required - at least one genre is mandatory
+  organizationId: string; // Required - audiobook must belong to an organization
   language?: string;
   publisher?: string;
   publishDate?: Date;
   isbn?: string;
   isActive?: boolean;
   isPublic?: boolean;
+  minSubscriptionTier?: number | null;
   scheduledAt?: Date;
 }
 
@@ -61,13 +81,15 @@ export interface UpdateAudioBookDto {
   duration?: number;
   fileSize?: number;
   coverImage?: string;
-  genreId?: string;
+  genreIds?: string[];
+  organizationId?: string;
   language?: string;
   publisher?: string;
   publishDate?: Date;
   isbn?: string;
   isActive?: boolean;
   isPublic?: boolean;
+  minSubscriptionTier?: number | null;
   scheduledAt?: Date;
 }
 
@@ -76,7 +98,10 @@ export interface AudioBookQueryParams {
   limit?: number;
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
-  genreId?: string | undefined;
+  genreIds?: string[] | undefined;
+  organizationId?: string | undefined;
+  /** Optional filter: restrict to these publisher org IDs (not access control). */
+  organizationIds?: string[] | undefined;
   language?: string | undefined;
   author?: string | undefined;
   narrator?: string | undefined;
@@ -91,8 +116,9 @@ export interface AudioBookQueryParams {
  * Convert Prisma AudioBook to DTO
  */
 export function toAudioBookDto(audiobook: PrismaAudioBook & {
-  audiobookTags?: Array<{ id: string; audiobookId: string; tagId: string; createdAt: Date; tag: { id: string; name: string; type: string; createdAt: Date; updatedAt: Date } }>;
-  genre?: { id: string; name: string; createdAt: Date; updatedAt: Date } | null;
+  audiobookTags?: Array<{ id: string; audiobookId: string; tagId: string; createdAt: Date; tag: { id: string; name: string; createdAt: Date; updatedAt: Date } }>;
+  audioBookGenres?: Array<{ id: string; audiobookId: string; genreId: string; createdAt: Date; genre: { id: string; name: string; createdAt: Date; updatedAt: Date } }>;
+  organization?: { id: string; name: string; slug: string } | null;
 }): AudioBookDto {
   return {
     id: audiobook.id,
@@ -109,15 +135,23 @@ export function toAudioBookDto(audiobook: PrismaAudioBook & {
     isbn: audiobook.isbn || undefined,
     isActive: audiobook.isActive,
     isPublic: audiobook.isPublic,
+    minSubscriptionTier: (audiobook as PrismaAudioBook & { minSubscriptionTier?: number | null }).minSubscriptionTier ?? null,
     createdAt: audiobook.createdAt,
     updatedAt: audiobook.updatedAt,
     scheduledAt: audiobook.scheduledAt || undefined,
     audiobookTags: audiobook.audiobookTags?.map(tag => ({
-      name: tag.tag.name,
-      type: tag.tag.type
+      name: tag.tag.name
     })) || undefined,
-    genre: audiobook.genre ? {
-      name: audiobook.genre.name
-    } : undefined
+    genres: audiobook.audioBookGenres?.map(abg => ({
+      name: abg.genre.name
+    })) || undefined,
+    organizationId: audiobook.organizationId,
+    organization: audiobook.organization
+      ? {
+        id: audiobook.organization.id,
+        name: audiobook.organization.name,
+        slug: audiobook.organization.slug,
+      }
+      : undefined,
   };
 }

@@ -18,7 +18,13 @@ export class UserProfileService {
    /**
     * Create user profile
     */
-   async createUserProfile(userId: string): Promise<UserProfileCreationResult> {
+   async createUserProfile(
+      userId: string,
+      options?: {
+         firstName?: string;
+         lastName?: string;
+      }
+   ): Promise<UserProfileCreationResult> {
       try {
          // Check if user profile already exists
          const existingProfile = await this.prisma.userProfile.findUnique({
@@ -36,18 +42,40 @@ export class UserProfileService {
          // Generate unique username
          const usernameResult = await this.usernameGenerator.generateUniqueUsername();
 
+         // Prepare profile data with optional firstName and lastName
+         const profileData: {
+            userId: string;
+            username: string;
+            firstName?: string;
+            lastName?: string;
+            preferences: {
+               theme: string;
+               language: string;
+               autoPlay: boolean;
+               playbackSpeed: number;
+            };
+         } = {
+            userId,
+            username: usernameResult.username,
+            preferences: {
+               theme: 'light',
+               language: 'en',
+               autoPlay: false,
+               playbackSpeed: 1.0
+            }
+         };
+
+         // Add firstName and lastName if provided
+         if (options?.firstName) {
+            profileData.firstName = options.firstName;
+         }
+         if (options?.lastName) {
+            profileData.lastName = options.lastName;
+         }
+
          // Create user profile
          const userProfile = await this.prisma.userProfile.create({
-            data: {
-               userId,
-               username: usernameResult.username,
-               preferences: {
-                  theme: 'light',
-                  language: 'en',
-                  autoPlay: false,
-                  playbackSpeed: 1.0
-               }
-            },
+            data: profileData,
             select: {
                id: true,
                userId: true,

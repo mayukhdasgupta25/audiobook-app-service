@@ -9,11 +9,13 @@ export interface UserAudioBookDto {
    userProfileId: string;
    audiobookId: string;
    type: UserAudioBookType;
+   progress?: number; // Percentage (0-100)
    createdAt: Date;
    updatedAt: Date;
 }
 
 export interface UserAudioBookWithRelations extends UserAudioBookDto {
+   progress?: number; // Percentage (0-100)
    userProfile: {
       id: string;
       userId: string;
@@ -60,6 +62,7 @@ export function toUserAudioBookDto(userAudioBook: PrismaUserAudioBook): UserAudi
       userProfileId: userAudioBook.userProfileId,
       audiobookId: userAudioBook.audiobookId,
       type: userAudioBook.type,
+      progress: userAudioBook.progress ?? undefined,
       createdAt: userAudioBook.createdAt,
       updatedAt: userAudioBook.updatedAt
    };
@@ -74,6 +77,7 @@ export function toUserAudioBookWithRelations(userAudioBook: any): UserAudioBookW
       userProfileId: userAudioBook.userProfileId,
       audiobookId: userAudioBook.audiobookId,
       type: userAudioBook.type,
+      progress: userAudioBook.progress ?? undefined,
       createdAt: userAudioBook.createdAt,
       updatedAt: userAudioBook.updatedAt,
       userProfile: {

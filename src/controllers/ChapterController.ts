@@ -163,7 +163,7 @@ export class ChapterController {
     *               coverImage:
     *                 type: string
     *                 format: binary
-    *                 description: Chapter cover image (required, max 50MB)
+    *                 description: Chapter cover image (required, max 50MB). Must be 1200×1200px minimum with 1:1 aspect ratio. Thumbnails are auto-generated.
     *               file:
     *                 type: string
     *                 format: binary
