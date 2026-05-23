@@ -74,6 +74,18 @@ async function main() {
 
    console.log('✅ Created genres:', createdGenres.map(g => g.name));
 
+   const defaultOrganization = await prisma.organization.upsert({
+      where: { slug: 'default' },
+      update: {},
+      create: {
+         name: 'Default Organization',
+         slug: 'default',
+         description: 'Default organization for seed audiobooks'
+      }
+   });
+
+   console.log('✅ Created default organization:', defaultOrganization.name);
+
    // Sample audiobook data with diverse genres, authors, and narrators
    const audiobookData = [
       // New Releases Only (20 books)
@@ -655,14 +667,19 @@ async function main() {
       const { tags, genre, ...bookInfo } = bookData;
 
       // Map genre string to genreId (support single genre for now, can be extended to multiple)
-      const genreId = genre ? genreMap.get(genre) : null;
-      const genreIds = genreId ? [genreId] : [];
+      const resolvedGenreId = (genre ? genreMap.get(genre) : undefined) ?? genreMap.get('Fiction');
+      if (!resolvedGenreId) {
+         throw new Error(`No genre found for audiobook "${bookData.title}"`);
+      }
+      const genreIds = [resolvedGenreId];
 
       const audiobook = await prisma.audioBook.upsert({
          where: { id: bookData.id },
          update: {},
          create: {
-            ...bookInfo
+            ...bookInfo,
+            genreId: resolvedGenreId,
+            organizationId: defaultOrganization.id
          }
       });
 
@@ -757,8 +774,15 @@ async function main() {
    // Create sample reviews
    for (let i = 0; i < 3; i++) {
       if (sampleBooks[i]) {
-         await prisma.review.create({
-            data: {
+         await prisma.review.upsert({
+            where: {
+               userProfileId_audiobookId: {
+                  userProfileId: userProfile.id,
+                  audiobookId: sampleBooks[i]!.audiobook.id
+               }
+            },
+            update: {},
+            create: {
                userProfileId: userProfile.id,
                audiobookId: sampleBooks[i]!.audiobook.id,
                rating: Math.floor(Math.random() * 3) + 3, // 3-5 stars
@@ -774,8 +798,15 @@ async function main() {
    // Create listening history
    for (let i = 0; i < 3; i++) {
       if (sampleBooks[i]) {
-         await prisma.listeningHistory.create({
-            data: {
+         await prisma.listeningHistory.upsert({
+            where: {
+               userProfileId_audiobookId: {
+                  userProfileId: userProfile.id,
+                  audiobookId: sampleBooks[i]!.audiobook.id
+               }
+            },
+            update: {},
+            create: {
                userProfileId: userProfile.id,
                audiobookId: sampleBooks[i]!.audiobook.id,
                currentPosition: Math.floor(Math.random() * 3600) + 1800, // 30min to 1.5 hours
