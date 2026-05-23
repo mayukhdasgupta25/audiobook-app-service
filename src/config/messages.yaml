@@ -30,6 +30,15 @@ success:
 
   tags:
     retrieved: "Tags retrieved successfully"
+    created: "Tag created successfully"
+    updated: "Tag updated successfully"
+    deleted: "Tag deleted successfully"
+
+  authors:
+    retrieved: "Authors retrieved successfully"
+    created: "Author created successfully"
+    updated: "Author updated successfully"
+    deleted: "Author deleted successfully"
 
   user_audiobooks:
     retrieved: "User-audiobook relationships retrieved successfully"
@@ -37,6 +46,35 @@ success:
     created: "User-audiobook relationship created successfully"
     updated: "User-audiobook relationship updated successfully"
     deleted: "User-audiobook relationship deleted successfully"
+
+  subscription_plans:
+    retrieved: "Subscription plans retrieved successfully"
+    retrieved_by_id: "Subscription plan retrieved successfully"
+    created: "Subscription plan created successfully"
+    updated: "Subscription plan updated successfully"
+    deleted: "Subscription plan deleted successfully"
+    deactivated: "Subscription plan deactivated successfully"
+
+  user_subscriptions:
+    retrieved: "Subscriptions retrieved successfully"
+    retrieved_by_id: "Subscription retrieved successfully"
+    created: "Subscription created successfully"
+    updated: "Subscription updated successfully"
+    deleted: "Subscription deleted successfully"
+    canceled: "Subscription canceled successfully"
+    renewed: "Subscription renewed successfully"
+
+  organizations:
+    retrieved: "Organizations retrieved successfully"
+    retrieved_by_id: "Organization retrieved successfully"
+    created: "Organization created successfully"
+    updated: "Organization updated successfully"
+    deleted: "Organization deleted successfully"
+    members_retrieved: "Organization members retrieved successfully"
+    member_added: "Member added to organization successfully"
+    member_updated: "Member role updated successfully"
+    member_removed: "Member removed from organization successfully"
+    audiobooks_retrieved: "Organization audiobooks retrieved successfully"
 
   auth:
     signup_success: "User account created successfully"
@@ -49,6 +87,12 @@ success:
     users_retrieved: "Users retrieved successfully"
     user_retrieved: "User retrieved successfully"
     status_retrieved: "Authentication status retrieved successfully"
+
+  playback:
+    session_initialized: "Playback session initialized successfully"
+    sync_executed: "Playback sync executed successfully"
+    stats_retrieved: "Playback statistics retrieved successfully"
+    cleanup_completed: "Playback session cleanup completed successfully"
 
   general:
     success: "Success"
@@ -72,18 +116,36 @@ errors:
     tag_format: "Tag '{tag}' contains invalid characters. Only alphanumeric characters, spaces, hyphens, and underscores are allowed"
     tag_length: "Tag '{tag}' is too long. Maximum length is 50 characters"
     tags_limit: "Maximum 10 tags allowed per request"
+    tag_name_required: "Tag name is required"
+    tag_name_empty: "Tag name cannot be empty"
+    tag_name_too_long: "Tag name must be less than {maxLength} characters"
+    tag_name_invalid: "Tag name must be a valid string"
+    author_first_name_required: "First name is required"
+    author_first_name_invalid: "First name must be a valid string"
+    author_first_name_too_long: "First name must be less than 100 characters"
+    author_last_name_required: "Last name is required"
+    author_last_name_invalid: "Last name must be a valid string"
+    author_last_name_too_long: "Last name must be less than 100 characters"
+    author_address_invalid: "Address must be a valid string"
+    author_address_too_long: "Address must be less than 500 characters"
+    author_contact_invalid: "Contact must be a valid string"
+    author_contact_too_long: "Contact must be less than 50 characters"
+    email_too_long: "Email must be less than 255 characters"
 
     # AudioBook specific validation
     title_required: "Title is required"
     author_required: "Author is required"
+    genre_required: "Genre is required"
     duration_positive: "Duration must be a positive number"
     file_size_positive: "File size must be a positive number"
     file_path_required: "File path is required"
     isbn_format: "Invalid ISBN format"
     audiobook_id_required: "Audiobook ID is required"
     user_profile_id_required: "User profile ID is required"
+    organization_id_required: "Organization ID is required"
     user_audiobook_type_invalid: "User-audiobook type must be one of: OWNED, UPLOADED, PURCHASED"
     no_update_fields: "At least one field must be provided for update"
+    min_subscription_tier_invalid: "minSubscriptionTier must be a non-negative integer or null"
 
     # User authentication validation
     email_required: "Email is required"
@@ -125,6 +187,9 @@ errors:
     invalid_current_password: "Current password is incorrect"
     already_authenticated: "Already authenticated"
 
+  user:
+    profile_not_found: "User profile not found"
+
   forbidden:
     default: "Access forbidden"
     insufficient_permissions: "Insufficient permissions"
@@ -132,6 +197,8 @@ errors:
     rate_limit_exceeded: "Too many authentication attempts"
     csrf_token_invalid: "Invalid CSRF token"
     audiobook_access: "You don't have access to this audiobook"
+    subscription_required: "This audiobook requires an active subscription"
+    subscription_tier_too_low: "Your current subscription plan does not include access to this audiobook"
 
   auth:
     create_user_failed: "Failed to create user account"
@@ -142,6 +209,7 @@ errors:
     change_password_failed: "Failed to change password"
     delete_user_failed: "Failed to delete user account"
     fetch_users_failed: "Failed to fetch users"
+    unauthorized: "Unauthorized - authentication required"
 
   genres:
     not_found: "Genre not found"
@@ -154,6 +222,52 @@ errors:
   tags:
     not_found: "Tag not found"
     fetch_failed: "Failed to fetch tags"
+
+  subscription_plans:
+    not_found: "Subscription plan not found"
+    name_exists: "Subscription plan with this name already exists"
+    price_invalid: "Subscription plan price must be a non-negative number"
+    tier_invalid: "Subscription plan tier must be a non-negative integer"
+    inactive: "Subscription plan is inactive"
+    fetch_failed: "Failed to fetch subscription plans"
+    create_failed: "Failed to create subscription plan"
+    update_failed: "Failed to update subscription plan"
+    delete_failed: "Failed to delete subscription plan"
+
+  user_subscriptions:
+    not_found: "User subscription not found"
+    already_subscribed: "User already has an active subscription"
+    already_canceled: "Subscription has already been canceled"
+    lifetime_no_renew: "Lifetime subscriptions cannot be renewed"
+    cannot_renew_canceled: "Cannot renew a canceled subscription"
+    fetch_failed: "Failed to fetch user subscriptions"
+    create_failed: "Failed to create user subscription"
+    update_failed: "Failed to update user subscription"
+    cancel_failed: "Failed to cancel user subscription"
+    renew_failed: "Failed to renew user subscription"
+    delete_failed: "Failed to delete user subscription"
+
+  organizations:
+    not_found: "Organization not found"
+    member_not_found: "Organization member not found"
+    fetch_failed: "Failed to fetch organizations"
+    fetch_members_failed: "Failed to fetch organization members"
+    create_failed: "Failed to create organization"
+    update_failed: "Failed to update organization"
+    delete_failed: "Failed to delete organization"
+    add_member_failed: "Failed to add organization member"
+    update_member_failed: "Failed to update organization member"
+    remove_member_failed: "Failed to remove organization member"
+    slug_exists: "An organization with this slug already exists"
+    slug_invalid: "Invalid organization slug"
+    name_required: "Organization name is required"
+    name_too_long: "Organization name must be less than 100 characters"
+    role_invalid: "Role must be one of: OWNER, ADMIN, MEMBER"
+    member_exists: "User is already a member of this organization"
+    last_owner: "Cannot demote or remove the last owner of the organization"
+    access_denied: "You do not have access to this organization"
+    admin_required: "Organization admin access required"
+    owner_required: "Organization owner access required"
 
   internal:
     default: "Internal server error"

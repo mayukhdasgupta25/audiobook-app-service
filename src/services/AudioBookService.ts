@@ -2,11 +2,19 @@
  * AudioBook Service Layer
  * Handles business logic and database operations following OOP principles
  */
-import { PrismaClient, Prisma } from '@prisma/client';
-import { AudioBookDto, CreateAudioBookDto, UpdateAudioBookDto, AudioBookQueryParams, toAudioBookDto } from '../models/AudioBookDto';
+import { PrismaClient, Prisma, SubscriptionStatus } from '@prisma/client';
+import {
+  AudioBookDto,
+  AudiobookSubscriptionAccessDto,
+  CreateAudioBookDto,
+  UpdateAudioBookDto,
+  AudioBookQueryParams,
+  toAudioBookDto
+} from '../models/AudioBookDto';
 import { ApiError } from '../types/ApiError';
 import { MessageHandler } from '../utils/MessageHandler';
 import { BackgroundJobService } from './BackgroundJobService';
+import { HttpStatusCode, ErrorType } from '../types/common';
 
 export class AudioBookService {
   private prisma: PrismaClient;
@@ -25,52 +33,22 @@ export class AudioBookService {
     totalCount: number;
   }> {
     try {
+      const where = this.buildWhereClause(params);
+
       const {
         page = 1,
         limit = 10,
         sortBy = 'createdAt',
         sortOrder = 'desc',
-        genreId,
-        language,
-        author,
-        narrator,
-        isActive,
-        isPublic,
-        search,
-        active,
-        scheduled
       } = params;
-
-      // Build where clause for filtering
-      const where: Prisma.AudioBookWhereInput = {
-        ...(isActive !== undefined && { isActive }),
-        ...(isPublic !== undefined && { isPublic }),
-        ...(genreId && { genreId }),
-        ...(language && { language: { contains: language, mode: 'insensitive' } }),
-        ...(author && { author: { contains: author, mode: 'insensitive' } }),
-        ...(narrator && { narrator: { contains: narrator, mode: 'insensitive' } }),
-        // Handle active and scheduled query params (mutually exclusive)
-        ...(active === true && { isActive: true }),
-        ...(scheduled === true && { isActive: false }),
-        ...(search && {
-          OR: [
-            { title: { contains: search, mode: 'insensitive' } },
-            { author: { contains: search, mode: 'insensitive' } },
-            { narrator: { contains: search, mode: 'insensitive' } },
-            { description: { contains: search, mode: 'insensitive' } }
-          ]
-        })
-      };
 
       // Build orderBy clause
       const orderBy: Prisma.AudioBookOrderByWithRelationInput = {
         [sortBy]: sortOrder
       };
 
-      // Calculate skip value for pagination
       const skip = (page - 1) * limit;
 
-      // Execute queries in parallel for better performance
       const [audiobooks, totalCount] = await Promise.all([
         this.prisma.audioBook.findMany({
           where,
@@ -83,7 +61,12 @@ export class AudioBookService {
                 tag: true
               }
             },
-            genre: true
+            organization: true,
+            audioBookGenres: {
+              include: {
+                genre: true,
+              }
+            }
           }
         }),
         this.prisma.audioBook.count({ where })
@@ -106,52 +89,22 @@ export class AudioBookService {
     totalCount: number;
   }> {
     try {
+      const where = this.buildWhereClause(params);
+
       const {
         page = 1,
         limit = 10,
         sortBy = 'createdAt',
         sortOrder = 'desc',
-        genreId,
-        language,
-        author,
-        narrator,
-        isActive,
-        isPublic,
-        search,
-        active,
-        scheduled
       } = params;
-
-      // Build where clause for filtering
-      const where: Prisma.AudioBookWhereInput = {
-        ...(isActive !== undefined && { isActive }),
-        ...(isPublic !== undefined && { isPublic }),
-        ...(genreId && { genreId }),
-        ...(language && { language: { contains: language, mode: 'insensitive' } }),
-        ...(author && { author: { contains: author, mode: 'insensitive' } }),
-        ...(narrator && { narrator: { contains: narrator, mode: 'insensitive' } }),
-        // Handle active and scheduled query params (mutually exclusive)
-        ...(active === true && { isActive: true }),
-        ...(scheduled === true && { isActive: false }),
-        ...(search && {
-          OR: [
-            { title: { contains: search, mode: 'insensitive' } },
-            { author: { contains: search, mode: 'insensitive' } },
-            { narrator: { contains: search, mode: 'insensitive' } },
-            { description: { contains: search, mode: 'insensitive' } }
-          ]
-        })
-      };
 
       // Build orderBy clause
       const orderBy: Prisma.AudioBookOrderByWithRelationInput = {
         [sortBy]: sortOrder
       };
 
-      // Calculate skip value for pagination
       const skip = (page - 1) * limit;
 
-      // Execute queries in parallel for better performance
       const [audiobooks, totalCount] = await Promise.all([
         this.prisma.audioBook.findMany({
           where,
@@ -169,7 +122,12 @@ export class AudioBookService {
                 tag: true
               }
             },
-            genre: true
+            organization: true,
+            audioBookGenres: {
+              include: {
+                genre: true,
+              }
+            }
           }
         }),
         this.prisma.audioBook.count({ where })
@@ -188,6 +146,57 @@ export class AudioBookService {
   }
 
   /**
+   * Build the Prisma where clause for audiobook list queries. Centralised
+   * so list/list-with-counts/tags/etc. all stay in sync.
+   *
+   * `organizationIds` (plural) optionally restricts results to those orgs
+   * (e.g. internal tooling); `organizationId` (singular) filters to a single
+   * org and takes precedence when both are provided. Listing is not gated on
+   * the caller being a member of those organizations.
+   */
+  private buildWhereClause(params: AudioBookQueryParams): Prisma.AudioBookWhereInput {
+    const {
+      genreIds,
+      organizationId,
+      organizationIds,
+      language,
+      author,
+      narrator,
+      isActive,
+      isPublic,
+      search,
+      active,
+      scheduled,
+    } = params;
+
+    const where: Prisma.AudioBookWhereInput = {
+      ...(isActive !== undefined && { isActive }),
+      ...(isPublic !== undefined && { isPublic }),
+      ...(genreIds && genreIds.length > 0 && { genreId: { in: genreIds } }),
+      ...(organizationId
+        ? { organizationId }
+        : organizationIds && organizationIds.length > 0
+          ? { organizationId: { in: organizationIds } }
+          : {}),
+      ...(language && { language: { contains: language, mode: 'insensitive' } }),
+      ...(author && { author: { contains: author, mode: 'insensitive' } }),
+      ...(narrator && { narrator: { contains: narrator, mode: 'insensitive' } }),
+      ...(active === true && { isActive: true }),
+      ...(scheduled === true && { isActive: false }),
+      ...(search && {
+        OR: [
+          { title: { contains: search, mode: 'insensitive' } },
+          { author: { contains: search, mode: 'insensitive' } },
+          { narrator: { contains: search, mode: 'insensitive' } },
+          { description: { contains: search, mode: 'insensitive' } }
+        ]
+      })
+    };
+
+    return where;
+  }
+
+  /**
    * Get audiobook by ID
    */
   async getAudioBookById(id: string): Promise<AudioBookDto> {
@@ -200,7 +209,12 @@ export class AudioBookService {
               tag: true
             }
           },
-          genre: true
+          organization: true,
+          audioBookGenres: {
+            include: {
+              genre: true,
+            }
+          }
         }
       });
 
@@ -233,7 +247,12 @@ export class AudioBookService {
               tag: true
             }
           },
-          genre: true
+          organization: true,
+          audioBookGenres: {
+            include: {
+              genre: true,
+            }
+          }
         }
       });
 
@@ -256,19 +275,19 @@ export class AudioBookService {
   /**
    * Create a new audiobook
    */
-  async createAudioBook(data: CreateAudioBookDto & { tagIds?: string[] }): Promise<AudioBookDto> {
+  async createAudioBook(data: CreateAudioBookDto & { tagIds?: string[]; genreIds?: string[] }): Promise<AudioBookDto> {
     try {
-      // Extract tagIds from data before validation
-      const { tagIds, ...audiobookData } = data;
+      // Extract tagIds and genreIds from data before validation
+      const { tagIds, genreIds, ...audiobookData } = data;
 
       // Validate required fields
-      this.validateCreateData(audiobookData);
+      this.validateCreateData(audiobookData, genreIds);
 
       // Construct data object, only including defined values for optional fields
       const createData: any = {
         title: audiobookData.title,
         author: audiobookData.author,
-        genreId: audiobookData.genreId, // Required
+        organizationId: audiobookData.organizationId, // Required
         language: audiobookData.language || 'bn', // Default language is now Bengali
         isPublic: audiobookData.isPublic ?? true,
       };
@@ -290,10 +309,29 @@ export class AudioBookService {
       if (audiobookData.publisher !== undefined) createData.publisher = audiobookData.publisher;
       if (audiobookData.publishDate !== undefined) createData.publishDate = audiobookData.publishDate;
       if (audiobookData.isbn !== undefined) createData.isbn = audiobookData.isbn;
+      if (audiobookData.minSubscriptionTier !== undefined) {
+        this.validateMinSubscriptionTier(audiobookData.minSubscriptionTier);
+        createData.minSubscriptionTier = audiobookData.minSubscriptionTier;
+      }
 
       const audiobook = await this.prisma.audioBook.create({
         data: createData
       });
+
+      // Create AudioBookGenre records if genreIds are provided
+      // Ensure genreIds is an array before using map
+      if (genreIds && Array.isArray(genreIds) && genreIds.length > 0) {
+        await Promise.all(
+          genreIds.map(genreId =>
+            this.prisma.audioBookGenre.create({
+              data: {
+                audiobookId: audiobook.id,
+                genreId: genreId
+              }
+            })
+          )
+        );
+      }
 
       // Create AudioBookTag records if tagIds are provided
       // Ensure tagIds is an array before using map
@@ -319,7 +357,12 @@ export class AudioBookService {
               tag: true
             }
           },
-          genre: true
+          organization: true,
+          audioBookGenres: {
+            include: {
+              genre: true,
+            }
+          }
         }
       });
 
@@ -355,7 +398,7 @@ export class AudioBookService {
   /**
    * Update an existing audiobook
    */
-  async updateAudioBook(id: string, data: UpdateAudioBookDto, tagIds?: string[]): Promise<AudioBookDto> {
+  async updateAudioBook(id: string, data: UpdateAudioBookDto, tagIds?: string[], genreIds?: string[]): Promise<AudioBookDto> {
     try {
       // Check if audiobook exists
       const existingAudioBook = await this.prisma.audioBook.findUnique({
@@ -376,6 +419,10 @@ export class AudioBookService {
       if (data.scheduledAt !== undefined) {
         updateData.isActive = false;
       }
+      if (data.minSubscriptionTier !== undefined) {
+        this.validateMinSubscriptionTier(data.minSubscriptionTier);
+        updateData.minSubscriptionTier = data.minSubscriptionTier;
+      }
 
       // updateData.duration = parseInt(updateData.duration);
       // updateData.fileSize = BigInt(updateData.fileSize);
@@ -384,6 +431,28 @@ export class AudioBookService {
         where: { id },
         data: updateData
       });
+
+      // Update AudioBookGenre records if genreIds are provided
+      if (genreIds !== undefined) {
+        // Delete existing genres
+        await this.prisma.audioBookGenre.deleteMany({
+          where: { audiobookId: id }
+        });
+
+        // Create new genres if genreIds array is not empty
+        if (genreIds.length > 0) {
+          await Promise.all(
+            genreIds.map(genreId =>
+              this.prisma.audioBookGenre.create({
+                data: {
+                  audiobookId: id,
+                  genreId: genreId
+                }
+              })
+            )
+          );
+        }
+      }
 
       // Update AudioBookTag records if tagIds are provided
       if (tagIds !== undefined) {
@@ -426,7 +495,12 @@ export class AudioBookService {
               tag: true
             }
           },
-          genre: true
+          organization: true,
+          audioBookGenres: {
+            include: {
+              genre: true,
+            }
+          }
         }
       });
 
@@ -474,18 +548,41 @@ export class AudioBookService {
   }
 
   /**
-   * Update audiobook overall progress
+   * Update user-audiobook progress
    */
-  async updateAudiobookProgress(id: string, progress: number): Promise<AudioBookDto> {
+  async updateAudiobookProgress(id: string, userProfileId: string, progress: number): Promise<AudioBookDto> {
     try {
       // Validate progress value
       if (progress < 0 || progress > 100) {
         throw ApiError.validationError('Progress must be between 0 and 100');
       }
 
-      const audiobook = await this.prisma.audioBook.update({
-        where: { id },
-        data: { overallProgress: progress }
+      // Verify audiobook exists
+      const audiobook = await this.prisma.audioBook.findUnique({
+        where: { id }
+      });
+
+      if (!audiobook) {
+        throw ApiError.notFound(MessageHandler.getErrorMessage('not_found.audiobook'));
+      }
+
+      // Update user-audiobook progress
+      await this.prisma.userAudioBook.upsert({
+        where: {
+          userProfileId_audiobookId: {
+            userProfileId,
+            audiobookId: id
+          }
+        },
+        update: {
+          progress: progress
+        },
+        create: {
+          userProfileId,
+          audiobookId: id,
+          type: 'OWNED', // Default type, can be updated later if needed
+          progress: progress
+        }
       });
 
       return toAudioBookDto(audiobook);
@@ -536,54 +633,26 @@ export class AudioBookService {
         limit = 10,
         sortBy = 'createdAt',
         sortOrder = 'desc',
-        genreId,
-        language,
-        author,
-        narrator,
-        isActive,
-        isPublic,
-        search
       } = params;
 
-      // Build where clause for filtering
       const where: Prisma.AudioBookWhereInput = {
-        ...(isActive !== undefined && { isActive }),
-        ...(isPublic !== undefined && { isPublic }),
-        ...(genreId && { genreId }),
-        ...(language && { language: { contains: language, mode: 'insensitive' } }),
-        ...(author && { author: { contains: author, mode: 'insensitive' } }),
-        ...(narrator && { narrator: { contains: narrator, mode: 'insensitive' } }),
-        ...(search && {
-          OR: [
-            { title: { contains: search, mode: 'insensitive' } },
-            { author: { contains: search, mode: 'insensitive' } },
-            { narrator: { contains: search, mode: 'insensitive' } },
-            { description: { contains: search, mode: 'insensitive' } }
-          ]
-        }),
-        // Filter by tags - audiobooks that have ANY of the specified tags
+        ...this.buildWhereClause(params),
         audiobookTags: {
           some: {
             tag: {
-              name: {
-                in: tags
-              }
+              name: { in: tags }
             }
           }
         }
       };
-
-      console.log(tags)
 
       // Build orderBy clause
       const orderBy: Prisma.AudioBookOrderByWithRelationInput = {
         [sortBy]: sortOrder
       };
 
-      // Calculate skip value for pagination
       const skip = (page - 1) * limit;
 
-      // Execute queries in parallel for better performance
       const [audiobooks, totalCount] = await Promise.all([
         this.prisma.audioBook.findMany({
           where,
@@ -596,7 +665,12 @@ export class AudioBookService {
                 tag: true
               }
             },
-            genre: true
+            organization: true,
+            audioBookGenres: {
+              include: {
+                genre: true,
+              }
+            }
           }
         }),
         this.prisma.audioBook.count({ where })
@@ -652,7 +726,7 @@ export class AudioBookService {
   /**
    * Validate create audiobook data
    */
-  private validateCreateData(data: CreateAudioBookDto): void {
+  private validateCreateData(data: Omit<CreateAudioBookDto, 'genreIds'>, genreIds?: string[]): void {
     if (!data.title || data.title.trim().length === 0) {
       throw ApiError.validationError(MessageHandler.getErrorMessage('validation.title_required'));
     }
@@ -661,9 +735,29 @@ export class AudioBookService {
       throw ApiError.validationError(MessageHandler.getErrorMessage('validation.author_required'));
     }
 
-    // Genre is now mandatory
-    if (!data.genreId || data.genreId.trim().length === 0) {
-      throw ApiError.validationError(MessageHandler.getErrorMessage('validation.genre_required') || 'Genre is required');
+    // At least one genre is mandatory
+    if (!genreIds || !Array.isArray(genreIds) || genreIds.length === 0) {
+      throw ApiError.validationError(MessageHandler.getErrorMessage('validation.genre_required') || 'At least one genre is required');
+    }
+
+    // Validate that all genreIds are non-empty strings
+    const invalidGenreIds = genreIds.filter(id => !id || typeof id !== 'string' || id.trim().length === 0);
+    if (invalidGenreIds.length > 0) {
+      throw ApiError.validationError(MessageHandler.getErrorMessage('validation.genre_required') || 'All genre IDs must be valid');
+    }
+
+    // Organization is mandatory - every audiobook belongs to an organization
+    if (!data.organizationId || data.organizationId.trim().length === 0) {
+      throw ApiError.validationError(
+        MessageHandler.getErrorMessage('validation.organization_id_required') || 'Organization is required'
+      );
+    }
+
+    // Organization is mandatory - every audiobook belongs to an organization
+    if (!data.organizationId || data.organizationId.trim().length === 0) {
+      throw ApiError.validationError(
+        MessageHandler.getErrorMessage('validation.organization_id_required') || 'Organization is required'
+      );
     }
 
     // Validate ISBN format if provided
@@ -687,5 +781,126 @@ export class AudioBookService {
     }
 
     return false;
+  }
+
+  /**
+   * Validate a `minSubscriptionTier` value. Null is allowed (means "no
+   * subscription gating"); any other value must be a non-negative integer.
+   */
+  private validateMinSubscriptionTier(value: number | null | undefined): void {
+    if (value === null || value === undefined) return;
+    if (!Number.isInteger(value) || value < 0) {
+      throw ApiError.validationError(
+        MessageHandler.getErrorMessage('validation.min_subscription_tier_invalid')
+      );
+    }
+  }
+
+  /**
+   * Find the highest active subscription tier for a user.
+   * Only ACTIVE and TRIALING subscriptions count toward access. PAST_DUE is
+   * intentionally excluded for content gating: the user has not paid for the
+   * current period, so access to gated content is revoked until renewal.
+   *
+   * Returns the highest `tierLevel` among the user's qualifying subscriptions,
+   * or `null` if the user has no qualifying subscription.
+   */
+  async getUserHighestActiveTier(userProfileId: string): Promise<number | null> {
+    const subs = await this.prisma.userSubscription.findMany({
+      where: {
+        userProfileId,
+        status: { in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.TRIALING] }
+      },
+      include: { plan: true }
+    });
+
+    if (subs.length === 0) {
+      return null;
+    }
+
+    let highest: number | null = null;
+    for (const sub of subs) {
+      const tier = (sub.plan as { tierLevel?: number }).tierLevel ?? 0;
+      if (highest === null || tier > highest) {
+        highest = tier;
+      }
+    }
+    return highest;
+  }
+
+  /**
+   * Evaluate subscription-tier access for an audiobook without failing the request.
+   * Returns `canAccess: true` when no tier is required or the user qualifies;
+   * otherwise returns the same user-facing messages previously sent as 403 errors.
+   */
+  async getSubscriptionAccessForAudiobook(
+    _audiobookId: string,
+    minSubscriptionTier: number | null | undefined,
+    userProfileId: string | null
+  ): Promise<AudiobookSubscriptionAccessDto> {
+    const requiredTier = minSubscriptionTier ?? null;
+    if (requiredTier === null) {
+      return { canAccess: true };
+    }
+
+    if (!userProfileId) {
+      return {
+        canAccess: false,
+        message: MessageHandler.getErrorMessage('forbidden.subscription_required'),
+        requiredTier,
+        userTier: null
+      };
+    }
+
+    const userTier = await this.getUserHighestActiveTier(userProfileId);
+    if (userTier === null) {
+      return {
+        canAccess: false,
+        message: MessageHandler.getErrorMessage('forbidden.subscription_required'),
+        requiredTier,
+        userTier: null
+      };
+    }
+
+    if (userTier < requiredTier) {
+      return {
+        canAccess: false,
+        message: MessageHandler.getErrorMessage('forbidden.subscription_tier_too_low'),
+        requiredTier,
+        userTier
+      };
+    }
+
+    return { canAccess: true, requiredTier, userTier };
+  }
+
+  /**
+   * @deprecated Use {@link getSubscriptionAccessForAudiobook} for API responses.
+   * Throws only when the audiobook does not exist (for scripts/tests that enforce access).
+   */
+  async assertUserCanAccessBySubscription(
+    audiobookId: string,
+    userProfileId: string | null
+  ): Promise<void> {
+    const audiobook = await this.prisma.audioBook.findUnique({
+      where: { id: audiobookId },
+      select: { id: true, minSubscriptionTier: true }
+    });
+    if (!audiobook) {
+      throw ApiError.notFound(MessageHandler.getErrorMessage('not_found.audiobook'));
+    }
+
+    const access = await this.getSubscriptionAccessForAudiobook(
+      audiobookId,
+      (audiobook as { minSubscriptionTier?: number | null }).minSubscriptionTier,
+      userProfileId
+    );
+    if (!access.canAccess) {
+      throw new ApiError(
+        access.message ?? MessageHandler.getErrorMessage('forbidden.subscription_required'),
+        HttpStatusCode.FORBIDDEN,
+        ErrorType.FORBIDDEN
+      );
+    }
   }
 }

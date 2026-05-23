@@ -28,13 +28,12 @@ async function main() {
 
    console.log('✅ Created test user profile:', userProfile.username);
 
-   // Create Tags first
+   // Create Tags (standalone, not associated with any user)
    const trendingTag = await prisma.tag.upsert({
       where: { name: 'Trending' },
       update: {},
       create: {
-         name: 'Trending',
-         type: 'TRENDING'
+         name: 'Trending'
       }
    });
 
@@ -42,8 +41,7 @@ async function main() {
       where: { name: 'New Releases' },
       update: {},
       create: {
-         name: 'New Releases',
-         type: 'NEW_RELEASES'
+         name: 'New Releases'
       }
    });
 
@@ -652,23 +650,44 @@ async function main() {
       genreMap.set(genre.name, genre.id);
    });
 
-   const createdAudiobooks: Array<{ audiobook: any; tags: string[] }> = [];
+   const createdAudiobooks: Array<{ audiobook: any; tags: string[]; genreIds: string[] }> = [];
    for (const bookData of audiobookData) {
       const { tags, genre, ...bookInfo } = bookData;
 
-      // Map genre string to genreId
+      // Map genre string to genreId (support single genre for now, can be extended to multiple)
       const genreId = genre ? genreMap.get(genre) : null;
+      const genreIds = genreId ? [genreId] : [];
 
       const audiobook = await prisma.audioBook.upsert({
          where: { id: bookData.id },
          update: {},
          create: {
-            ...bookInfo,
-            genreId
+            ...bookInfo
          }
       });
 
-      createdAudiobooks.push({ audiobook, tags });
+      // Create AudioBookGenre records if genreIds exist
+      if (genreIds.length > 0) {
+         await Promise.all(
+            genreIds.map(genreId =>
+               prisma.audioBookGenre.upsert({
+                  where: {
+                     audiobookId_genreId: {
+                        audiobookId: audiobook.id,
+                        genreId: genreId
+                     }
+                  },
+                  update: {},
+                  create: {
+                     audiobookId: audiobook.id,
+                     genreId: genreId
+                  }
+               })
+            )
+         );
+      }
+
+      createdAudiobooks.push({ audiobook, tags, genreIds });
    }
 
    console.log('✅ Created 30 audiobooks');

@@ -25,8 +25,7 @@ app.use(helmet());
 
 // CORS configuration - allow multiple client origins
 const allowedOrigins = [
-   ...config.CLIENT_URLS,
-   ...(process.env['CLIENT_URL'] ? [process.env['CLIENT_URL']] : [])
+   ...config.CLIENT_URLS
 ];
 
 app.use(cors({

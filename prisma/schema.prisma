@@ -27,15 +27,17 @@ model UserProfile {
   updatedAt DateTime @updatedAt
 
   // Relations
-  audiobooks       UserAudioBook[]
-  playlists        Playlist[]
-  reviews          Review[]
-  favorites        Favorite[]
-  listeningHistory ListeningHistory[]
-  chapterProgress  ChapterProgress[]
-  bookmarks        Bookmark[]
-  notes            Note[]
-  offlineDownloads OfflineDownload[]
+  audiobooks          UserAudioBook[]
+  playlists           Playlist[]
+  reviews             Review[]
+  favorites           Favorite[]
+  listeningHistory    ListeningHistory[]
+  chapterProgress     ChapterProgress[]
+  bookmarks           Bookmark[]
+  notes               Note[]
+  offlineDownloads    OfflineDownload[]
+  organizationMembers OrganizationMember[]
+  subscriptions       UserSubscription[]
 
   @@map("user_profiles")
 }
@@ -54,21 +56,25 @@ model AudioBook {
   coverImage String? // URL to cover image
 
   // Metadata
-  genreId     String
-  language    String    @default("bn")
-  publisher   String?
-  publishDate DateTime?
-  isbn        String?   @unique
+  genreId        String
+  organizationId String
+  language       String    @default("bn")
+  publisher      String?
+  publishDate    DateTime?
+  isbn           String?   @unique
 
   // Status
   isActive Boolean @default(true)
   isPublic Boolean @default(true)
 
+  // Subscription gating: minimum subscription tier required to access this
+  // audiobook. `null` means no subscription tier is required. The value is
+  // compared against `SubscriptionPlan.tierLevel`; a user's active subscription
+  // must have `tierLevel >= minSubscriptionTier` to be granted access.
+  minSubscriptionTier Int?
+
   // Offline availability
   isOfflineAvailable Boolean @default(false)
-
-  // Calculated progress (updated by background job)
-  overallProgress Float @default(0.0) // Percentage (0-100)
 
   // Timestamps
   createdAt   DateTime  @default(now())
@@ -76,7 +82,7 @@ model AudioBook {
   scheduledAt DateTime? // Optional scheduled date/time
 
   // Relations
-  genre            Genre              @relation(fields: [genreId], references: [id])
+  organization     Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   userAudioBooks   UserAudioBook[]
   reviews          Review[]
   favorites        Favorite[]
@@ -87,7 +93,9 @@ model AudioBook {
   notes            Note[]
   offlineDownloads OfflineDownload[]
   audiobookTags    AudioBookTag[]
+  audioBookGenres  AudioBookGenre[]
 
+  @@index([organizationId])
   @@map("audiobooks")
 }
 
@@ -101,9 +109,42 @@ model Genre {
   updatedAt DateTime @updatedAt
 
   // Relations
-  audiobooks AudioBook[]
+  audioBookGenres AudioBookGenre[]
 
   @@map("genres")
+}
+
+// Author model for storing author information
+model Author {
+  id        String  @id @default(cuid())
+  firstName String
+  lastName  String
+  email     String? @unique
+  address   String?
+  contact   String?
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("authors")
+}
+
+// Junction table for many-to-many relationship between AudioBook and Genre
+model AudioBookGenre {
+  id          String @id @default(cuid())
+  audiobookId String
+  genreId     String
+
+  // Timestamps
+  createdAt DateTime @default(now())
+
+  // Relations
+  audiobook AudioBook @relation(fields: [audiobookId], references: [id], onDelete: Cascade)
+  genre     Genre     @relation(fields: [genreId], references: [id], onDelete: Cascade)
+
+  @@unique([audiobookId, genreId])
+  @@map("audiobook_genres")
 }
 
 // Junction table for user-audiobook relationships (ownership, uploads, etc.)
@@ -114,6 +155,9 @@ model UserAudioBook {
 
   // Relationship type
   type UserAudioBookType @default(OWNED) // OWNED, UPLOADED, PURCHASED
+
+  // User-specific progress (updated by background job)
+  progress Float @default(0.0) // Percentage (0-100)
 
   // Timestamps
   createdAt DateTime @default(now())
@@ -215,6 +259,11 @@ model Chapter {
   filePath      String // Path to chapter audio file
   fileSize      BigInt // File size in bytes
   coverImage    String // URL to chapter cover image (required)
+
+  // Chapter thumbnail images for different display contexts
+  chapterCardCoverImage      String? // URL to chapter card cover image (240×360px, 2:3 aspect ratio)
+  maximizedChapterCoverImage String? // URL to maximized player cover image (600×600px, 1:1 aspect ratio)
+  minimizedChapterCoverImage String? // URL to minimized player cover image (150×150px, 1:1 aspect ratio)
 
   // Chapter start/end positions in main audiobook file
   startPosition Int // Start position in seconds within main audiobook
@@ -364,9 +413,8 @@ model ListeningHistory {
 
 // Tags model for categorizing audiobooks
 model Tag {
-  id   String  @id @default(cuid())
-  name String  @unique
-  type TagType
+  id   String @id @default(cuid())
+  name String @unique
 
   // Timestamps
   createdAt DateTime @default(now())
@@ -395,11 +443,148 @@ model AudioBookTag {
   @@map("audiobook_tags")
 }
 
+// Organization model — the publisher / company that provides audiobooks to
+// listeners. Catalog access is not tied to organization membership; staff
+// roles are modeled on `OrganizationMember`.
+model Organization {
+  id          String  @id @default(cuid())
+  name        String
+  slug        String  @unique
+  description String?
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  audiobooks AudioBook[]
+  members    OrganizationMember[]
+
+  @@map("organizations")
+}
+
+// Staff who administer an organization (many-to-many with role). Distinct
+// from end-user listeners, who do not need membership to browse or play
+// that organization's catalog.
+model OrganizationMember {
+  id             String           @id @default(cuid())
+  userProfileId  String
+  organizationId String
+  role           OrganizationRole @default(MEMBER)
+
+  // Timestamps
+  joinedAt  DateTime @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  userProfile  UserProfile  @relation(fields: [userProfileId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([userProfileId, organizationId])
+  @@index([organizationId])
+  @@map("organization_members")
+}
+
+// Subscription plan model defining the pricing tiers offered by the service
+model SubscriptionPlan {
+  id          String  @id @default(cuid())
+  name        String  @unique
+  description String?
+
+  // Pricing
+  price    Decimal @db.Decimal(10, 2)
+  currency String  @default("USD") // ISO 4217 currency code
+
+  // Hierarchical tier used for subscription-gated content. Higher = more access.
+  // Plans with `tierLevel >= AudioBook.minSubscriptionTier` grant access to a
+  // gated audiobook. Conventionally: 1 = Base, 2 = Standard, 3 = Premium.
+  tierLevel Int @default(0)
+
+  // Billing
+  billingInterval BillingInterval @default(MONTHLY)
+  trialDays       Int             @default(0)
+
+  // Feature flags / limits stored as JSON for flexibility
+  features Json?
+
+  // Status
+  isActive Boolean @default(true)
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  subscriptions UserSubscription[]
+
+  @@map("subscription_plans")
+}
+
+// User subscription model tracking each user's subscription lifecycle
+model UserSubscription {
+  id            String @id @default(cuid())
+  userProfileId String
+  planId        String
+
+  // Lifecycle
+  status             SubscriptionStatus @default(PENDING)
+  startDate          DateTime           @default(now())
+  endDate            DateTime?
+  currentPeriodStart DateTime           @default(now())
+  currentPeriodEnd   DateTime
+  trialEndsAt        DateTime?
+
+  // Cancellation
+  cancelAtPeriodEnd Boolean   @default(false)
+  canceledAt        DateTime?
+
+  // Renewal & payment
+  autoRenew     Boolean @default(true)
+  paymentMethod String? // e.g. STRIPE, PAYPAL, MANUAL - identifier for the payment provider
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  userProfile UserProfile      @relation(fields: [userProfileId], references: [id], onDelete: Cascade)
+  plan        SubscriptionPlan @relation(fields: [planId], references: [id])
+
+  @@index([userProfileId])
+  @@index([planId])
+  @@index([status])
+  @@map("user_subscriptions")
+}
+
 // Enums
 enum UserAudioBookType {
   OWNED
   UPLOADED
   PURCHASED
+}
+
+enum OrganizationRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+enum BillingInterval {
+  MONTHLY
+  QUARTERLY
+  YEARLY
+  LIFETIME
+}
+
+enum SubscriptionStatus {
+  PENDING
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  PAUSED
+  CANCELED
+  EXPIRED
 }
 
 enum DownloadStatus {
@@ -408,9 +593,4 @@ enum DownloadStatus {
   COMPLETED
   FAILED
   CANCELLED
-}
-
-enum TagType {
-  TRENDING
-  NEW_RELEASES
 }

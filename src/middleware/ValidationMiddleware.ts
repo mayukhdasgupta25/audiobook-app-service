@@ -274,7 +274,6 @@ export class ValidationMiddleware {
   static validateChapterCreation(req: Request, res: Response, next: NextFunction): void {
     const { audiobookId, title, chapterNumber, duration, startPosition, endPosition } = req.body;
 
-    console.log(req.body);
     // Validate required fields
     if (!audiobookId) {
       ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.audiobook_id_required'));
@@ -511,6 +510,291 @@ export class ValidationMiddleware {
 
     if (!type || !['OWNED', 'UPLOADED', 'PURCHASED'].includes(type)) {
       ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.user_audiobook_type_invalid'));
+      return;
+    }
+
+    next();
+  }
+
+  /**
+   * Validate tag creation request
+   */
+  static validateCreateTag(req: Request, res: Response, next: NextFunction): void {
+    const { name } = req.body;
+
+    // Validate required fields
+    if (!name || typeof name !== 'string') {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.tag_name_required'));
+      return;
+    }
+
+    // Validate name is not empty after trimming
+    const trimmedName = name.trim();
+    if (trimmedName.length === 0) {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.tag_name_empty'));
+      return;
+    }
+
+    // Validate name length (max 100 characters)
+    const maxLength = 100;
+    if (trimmedName.length > maxLength) {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.tag_name_too_long', { maxLength }));
+      return;
+    }
+
+    // Sanitize name by trimming
+    req.body.name = trimmedName;
+
+    next();
+  }
+
+  /**
+   * Validate tag update request
+   */
+  static validateUpdateTag(req: Request, res: Response, next: NextFunction): void {
+    const { name } = req.body;
+
+    // Name is optional for update, but if provided must be valid
+    if (name !== undefined) {
+      if (typeof name !== 'string') {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.tag_name_invalid'));
+        return;
+      }
+
+      // Validate name is not empty after trimming
+      const trimmedName = name.trim();
+      if (trimmedName.length === 0) {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.tag_name_empty'));
+        return;
+      }
+
+      // Validate name length (max 100 characters)
+      const maxLength = 100;
+      if (trimmedName.length > maxLength) {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.tag_name_too_long', { maxLength }));
+        return;
+      }
+
+      // Sanitize name by trimming
+      req.body.name = trimmedName;
+    } else {
+      // Must have at least one field to update
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.no_update_fields'));
+      return;
+    }
+
+    next();
+  }
+
+  /**
+   * Validate author creation request
+   */
+  static validateCreateAuthor(req: Request, res: Response, next: NextFunction): void {
+    const { firstName, lastName, email, address, contact } = req.body;
+
+    // Validate required fields
+    if (!firstName || typeof firstName !== 'string') {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.author_first_name_required'));
+      return;
+    }
+
+    const trimmedFirstName = firstName.trim();
+    if (trimmedFirstName.length === 0) {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.author_first_name_required'));
+      return;
+    }
+
+    if (trimmedFirstName.length > 100) {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.author_first_name_too_long'));
+      return;
+    }
+
+    if (!lastName || typeof lastName !== 'string') {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.author_last_name_required'));
+      return;
+    }
+
+    const trimmedLastName = lastName.trim();
+    if (trimmedLastName.length === 0) {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.author_last_name_required'));
+      return;
+    }
+
+    if (trimmedLastName.length > 100) {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.author_last_name_too_long'));
+      return;
+    }
+
+    // Validate email format if provided
+    if (email !== undefined && email !== null && email !== '') {
+      if (typeof email !== 'string') {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.email_format'));
+        return;
+      }
+
+      const trimmedEmail = email.trim();
+      if (trimmedEmail.length > 0) {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(trimmedEmail)) {
+          ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.email_format'));
+          return;
+        }
+
+        if (trimmedEmail.length > 255) {
+          ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.email_too_long'));
+          return;
+        }
+      }
+    }
+
+    // Validate address length if provided
+    if (address !== undefined && address !== null && address !== '') {
+      if (typeof address !== 'string') {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.author_address_invalid'));
+        return;
+      }
+
+      const trimmedAddress = address.trim();
+      if (trimmedAddress.length > 500) {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.author_address_too_long'));
+        return;
+      }
+    }
+
+    // Validate contact length if provided
+    if (contact !== undefined && contact !== null && contact !== '') {
+      if (typeof contact !== 'string') {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.author_contact_invalid'));
+        return;
+      }
+
+      const trimmedContact = contact.trim();
+      if (trimmedContact.length > 50) {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.author_contact_too_long'));
+        return;
+      }
+    }
+
+    // Sanitize and set trimmed values
+    req.body.firstName = trimmedFirstName;
+    req.body.lastName = trimmedLastName;
+    if (email !== undefined && email !== null && email !== '') {
+      req.body.email = email.trim();
+    }
+    if (address !== undefined && address !== null && address !== '') {
+      req.body.address = address.trim();
+    }
+    if (contact !== undefined && contact !== null && contact !== '') {
+      req.body.contact = contact.trim();
+    }
+
+    next();
+  }
+
+  /**
+   * Validate author update request
+   */
+  static validateUpdateAuthor(req: Request, res: Response, next: NextFunction): void {
+    const { firstName, lastName, email, address, contact } = req.body;
+
+    // All fields are optional for update, but if provided must be valid
+
+    if (firstName !== undefined) {
+      if (typeof firstName !== 'string') {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.author_first_name_invalid'));
+        return;
+      }
+
+      const trimmed = firstName.trim();
+      if (trimmed.length === 0) {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.author_first_name_required'));
+        return;
+      }
+
+      if (trimmed.length > 100) {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.author_first_name_too_long'));
+        return;
+      }
+
+      req.body.firstName = trimmed;
+    }
+
+    if (lastName !== undefined) {
+      if (typeof lastName !== 'string') {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.author_last_name_invalid'));
+        return;
+      }
+
+      const trimmed = lastName.trim();
+      if (trimmed.length === 0) {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.author_last_name_required'));
+        return;
+      }
+
+      if (trimmed.length > 100) {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.author_last_name_too_long'));
+        return;
+      }
+
+      req.body.lastName = trimmed;
+    }
+
+    if (email !== undefined && email !== null && email !== '') {
+      if (typeof email !== 'string') {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.email_format'));
+        return;
+      }
+
+      const trimmedEmail = email.trim();
+      if (trimmedEmail.length > 0) {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(trimmedEmail)) {
+          ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.email_format'));
+          return;
+        }
+
+        if (trimmedEmail.length > 255) {
+          ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.email_too_long'));
+          return;
+        }
+      }
+
+      req.body.email = trimmedEmail;
+    }
+
+    if (address !== undefined && address !== null && address !== '') {
+      if (typeof address !== 'string') {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.author_address_invalid'));
+        return;
+      }
+
+      const trimmedAddress = address.trim();
+      if (trimmedAddress.length > 500) {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.author_address_too_long'));
+        return;
+      }
+
+      req.body.address = trimmedAddress;
+    }
+
+    if (contact !== undefined && contact !== null && contact !== '') {
+      if (typeof contact !== 'string') {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.author_contact_invalid'));
+        return;
+      }
+
+      const trimmedContact = contact.trim();
+      if (trimmedContact.length > 50) {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.author_contact_too_long'));
+        return;
+      }
+
+      req.body.contact = trimmedContact;
+    }
+
+    // Must have at least one field to update
+    if ([firstName, lastName, email, address, contact].every(v => v === undefined)) {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.no_update_fields'));
       return;
     }
 
