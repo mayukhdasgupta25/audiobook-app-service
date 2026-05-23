@@ -16,8 +16,10 @@ export function createTagRoutes(prisma: PrismaClient): Router {
     * /api/v1/tags:
     *   get:
     *     summary: Get all available tags
-    *     description: Retrieve a list of all available tags in the system
+    *     description: Retrieve a list of all available tags in the system (requires authentication)
     *     tags: [Tags]
+    *     security:
+    *       - bearerAuth: []
     *     responses:
     *       200:
     *         description: Tags retrieved successfully
@@ -32,24 +34,8 @@ export function createTagRoutes(prisma: PrismaClient): Router {
     *                       type: array
     *                       items:
     *                         $ref: '#/components/schemas/Tag'
-    *             examples:
-    *               success:
-    *                 summary: Successful response
-    *                 value:
-    *                   success: true
-    *                   message: "Tags retrieved successfully"
-    *                   data:
-    *                     - id: "123e4567-e89b-12d3-a456-426614174000"
-    *                       name: "Trending"
-    *                       type: "TRENDING"
-    *                       createdAt: "2024-01-15T10:30:00Z"
-    *                       updatedAt: "2024-01-15T10:30:00Z"
-    *                     - id: "123e4567-e89b-12d3-a456-426614174001"
-    *                       name: "New Releases"
-    *                       type: "NEW_RELEASES"
-    *                       createdAt: "2024-01-15T10:30:00Z"
-    *                       updatedAt: "2024-01-15T10:30:00Z"
-    *                   timestamp: "2024-01-15T10:30:00Z"
+    *       401:
+    *         $ref: '#/components/responses/Unauthorized'
     *       500:
     *         $ref: '#/components/responses/InternalServerError'
     */
@@ -60,7 +46,10 @@ export function createTagRoutes(prisma: PrismaClient): Router {
     * /api/v1/tags/{id}:
     *   get:
     *     summary: Get a tag by ID
+    *     description: Retrieve a specific tag by its ID (requires authentication)
     *     tags: [Tags]
+    *     security:
+    *       - bearerAuth: []
     *     parameters:
     *       - name: id
     *         in: path
@@ -70,12 +59,126 @@ export function createTagRoutes(prisma: PrismaClient): Router {
     *     responses:
     *       200:
     *         description: Tag retrieved successfully
+    *       401:
+    *         $ref: '#/components/responses/Unauthorized'
     *       404:
     *         $ref: '#/components/responses/NotFound'
     *       500:
     *         $ref: '#/components/responses/InternalServerError'
     */
    router.get('/:id', ValidationMiddleware.validateId, tagController.getTagById);
+
+   /**
+    * @swagger
+    * /api/v1/tags:
+    *   post:
+    *     summary: Create a new tag
+    *     description: Create a new global tag (requires authentication)
+    *     tags: [Tags]
+    *     security:
+    *       - bearerAuth: []
+    *     requestBody:
+    *       required: true
+    *       content:
+    *         application/json:
+    *           schema:
+    *             type: object
+    *             required:
+    *               - name
+    *             properties:
+    *               name:
+    *                 type: string
+    *                 example: "Fiction"
+    *     responses:
+    *       201:
+    *         description: Tag created successfully
+    *       400:
+    *         $ref: '#/components/responses/BadRequest'
+    *       401:
+    *         $ref: '#/components/responses/Unauthorized'
+    *       409:
+    *         description: Tag with this name already exists
+    *       500:
+    *         $ref: '#/components/responses/InternalServerError'
+    */
+   router.post(
+      '/',
+      ValidationMiddleware.validateCreateTag,
+      tagController.createTag
+   );
+
+   /**
+    * @swagger
+    * /api/v1/tags/{id}:
+    *   put:
+    *     summary: Update a tag
+    *     description: Update an existing global tag (requires authentication)
+    *     tags: [Tags]
+    *     security:
+    *       - bearerAuth: []
+    *     parameters:
+    *       - name: id
+    *         in: path
+    *         required: true
+    *         schema:
+    *           type: string
+    *     requestBody:
+    *       required: true
+    *       content:
+    *         application/json:
+    *           schema:
+    *             type: object
+    *             properties:
+    *               name:
+    *                 type: string
+    *                 example: "Updated Tag Name"
+    *     responses:
+    *       200:
+    *         description: Tag updated successfully
+    *       400:
+    *         $ref: '#/components/responses/BadRequest'
+    *       401:
+    *         $ref: '#/components/responses/Unauthorized'
+    *       404:
+    *         $ref: '#/components/responses/NotFound'
+    *       409:
+    *         description: Tag with this name already exists
+    *       500:
+    *         $ref: '#/components/responses/InternalServerError'
+    */
+   router.put(
+      '/:id',
+      ValidationMiddleware.validateId,
+      ValidationMiddleware.validateUpdateTag,
+      tagController.updateTag
+   );
+
+   /**
+    * @swagger
+    * /api/v1/tags/{id}:
+    *   delete:
+    *     summary: Delete a tag
+    *     description: Delete an existing global tag and all associated audiobook-tag relationships (requires authentication)
+    *     tags: [Tags]
+    *     security:
+    *       - bearerAuth: []
+    *     parameters:
+    *       - name: id
+    *         in: path
+    *         required: true
+    *         schema:
+    *           type: string
+    *     responses:
+    *       200:
+    *         description: Tag deleted successfully
+    *       401:
+    *         $ref: '#/components/responses/Unauthorized'
+    *       404:
+    *         $ref: '#/components/responses/NotFound'
+    *       500:
+    *         $ref: '#/components/responses/InternalServerError'
+    */
+   router.delete('/:id', ValidationMiddleware.validateId, tagController.deleteTag);
 
    return router;
 }

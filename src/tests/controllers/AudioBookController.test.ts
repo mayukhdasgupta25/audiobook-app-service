@@ -19,6 +19,13 @@ jest.mock('../../middleware/UploadMiddleware', () => ({
    getFileUrl: jest.fn((path: string) => `https://example.com${path}`)
 }));
 
+// The controller is wrapped in `ErrorHandler.asyncHandler` which fires its
+// inner async function but returns void synchronously. To make sure all of
+// the controller's internal awaits resolve before assertions run, flush
+// pending microtasks (and a macrotask round-trip) before asserting.
+const flushPromises = (): Promise<void> =>
+   new Promise<void>((resolve) => setImmediate(resolve));
+
 describe('AudioBookController', () => {
    let audioBookController: AudioBookController;
    let mockPrisma: PrismaClient;
@@ -27,7 +34,11 @@ describe('AudioBookController', () => {
    let mockAudioBookService: jest.Mocked<AudioBookService>;
 
    beforeEach(() => {
-      mockPrisma = {} as PrismaClient;
+      mockPrisma = {
+         userProfile: {
+            findUnique: jest.fn().mockResolvedValue({ id: 'profile-1' })
+         }
+      } as unknown as PrismaClient;
       mockReq = {
          params: {},
          query: {},
@@ -35,6 +46,8 @@ describe('AudioBookController', () => {
          files: undefined,
          file: undefined,
          originalUrl: '/api/v1/audiobooks',
+         // Default the test user to a global ADMIN for flows that branch on role.
+         user: { id: 'auth-user-1', role: 'ADMIN' },
       } as any;
       mockRes = {
          status: jest.fn().mockReturnThis(),
@@ -47,6 +60,9 @@ describe('AudioBookController', () => {
 
       audioBookController = new AudioBookController(mockPrisma);
       mockAudioBookService = (audioBookController as any).audioBookService;
+      mockAudioBookService.getSubscriptionAccessForAudiobook = jest
+         .fn()
+         .mockResolvedValue({ canAccess: true }) as any;
    });
 
    describe('getAllAudioBooks', () => {
@@ -71,6 +87,7 @@ describe('AudioBookController', () => {
          (MessageHandler.getSuccessMessage as jest.Mock).mockReturnValue('Audiobooks retrieved');
 
          await audioBookController.getAllAudioBooks(mockReq, mockRes, mockReq.next);
+         await flushPromises();
 
          expect(mockAudioBookService.getAllAudioBooks).toHaveBeenCalledWith(
             expect.objectContaining({
@@ -106,6 +123,7 @@ describe('AudioBookController', () => {
          (MessageHandler.getSuccessMessage as jest.Mock).mockReturnValue('Retrieved');
 
          await audioBookController.getAllAudioBooks(mockReq, mockRes, mockReq.next);
+         await flushPromises();
 
          expect(mockAudioBookService.getAllAudioBooks).toHaveBeenCalledWith(
             expect.objectContaining({
@@ -113,7 +131,7 @@ describe('AudioBookController', () => {
                limit: 20,
                sortBy: 'title',
                sortOrder: 'asc',
-               genreId: 'genre-123',
+               genreIds: ['genre-123'],
                language: 'English',
                author: 'Test Author',
                narrator: 'Test Narrator',
@@ -135,6 +153,7 @@ describe('AudioBookController', () => {
          (MessageHandler.getSuccessMessage as jest.Mock).mockReturnValue('Retrieved');
 
          await audioBookController.getAllAudioBooks(mockReq, mockRes, mockReq.next);
+         await flushPromises();
 
          const callArgs = mockAudioBookService.getAllAudioBooks.mock.calls[0]?.[0];
          expect(callArgs?.isActive).toBe(true);
@@ -143,39 +162,68 @@ describe('AudioBookController', () => {
    });
 
    describe('getAudioBookById', () => {
-      it('should retrieve audiobook by ID', async () => {
+      it('should retrieve audiobook by ID with subscription access', async () => {
          mockReq.params.id = 'book-123';
-         const mockBook = { id: 'book-123', title: 'Test Book' };
+         const mockBook = { id: 'book-123', title: 'Test Book', minSubscriptionTier: null };
+         const subscriptionAccess = { canAccess: true };
 
          mockAudioBookService.getAudioBookById.mockResolvedValue(mockBook as any);
+         mockAudioBookService.getSubscriptionAccessForAudiobook.mockResolvedValue(
+            subscriptionAccess as any
+         );
          (MessageHandler.getSuccessMessage as jest.Mock).mockReturnValue('Retrieved');
 
          await audioBookController.getAudioBookById(mockReq, mockRes, mockReq.next);
+         await flushPromises();
 
          expect(mockAudioBookService.getAudioBookById).toHaveBeenCalledWith('book-123');
+         expect(mockAudioBookService.getSubscriptionAccessForAudiobook).toHaveBeenCalledWith(
+            'book-123',
+            null,
+            'profile-1'
+         );
          expect(ResponseHandler.success).toHaveBeenCalledWith(
             mockRes,
-            mockBook,
+            { ...mockBook, subscriptionAccess },
             'Retrieved'
          );
       });
    });
 
+   const mockCoverImageFile = {
+      path: '/uploads/covers/cover.jpg',
+      size: 102400,
+   };
+
    describe('createAudioBook', () => {
-      it('should create audiobook without file upload', async () => {
+      it('should create audiobook with cover image from upload middleware', async () => {
          mockReq.body = {
             title: 'New Book',
             author: 'Author Name',
-            genre: 'Fiction'
+            genreIds: '["genre-123"]',
+            organizationId: 'org-1'
          };
+         // Simulate UploadMiddleware result expected by the controller
+         (mockReq as any).coverImageFile = {
+            path: '/uploads/covers/cover.jpg'
+         };
+         (mockReq as any).coverImageFile = mockCoverImageFile;
 
          const mockBook = { id: 'book-new', title: 'New Book' };
          mockAudioBookService.createAudioBook.mockResolvedValue(mockBook as any);
          (MessageHandler.getSuccessMessage as jest.Mock).mockReturnValue('Created');
 
          await audioBookController.createAudioBook(mockReq, mockRes, mockReq.next);
+         await flushPromises();
 
-         expect(mockAudioBookService.createAudioBook).toHaveBeenCalledWith(mockReq.body);
+         expect(mockAudioBookService.createAudioBook).toHaveBeenCalledWith(
+            expect.objectContaining({
+               title: 'New Book',
+               author: 'Author Name',
+               genreIds: ['genre-123'],
+               coverImage: 'https://example.com/uploads/covers/cover.jpg',
+            })
+         );
          expect(ResponseHandler.success).toHaveBeenCalledWith(
             mockRes,
             mockBook,
@@ -184,25 +232,48 @@ describe('AudioBookController', () => {
          );
       });
 
+      it('should return validation error when cover image is missing', async () => {
+         mockReq.body = { title: 'Book without Cover', author: 'Author Name' };
+
+         await audioBookController.createAudioBook(mockReq, mockRes, mockReq.next);
+
+         expect(ResponseHandler.validationError).toHaveBeenCalledWith(
+            mockRes,
+            'Cover image is required'
+         );
+         expect(mockAudioBookService.createAudioBook).not.toHaveBeenCalled();
+      });
+
       it('should handle file upload for cover image', async () => {
-         mockReq.body = { title: 'Book with Cover' };
-         mockReq.files = {
-            coverImage: [{
-               fieldname: 'coverImage',
-               filename: 'cover.jpg',
-               path: '/uploads/covers/cover.jpg'
-            }]
+         mockReq.body = {
+            title: 'Book with Cover',
+            author: 'Author Name',
+            organizationId: 'org-1',
          };
+         (mockReq as any).coverImageFile = mockCoverImageFile;
 
          const mockBook = { id: 'book-new', title: 'Book with Cover' };
          mockAudioBookService.createAudioBook.mockResolvedValue(mockBook as any);
          (MessageHandler.getSuccessMessage as jest.Mock).mockReturnValue('Created');
 
          await audioBookController.createAudioBook(mockReq, mockRes, mockReq.next);
+         await flushPromises();
 
          expect(mockAudioBookService.createAudioBook).toHaveBeenCalled();
          const callArgs = mockAudioBookService.createAudioBook.mock.calls[0]?.[0];
-         expect(callArgs?.coverImage).toBeDefined();
+         expect(callArgs?.coverImage).toBe('https://example.com/uploads/covers/cover.jpg');
+      });
+
+      it('should return validation error when organizationId is missing', async () => {
+         mockReq.body = { title: 'No Org Book' };
+         (mockReq as any).coverImageFile = { path: '/uploads/covers/cover.jpg' };
+         (MessageHandler.getErrorMessage as jest.Mock).mockReturnValue('Org required');
+
+         await audioBookController.createAudioBook(mockReq, mockRes, mockReq.next);
+         await flushPromises();
+
+         expect(ResponseHandler.validationError).toHaveBeenCalledWith(mockRes, 'Org required');
+         expect(mockAudioBookService.createAudioBook).not.toHaveBeenCalled();
       });
    });
 
@@ -265,7 +336,7 @@ describe('AudioBookController', () => {
          await audioBookController.getAudioBooksByGenre(mockReq, mockRes, mockReq.next);
 
          expect(mockAudioBookService.getAllAudioBooks).toHaveBeenCalledWith(
-            expect.objectContaining({ genreId: 'genre-123' })
+            expect.objectContaining({ genreIds: ['genre-123'] })
          );
       });
    });

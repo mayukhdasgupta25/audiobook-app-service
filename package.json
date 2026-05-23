@@ -21,6 +21,7 @@
     "db:reset": "prisma migrate reset",
     "db:seed": "ts-node prisma/seed.ts",
     "db:delete-seed": "ts-node prisma/delete-seed.ts",
+    "db:setup-subscription": "ts-node prisma/subscription-setup.ts",
     "db:studio": "prisma studio"
   },
   "devDependencies": {
