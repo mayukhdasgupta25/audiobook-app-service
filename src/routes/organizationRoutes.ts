@@ -10,7 +10,7 @@
  *  - PUT   /:id                       -> OWNER/ADMIN of the org (or global ADMIN)
  *  - DELETE /:id                      -> OWNER of the org (or global ADMIN)
  *  - GET   /:id/members               -> any member
- *  - POST  /:id/members               -> OWNER/ADMIN
+ *  - POST  /:id/members               -> OWNER/ADMIN (or any user if org has no members)
  *  - PUT   /:id/members/:userId       -> OWNER/ADMIN
  *  - DELETE /:id/members/:userId      -> OWNER/ADMIN
  *  - GET   /:id/audiobooks            -> any authenticated user (publisher catalog)
