@@ -211,6 +211,18 @@ describe('OrganizationService', () => {
       });
    });
 
+   describe('hasMembers', () => {
+      it('returns false when the organization has no members', async () => {
+         mockPrisma.organizationMember.count.mockResolvedValue(0);
+         await expect(service.hasMembers('o')).resolves.toBe(false);
+      });
+
+      it('returns true when the organization has members', async () => {
+         mockPrisma.organizationMember.count.mockResolvedValue(2);
+         await expect(service.hasMembers('o')).resolves.toBe(true);
+      });
+   });
+
    describe('addMember', () => {
       it('adds a member as MEMBER by default', async () => {
          mockPrisma.organization.findUnique.mockResolvedValue({ id: 'o' });

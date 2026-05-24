@@ -295,7 +295,9 @@ export class OrganizationController {
     * /api/v1/organizations/{id}/members:
     *   post:
     *     summary: Add a member to an organization
-    *     description: Requires OWNER or ADMIN role.
+    *     description: |
+    *       Requires OWNER or ADMIN role when the organization already has members.
+    *       Any authenticated user may add the first member to a memberless organization.
     *     tags: [Organizations]
     *     requestBody:
     *       required: true
@@ -311,7 +313,10 @@ export class OrganizationController {
    addMember = ErrorHandler.asyncHandler(
       async (req: Request, res: Response): Promise<void> => {
          const { id } = req.params as { id: string };
-         await this.assertOrgAdmin(req, id);
+         const hasMembers = await this.organizationService.hasMembers(id);
+         if (hasMembers) {
+            await this.assertOrgAdmin(req, id);
+         }
 
          const { userProfileId, role } = req.body || {};
          if (!userProfileId || typeof userProfileId !== 'string') {

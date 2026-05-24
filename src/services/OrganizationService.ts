@@ -498,6 +498,16 @@ export class OrganizationService {
    }
 
    /**
+    * Returns whether the organization has at least one member.
+    */
+   async hasMembers(organizationId: string): Promise<boolean> {
+      const count = await this.prisma.organizationMember.count({
+         where: { organizationId },
+      });
+      return count > 0;
+   }
+
+   /**
     * Convenience boolean check that the user has any membership in an org.
     */
    async isMember(organizationId: string, userProfileId: string): Promise<boolean> {
