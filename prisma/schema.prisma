@@ -56,7 +56,6 @@ model AudioBook {
   coverImage String? // URL to cover image
 
   // Metadata
-  genreId        String
   organizationId String
   language       String    @default("bn")
   publisher      String?

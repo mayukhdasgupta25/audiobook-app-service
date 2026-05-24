@@ -22,7 +22,6 @@ describe('AudioBookDto', () => {
          duration: 3600, // 1 hour in seconds
          fileSize: BigInt(1024 * 1024 * 500), // 500 MB
          coverImage: 'https://example.com/cover.jpg',
-         genreId: 'genre-1',
          organizationId: 'org-1',
          language: 'en',
          publisher: 'Test Publisher',

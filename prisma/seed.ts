@@ -678,7 +678,6 @@ async function main() {
          update: {},
          create: {
             ...bookInfo,
-            genreId: resolvedGenreId,
             organizationId: defaultOrganization.id
          }
       });

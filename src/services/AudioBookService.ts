@@ -172,7 +172,11 @@ export class AudioBookService {
     const where: Prisma.AudioBookWhereInput = {
       ...(isActive !== undefined && { isActive }),
       ...(isPublic !== undefined && { isPublic }),
-      ...(genreIds && genreIds.length > 0 && { genreId: { in: genreIds } }),
+      ...(genreIds && genreIds.length > 0 && {
+        audioBookGenres: {
+          some: { genreId: { in: genreIds } },
+        },
+      }),
       ...(organizationId
         ? { organizationId }
         : organizationIds && organizationIds.length > 0
