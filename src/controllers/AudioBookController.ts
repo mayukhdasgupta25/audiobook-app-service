@@ -152,19 +152,17 @@ export class AudioBookController {
     const audiobook = await this.audioBookService.getAudioBookById(id as string);
 
     const authReq = req as AuthenticatedRequest;
-    const externalUserId = authReq.user?.id;
-    const profile = externalUserId
-      ? await this.prisma.userProfile.findUnique({
-        where: { userId: externalUserId },
-        select: { id: true }
-      })
-      : null;
+    const externalUserId = authReq.user?.id ?? null;
+    const authHeader = req.headers.authorization;
+    const accessToken =
+      authHeader && authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
 
     const subscriptionAccess =
       await this.audioBookService.getSubscriptionAccessForAudiobook(
         audiobook.id,
         audiobook.minSubscriptionTier,
-        profile?.id ?? null
+        externalUserId,
+        accessToken
       );
 
     ResponseHandler.success(
