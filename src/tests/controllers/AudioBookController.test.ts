@@ -43,6 +43,7 @@ describe('AudioBookController', () => {
          params: {},
          query: {},
          body: {},
+         headers: {},
          files: undefined,
          file: undefined,
          originalUrl: '/api/v1/audiobooks',
@@ -180,7 +181,8 @@ describe('AudioBookController', () => {
          expect(mockAudioBookService.getSubscriptionAccessForAudiobook).toHaveBeenCalledWith(
             'book-123',
             null,
-            'profile-1'
+            'auth-user-1',
+            null
          );
          expect(ResponseHandler.success).toHaveBeenCalledWith(
             mockRes,
