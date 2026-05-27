@@ -2,7 +2,8 @@
  * AudioBook Service Layer
  * Handles business logic and database operations following OOP principles
  */
-import { PrismaClient, Prisma, SubscriptionStatus } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
+import { SubscriptionClient, subscriptionClient } from '../clients/SubscriptionClient';
 import {
   AudioBookDto,
   AudiobookSubscriptionAccessDto,
@@ -19,10 +20,16 @@ import { HttpStatusCode, ErrorType } from '../types/common';
 export class AudioBookService {
   private prisma: PrismaClient;
   private backgroundJobService: BackgroundJobService | undefined;
+  private subscriptionClient: SubscriptionClient;
 
-  constructor(prisma: PrismaClient, backgroundJobService?: BackgroundJobService) {
+  constructor(
+    prisma: PrismaClient,
+    backgroundJobService?: BackgroundJobService,
+    subscriptionClientInstance: SubscriptionClient = subscriptionClient
+  ) {
     this.prisma = prisma;
     this.backgroundJobService = backgroundJobService;
+    this.subscriptionClient = subscriptionClientInstance;
   }
 
   /**
@@ -809,27 +816,8 @@ export class AudioBookService {
    * Returns the highest `tierLevel` among the user's qualifying subscriptions,
    * or `null` if the user has no qualifying subscription.
    */
-  async getUserHighestActiveTier(userProfileId: string): Promise<number | null> {
-    const subs = await this.prisma.userSubscription.findMany({
-      where: {
-        userProfileId,
-        status: { in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.TRIALING] }
-      },
-      include: { plan: true }
-    });
-
-    if (subs.length === 0) {
-      return null;
-    }
-
-    let highest: number | null = null;
-    for (const sub of subs) {
-      const tier = (sub.plan as { tierLevel?: number }).tierLevel ?? 0;
-      if (highest === null || tier > highest) {
-        highest = tier;
-      }
-    }
-    return highest;
+  async getUserHighestActiveTier(userId: string, accessToken: string): Promise<number | null> {
+    return this.subscriptionClient.getUserHighestActiveTier(userId, accessToken);
   }
 
   /**
@@ -840,14 +828,15 @@ export class AudioBookService {
   async getSubscriptionAccessForAudiobook(
     _audiobookId: string,
     minSubscriptionTier: number | null | undefined,
-    userProfileId: string | null
+    userId: string | null,
+    accessToken: string | null
   ): Promise<AudiobookSubscriptionAccessDto> {
     const requiredTier = minSubscriptionTier ?? null;
     if (requiredTier === null) {
       return { canAccess: true };
     }
 
-    if (!userProfileId) {
+    if (!userId || !accessToken) {
       return {
         canAccess: false,
         message: MessageHandler.getErrorMessage('forbidden.subscription_required'),
@@ -856,7 +845,7 @@ export class AudioBookService {
       };
     }
 
-    const userTier = await this.getUserHighestActiveTier(userProfileId);
+    const userTier = await this.getUserHighestActiveTier(userId, accessToken);
     if (userTier === null) {
       return {
         canAccess: false,
@@ -884,7 +873,8 @@ export class AudioBookService {
    */
   async assertUserCanAccessBySubscription(
     audiobookId: string,
-    userProfileId: string | null
+    userId: string | null,
+    accessToken: string | null
   ): Promise<void> {
     const audiobook = await this.prisma.audioBook.findUnique({
       where: { id: audiobookId },
@@ -897,7 +887,8 @@ export class AudioBookService {
     const access = await this.getSubscriptionAccessForAudiobook(
       audiobookId,
       (audiobook as { minSubscriptionTier?: number | null }).minSubscriptionTier,
-      userProfileId
+      userId,
+      accessToken
     );
     if (!access.canAccess) {
       throw new ApiError(

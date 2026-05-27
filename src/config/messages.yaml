@@ -47,23 +47,6 @@ success:
     updated: "User-audiobook relationship updated successfully"
     deleted: "User-audiobook relationship deleted successfully"
 
-  subscription_plans:
-    retrieved: "Subscription plans retrieved successfully"
-    retrieved_by_id: "Subscription plan retrieved successfully"
-    created: "Subscription plan created successfully"
-    updated: "Subscription plan updated successfully"
-    deleted: "Subscription plan deleted successfully"
-    deactivated: "Subscription plan deactivated successfully"
-
-  user_subscriptions:
-    retrieved: "Subscriptions retrieved successfully"
-    retrieved_by_id: "Subscription retrieved successfully"
-    created: "Subscription created successfully"
-    updated: "Subscription updated successfully"
-    deleted: "Subscription deleted successfully"
-    canceled: "Subscription canceled successfully"
-    renewed: "Subscription renewed successfully"
-
   organizations:
     retrieved: "Organizations retrieved successfully"
     retrieved_by_id: "Organization retrieved successfully"
@@ -222,30 +205,6 @@ errors:
   tags:
     not_found: "Tag not found"
     fetch_failed: "Failed to fetch tags"
-
-  subscription_plans:
-    not_found: "Subscription plan not found"
-    name_exists: "Subscription plan with this name already exists"
-    price_invalid: "Subscription plan price must be a non-negative number"
-    tier_invalid: "Subscription plan tier must be a non-negative integer"
-    inactive: "Subscription plan is inactive"
-    fetch_failed: "Failed to fetch subscription plans"
-    create_failed: "Failed to create subscription plan"
-    update_failed: "Failed to update subscription plan"
-    delete_failed: "Failed to delete subscription plan"
-
-  user_subscriptions:
-    not_found: "User subscription not found"
-    already_subscribed: "User already has an active subscription"
-    already_canceled: "Subscription has already been canceled"
-    lifetime_no_renew: "Lifetime subscriptions cannot be renewed"
-    cannot_renew_canceled: "Cannot renew a canceled subscription"
-    fetch_failed: "Failed to fetch user subscriptions"
-    create_failed: "Failed to create user subscription"
-    update_failed: "Failed to update user subscription"
-    cancel_failed: "Failed to cancel user subscription"
-    renew_failed: "Failed to renew user subscription"
-    delete_failed: "Failed to delete user subscription"
 
   organizations:
     not_found: "Organization not found"
