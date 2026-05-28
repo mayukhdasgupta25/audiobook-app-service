@@ -18,6 +18,9 @@ model UserProfile {
   firstName String?
   lastName  String?
   avatar    String? // URL to profile picture
+  gender    Gender?
+  location  String?
+  age       Int?
 
   // User preferences
   preferences Json? // Store user preferences as JSON
@@ -485,6 +488,14 @@ model OrganizationMember {
 }
 
 // Enums
+enum Gender {
+  MALE
+  FEMALE
+  NON_BINARY
+  OTHER
+  PREFER_NOT_TO_SAY
+}
+
 enum UserAudioBookType {
   OWNED
   UPLOADED
