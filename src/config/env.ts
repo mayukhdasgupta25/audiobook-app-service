@@ -109,4 +109,9 @@ export const config = {
    // Logging configuration
    LOG_LEVEL: process.env['LOG_LEVEL'] || (nodeEnv === 'production' ? 'info' : 'debug'),
    LOG_DIR: process.env['LOG_DIR'] || './logs',
+
+   // Reverse geocoding (OpenStreetMap Nominatim)
+   NOMINATIM_BASE_URL: process.env['NOMINATIM_BASE_URL'] || 'https://nominatim.openstreetmap.org',
+   NOMINATIM_USER_AGENT:
+      process.env['NOMINATIM_USER_AGENT'] || 'AudioBookApp/1.0 (profile-location-resolver)',
 };

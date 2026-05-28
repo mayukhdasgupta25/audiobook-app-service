@@ -330,10 +330,32 @@ export class ValidationMiddleware {
    * Validate user profile update request
    */
   static validateUserProfileUpdate(req: Request, res: Response, next: NextFunction): void {
-    const { username, firstName, lastName, avatar, preferences } = req.body;
+    const {
+      username,
+      firstName,
+      lastName,
+      avatar,
+      gender,
+      location,
+      latitude,
+      longitude,
+      age,
+      preferences,
+    } = req.body;
 
     // Ensure only expected fields are present
-    const allowedFields = ['username', 'firstName', 'lastName', 'avatar', 'preferences'];
+    const allowedFields = [
+      'username',
+      'firstName',
+      'lastName',
+      'avatar',
+      'gender',
+      'location',
+      'latitude',
+      'longitude',
+      'age',
+      'preferences',
+    ];
     const extraFields = Object.keys(req.body).filter(k => !allowedFields.includes(k));
     if (extraFields.length > 0) {
       ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.unexpected_fields'));
@@ -376,6 +398,59 @@ export class ValidationMiddleware {
       req.body.lastName = lastName.trim();
     }
 
+    // Validate gender if provided (null clears the field)
+    if (gender !== undefined) {
+      if (gender !== null && typeof gender !== 'string') {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.gender_invalid'));
+        return;
+      }
+      const validGenders = ['MALE', 'FEMALE', 'NON_BINARY', 'OTHER', 'PREFER_NOT_TO_SAY'];
+      if (gender !== null && !validGenders.includes(gender)) {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.gender_invalid'));
+        return;
+      }
+    }
+
+    // Validate coordinates (both required together; resolved to location in controller)
+    const hasLatitude = latitude !== undefined;
+    const hasLongitude = longitude !== undefined;
+    if (hasLatitude !== hasLongitude) {
+      ResponseHandler.validationError(
+        res,
+        MessageHandler.getErrorMessage('validation.coordinates_required_together')
+      );
+      return;
+    }
+    if (hasLatitude) {
+      if (typeof latitude !== 'number' || latitude < -90 || latitude > 90) {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.latitude_invalid'));
+        return;
+      }
+      if (typeof longitude !== 'number' || longitude < -180 || longitude > 180) {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.longitude_invalid'));
+        return;
+      }
+    }
+
+    // Validate location if provided (null clears the field); skipped when coordinates are sent
+    if (location !== undefined && !hasLatitude) {
+      if (location !== null && (typeof location !== 'string' || location.trim().length === 0 || location.length > 200)) {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.location_invalid'));
+        return;
+      }
+      if (typeof location === 'string') {
+        req.body.location = location.trim();
+      }
+    }
+
+    // Validate age if provided (null clears the field)
+    if (age !== undefined) {
+      if (age !== null && (!Number.isInteger(age) || age < 1 || age > 150)) {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.age_invalid'));
+        return;
+      }
+    }
+
     // Validate avatar URL if provided
     if (avatar !== undefined) {
       if (typeof avatar !== 'string' || avatar.length > 500) {
@@ -400,7 +475,13 @@ export class ValidationMiddleware {
     }
 
     // Must have at least one updatable field
-    if ([username, firstName, lastName, avatar, preferences].every(v => v === undefined)) {
+    const hasCoordinates = hasLatitude && hasLongitude;
+    if (
+      [username, firstName, lastName, avatar, gender, location, age, preferences].every(
+        v => v === undefined
+      ) &&
+      !hasCoordinates
+    ) {
       ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.no_update_fields'));
       return;
     }

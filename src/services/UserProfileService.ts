@@ -2,7 +2,7 @@
  * UserProfile Service
  * Handles user profile creation and management operations
  */
-import { PrismaClient } from '@prisma/client';
+import { Gender, PrismaClient } from '@prisma/client';
 import { UsernameGenerator } from '../utils/UsernameGenerator';
 import { UserProfileCreationResult } from '../types/user-events';
 
@@ -114,6 +114,9 @@ export class UserProfileService {
                firstName: true,
                lastName: true,
                avatar: true,
+               gender: true,
+               location: true,
+               age: true,
                preferences: true,
                createdAt: true,
                updatedAt: true
@@ -135,6 +138,9 @@ export class UserProfileService {
       firstName?: string;
       lastName?: string;
       avatar?: string;
+      gender?: Gender | null;
+      location?: string | null;
+      age?: number | null;
       preferences?: any;
    }): Promise<any> {
       try {
@@ -148,6 +154,9 @@ export class UserProfileService {
                firstName: true,
                lastName: true,
                avatar: true,
+               gender: true,
+               location: true,
+               age: true,
                preferences: true,
                updatedAt: true
             }
