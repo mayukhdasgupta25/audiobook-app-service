@@ -64,6 +64,9 @@ describe('AudioBookController', () => {
       mockAudioBookService.getSubscriptionAccessForAudiobook = jest
          .fn()
          .mockResolvedValue({ canAccess: true }) as any;
+      mockAudioBookService.getUserReviewRatingForAudiobook = jest
+         .fn()
+         .mockResolvedValue(null) as any;
    });
 
    describe('getAllAudioBooks', () => {
@@ -172,6 +175,7 @@ describe('AudioBookController', () => {
          mockAudioBookService.getSubscriptionAccessForAudiobook.mockResolvedValue(
             subscriptionAccess as any
          );
+         mockAudioBookService.getUserReviewRatingForAudiobook.mockResolvedValue(4);
          (MessageHandler.getSuccessMessage as jest.Mock).mockReturnValue('Retrieved');
 
          await audioBookController.getAudioBookById(mockReq, mockRes, mockReq.next);
@@ -184,9 +188,13 @@ describe('AudioBookController', () => {
             'auth-user-1',
             null
          );
+         expect(mockAudioBookService.getUserReviewRatingForAudiobook).toHaveBeenCalledWith(
+            'book-123',
+            'auth-user-1'
+         );
          expect(ResponseHandler.success).toHaveBeenCalledWith(
             mockRes,
-            { ...mockBook, subscriptionAccess },
+            { ...mockBook, subscriptionAccess, rating: 4 },
             'Retrieved'
          );
       });

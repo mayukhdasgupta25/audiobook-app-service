@@ -784,15 +784,37 @@ async function main() {
             create: {
                userProfileId: userProfile.id,
                audiobookId: sampleBooks[i]!.audiobook.id,
-               rating: Math.floor(Math.random() * 3) + 3, // 3-5 stars
-               title: `Great audiobook ${i + 1}!`,
-               content: `This was an amazing listening experience. The narration was excellent and the story kept me engaged throughout.`
+               rating: Math.floor(Math.random() * 3) + 3 // 3-5 stars
             }
          });
       }
    }
 
    console.log('✅ Created sample reviews');
+
+   // Create sample comments with nested replies
+   if (sampleBooks[0]) {
+      const topComment = await prisma.comment.create({
+         data: {
+            userProfileId: userProfile.id,
+            audiobookId: sampleBooks[0].audiobook.id,
+            content: 'This narration is incredible!',
+            meta: { position: 1200 }
+         }
+      });
+
+      await prisma.comment.create({
+         data: {
+            userProfileId: userProfile.id,
+            audiobookId: sampleBooks[0].audiobook.id,
+            parentId: topComment.id,
+            content: 'Agreed — the voice acting really brings the story to life.',
+            meta: { position: 1250 }
+         }
+      });
+
+      console.log('✅ Created sample comments');
+   }
 
    // Create listening history
    for (let i = 0; i < 3; i++) {

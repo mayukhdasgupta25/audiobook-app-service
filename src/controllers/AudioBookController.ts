@@ -138,6 +138,7 @@ export class AudioBookController {
    *                     isbn: "978-0-7432-7356-5"
    *                     isActive: true
    *                     isPublic: true
+   *                     rating: 4
    *                     createdAt: "2024-01-15T10:30:00Z"
    *                     updatedAt: "2024-01-15T10:30:00Z"
    *                   timestamp: "2024-01-15T10:30:00Z"
@@ -165,9 +166,14 @@ export class AudioBookController {
         accessToken
       );
 
+    const rating = await this.audioBookService.getUserReviewRatingForAudiobook(
+      audiobook.id,
+      externalUserId
+    );
+
     ResponseHandler.success(
       res,
-      { ...audiobook, subscriptionAccess },
+      { ...audiobook, subscriptionAccess, rating },
       MessageHandler.getSuccessMessage('audiobooks.retrieved_by_id')
     );
   });

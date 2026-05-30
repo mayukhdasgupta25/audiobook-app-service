@@ -58,6 +58,57 @@ success:
     member_updated: "Member role updated successfully"
     member_removed: "Member removed from organization successfully"
     audiobooks_retrieved: "Organization audiobooks retrieved successfully"
+    all_retrieved: "All organizations retrieved successfully"
+
+  comments:
+    retrieved: "Comments retrieved successfully"
+    retrieved_by_id: "Comment retrieved successfully"
+    created: "Comment created successfully"
+    updated: "Comment updated successfully"
+    deleted: "Comment deleted successfully"
+
+  reviews:
+    retrieved: "Reviews retrieved successfully"
+    retrieved_by_id: "Review retrieved successfully"
+    created: "Review created successfully"
+    updated: "Review updated successfully"
+    deleted: "Review deleted successfully"
+
+  favorites:
+    retrieved: "Favorites retrieved successfully"
+    retrieved_by_id: "Favorite retrieved successfully"
+    created: "Favorite created successfully"
+    deleted: "Favorite deleted successfully"
+
+  bookmarks:
+    retrieved: "Bookmarks retrieved successfully"
+    retrieved_by_id: "Bookmark retrieved successfully"
+    created: "Bookmark created successfully"
+    deleted: "Bookmark deleted successfully"
+
+  bookmarks_notes:
+    retrieved: "Bookmarks and notes retrieved successfully"
+    stats_retrieved: "Bookmark and note statistics retrieved successfully"
+
+  notes:
+    retrieved: "Notes retrieved successfully"
+    retrieved_by_id: "Note retrieved successfully"
+    created: "Note created successfully"
+    updated: "Note updated successfully"
+    deleted: "Note deleted successfully"
+
+  playlists:
+    retrieved: "Playlists retrieved successfully"
+    retrieved_by_id: "Playlist retrieved successfully"
+    created: "Playlist created successfully"
+    updated: "Playlist updated successfully"
+    deleted: "Playlist deleted successfully"
+
+  playlist_items:
+    retrieved: "Playlist items retrieved successfully"
+    created: "Playlist item created successfully"
+    updated: "Playlist item updated successfully"
+    deleted: "Playlist item deleted successfully"
 
   auth:
     signup_success: "User account created successfully"
@@ -129,6 +180,18 @@ errors:
     user_audiobook_type_invalid: "User-audiobook type must be one of: OWNED, UPLOADED, PURCHASED"
     no_update_fields: "At least one field must be provided for update"
     min_subscription_tier_invalid: "minSubscriptionTier must be a non-negative integer or null"
+    comment_content_required: "Comment content is required"
+    comment_parent_invalid: "Parent comment ID must be a valid string"
+    comment_meta_invalid: "Comment meta must be an object with only a position field"
+    comment_meta_chapter_forbidden: "Comment meta must not contain chapterId"
+    comment_meta_position_invalid: "Comment meta position must be a non-negative number"
+    review_rating_invalid: "Review rating must be an integer between 1 and 5"
+    chapter_id_required: "Chapter ID is required"
+    bookmark_audiobook_id_forbidden: "audiobookId is not allowed when creating a bookmark"
+    playlist_name_required: "Playlist name is required"
+    playlist_name_too_long: "Playlist name must be less than 200 characters"
+    playlist_item_position_invalid: "Playlist item position must be a positive integer"
+    organization_ids_invalid: "organizationIds must be an array of valid organization ID strings"
 
     # User authentication validation
     email_required: "Email is required"
@@ -212,6 +275,47 @@ errors:
   tags:
     not_found: "Tag not found"
     fetch_failed: "Failed to fetch tags"
+
+  comments:
+    not_found: "Comment not found"
+    parent_not_found: "Parent comment not found"
+    parent_audiobook_mismatch: "Parent comment belongs to a different audiobook"
+    access_denied: "You can only modify your own comments"
+
+  reviews:
+    not_found: "Review not found"
+    already_exists: "You have already reviewed this audiobook"
+    access_denied: "You can only modify your own reviews"
+
+  favorites:
+    not_found: "Favorite not found"
+    already_exists: "This audiobook is already in your favorites"
+    access_denied: "You can only access your own favorites"
+
+  bookmarks:
+    not_found: "Bookmark not found"
+    already_exists: "This chapter is already bookmarked"
+    chapter_not_found: "Chapter not found"
+    fetch_failed: "Failed to fetch bookmarks"
+    create_failed: "Failed to create bookmark"
+    delete_failed: "Failed to delete bookmark"
+
+  playlists:
+    not_found: "Playlist not found"
+    access_denied: "You do not have access to this playlist"
+
+  playlist_items:
+    not_found: "Playlist item not found"
+    already_exists: "This audiobook is already in the playlist"
+
+  authors:
+    not_found: "Author not found"
+    fetch_failed: "Failed to fetch authors"
+    create_failed: "Failed to create author"
+    update_failed: "Failed to update author"
+    delete_failed: "Failed to delete author"
+    email_exists: "An author with this email already exists"
+    organization_not_found: "One or more organizations were not found"
 
   organizations:
     not_found: "Organization not found"

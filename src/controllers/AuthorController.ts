@@ -116,6 +116,11 @@ export class AuthorController {
     *               contact:
     *                 type: string
     *                 example: "+1234567890"
+    *               organizationIds:
+    *                 type: array
+    *                 items:
+    *                   type: string
+    *                 description: Optional organization IDs to link this author to
     *     responses:
     *       201:
     *         description: Author created successfully
@@ -172,6 +177,11 @@ export class AuthorController {
     *               contact:
     *                 type: string
     *                 example: "+0987654321"
+    *               organizationIds:
+    *                 type: array
+    *                 items:
+    *                   type: string
+    *                 description: Replace all organization links with this list (optional)
     *     responses:
     *       200:
     *         description: Author updated successfully

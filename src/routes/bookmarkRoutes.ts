@@ -14,6 +14,7 @@ export function createBookmarkRoutes(prisma: PrismaClient): Router {
    // Bookmark routes
    router.post(
       '/bookmarks',
+      ValidationMiddleware.validateCreateBookmark,
       bookmarkController.createBookmark
    );
 
@@ -28,12 +29,6 @@ export function createBookmarkRoutes(prisma: PrismaClient): Router {
       '/bookmarks/:id',
       ValidationMiddleware.validateId,
       bookmarkController.getBookmarkById
-   );
-
-   router.put(
-      '/bookmarks/:id',
-      ValidationMiddleware.validateId,
-      bookmarkController.updateBookmark
    );
 
    router.delete(

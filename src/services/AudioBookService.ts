@@ -868,6 +868,38 @@ export class AudioBookService {
   }
 
   /**
+   * Returns the authenticated user's review rating for an audiobook, or null if none.
+   */
+  async getUserReviewRatingForAudiobook(
+    audiobookId: string,
+    externalUserId: string | null
+  ): Promise<number | null> {
+    if (!externalUserId) {
+      return null;
+    }
+
+    const profile = await this.prisma.userProfile.findUnique({
+      where: { userId: externalUserId },
+      select: { id: true },
+    });
+    if (!profile) {
+      return null;
+    }
+
+    const review = await this.prisma.review.findUnique({
+      where: {
+        userProfileId_audiobookId: {
+          userProfileId: profile.id,
+          audiobookId,
+        },
+      },
+      select: { rating: true },
+    });
+
+    return review?.rating ?? null;
+  }
+
+  /**
    * @deprecated Use {@link getSubscriptionAccessForAudiobook} for API responses.
    * Throws only when the audiobook does not exist (for scripts/tests that enforce access).
    */
