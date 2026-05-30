@@ -52,6 +52,9 @@ describe('AudioBookController subscription gating', () => {
       mockReq.next = jest.fn();
       controller = new AudioBookController(mockPrisma);
       mockAudioBookService = (controller as any).audioBookService;
+      mockAudioBookService.getUserReviewRatingForAudiobook = jest
+         .fn()
+         .mockResolvedValue(null) as any;
    });
 
    it('returns denied subscriptionAccess when tier is too low', async () => {

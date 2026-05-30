@@ -84,6 +84,11 @@ export function createAuthorRoutes(prisma: PrismaClient): Router {
     *                 type: string
     *               contact:
     *                 type: string
+    *               organizationIds:
+    *                 type: array
+    *                 items:
+    *                   type: string
+    *                 description: Optional organization IDs to link this author to
     *     responses:
     *       201:
     *         description: Author created successfully
@@ -99,6 +104,7 @@ export function createAuthorRoutes(prisma: PrismaClient): Router {
    router.post(
       '/',
       ValidationMiddleware.validateCreateAuthor,
+      ValidationMiddleware.validateAuthorOrganizationIds,
       authorController.createAuthor
    );
 
@@ -133,6 +139,11 @@ export function createAuthorRoutes(prisma: PrismaClient): Router {
     *                 type: string
     *               contact:
     *                 type: string
+    *               organizationIds:
+    *                 type: array
+    *                 items:
+    *                   type: string
+    *                 description: Replace all organization links with this list (optional)
     *     responses:
     *       200:
     *         description: Author updated successfully
@@ -151,6 +162,7 @@ export function createAuthorRoutes(prisma: PrismaClient): Router {
       '/:id',
       ValidationMiddleware.validateId,
       ValidationMiddleware.validateUpdateAuthor,
+      ValidationMiddleware.validateAuthorOrganizationIds,
       authorController.updateAuthor
    );
 

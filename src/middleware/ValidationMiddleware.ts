@@ -874,11 +874,249 @@ export class ValidationMiddleware {
     }
 
     // Must have at least one field to update
-    if ([firstName, lastName, email, address, contact].every(v => v === undefined)) {
+    if ([firstName, lastName, email, address, contact, req.body.organizationIds].every(v => v === undefined)) {
       ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.no_update_fields'));
       return;
     }
 
+    next();
+  }
+
+  private static validateCommentMetaField(
+    res: Response,
+    meta: unknown,
+    required: boolean
+  ): boolean {
+    if (meta === undefined || meta === null) {
+      if (required) {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.comment_meta_invalid'));
+        return false;
+      }
+      return true;
+    }
+    if (typeof meta !== 'object' || Array.isArray(meta)) {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.comment_meta_invalid'));
+      return false;
+    }
+    const obj = meta as Record<string, unknown>;
+    const keys = Object.keys(obj);
+    if (keys.length !== 1 || !keys.includes('position')) {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.comment_meta_invalid'));
+      return false;
+    }
+    if ('chapterId' in obj) {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.comment_meta_chapter_forbidden'));
+      return false;
+    }
+    if (typeof obj['position'] !== 'number' || !Number.isFinite(obj['position']) || obj['position'] < 0) {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.comment_meta_position_invalid'));
+      return false;
+    }
+    return true;
+  }
+
+  static validateCreateComment(req: Request, res: Response, next: NextFunction): void {
+    const { audiobookId, content, meta } = req.body;
+
+    if (!audiobookId || typeof audiobookId !== 'string' || audiobookId.trim().length === 0) {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.audiobook_id_required'));
+      return;
+    }
+
+    if (!content || typeof content !== 'string' || content.trim().length === 0) {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.comment_content_required'));
+      return;
+    }
+
+    if (req.body.parentId !== undefined && req.body.parentId !== null) {
+      if (typeof req.body.parentId !== 'string' || req.body.parentId.trim().length === 0) {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.comment_parent_invalid'));
+        return;
+      }
+    }
+
+    if (!ValidationMiddleware.validateCommentMetaField(res, meta, false)) {
+      return;
+    }
+
+    req.body.content = content.trim();
+    next();
+  }
+
+  static validateUpdateComment(req: Request, res: Response, next: NextFunction): void {
+    const { content, meta } = req.body;
+
+    if (content === undefined && meta === undefined) {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.no_update_fields'));
+      return;
+    }
+
+    if (content !== undefined) {
+      if (typeof content !== 'string' || content.trim().length === 0) {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.comment_content_required'));
+        return;
+      }
+      req.body.content = content.trim();
+    }
+
+    if (meta !== undefined && !ValidationMiddleware.validateCommentMetaField(res, meta, meta !== null)) {
+      return;
+    }
+
+    next();
+  }
+
+  static validateCreateReview(req: Request, res: Response, next: NextFunction): void {
+    const { audiobookId, rating } = req.body;
+
+    if (!audiobookId || typeof audiobookId !== 'string' || audiobookId.trim().length === 0) {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.audiobook_id_required'));
+      return;
+    }
+
+    if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.review_rating_invalid'));
+      return;
+    }
+
+    next();
+  }
+
+  static validateUpdateReview(req: Request, res: Response, next: NextFunction): void {
+    const { rating } = req.body;
+
+    if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.review_rating_invalid'));
+      return;
+    }
+
+    next();
+  }
+
+  static validateCreateBookmark(req: Request, res: Response, next: NextFunction): void {
+    const { chapterId, audiobookId } = req.body;
+
+    if (audiobookId !== undefined) {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.bookmark_audiobook_id_forbidden'));
+      return;
+    }
+
+    if (!chapterId || typeof chapterId !== 'string' || chapterId.trim().length === 0) {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.chapter_id_required'));
+      return;
+    }
+
+    req.body.chapterId = chapterId.trim();
+    next();
+  }
+
+  static validateCreateFavorite(req: Request, res: Response, next: NextFunction): void {
+    const { audiobookId } = req.body;
+
+    if (!audiobookId || typeof audiobookId !== 'string' || audiobookId.trim().length === 0) {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.audiobook_id_required'));
+      return;
+    }
+
+    next();
+  }
+
+  static validateCreatePlaylist(req: Request, res: Response, next: NextFunction): void {
+    const { name } = req.body;
+
+    if (!name || typeof name !== 'string' || name.trim().length === 0) {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.playlist_name_required'));
+      return;
+    }
+
+    if (name.trim().length > 200) {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.playlist_name_too_long'));
+      return;
+    }
+
+    req.body.name = name.trim();
+    next();
+  }
+
+  static validateUpdatePlaylist(req: Request, res: Response, next: NextFunction): void {
+    const { name, description, isPublic } = req.body;
+
+    if (name === undefined && description === undefined && isPublic === undefined) {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.no_update_fields'));
+      return;
+    }
+
+    if (name !== undefined) {
+      if (typeof name !== 'string' || name.trim().length === 0) {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.playlist_name_required'));
+        return;
+      }
+      if (name.trim().length > 200) {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.playlist_name_too_long'));
+        return;
+      }
+      req.body.name = name.trim();
+    }
+
+    if (isPublic !== undefined && typeof isPublic !== 'boolean') {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.is_public_boolean'));
+      return;
+    }
+
+    next();
+  }
+
+  static validateCreatePlaylistItem(req: Request, res: Response, next: NextFunction): void {
+    const { audiobookId, position } = req.body;
+
+    if (!audiobookId || typeof audiobookId !== 'string' || audiobookId.trim().length === 0) {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.audiobook_id_required'));
+      return;
+    }
+
+    if (position !== undefined && (!Number.isInteger(position) || position < 1)) {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.playlist_item_position_invalid'));
+      return;
+    }
+
+    next();
+  }
+
+  static validateUpdatePlaylistItem(req: Request, res: Response, next: NextFunction): void {
+    const { position } = req.body;
+
+    if (!Number.isInteger(position) || position < 1) {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.playlist_item_position_invalid'));
+      return;
+    }
+
+    next();
+  }
+
+  private static validateOrganizationIds(
+    res: Response,
+    organizationIds: unknown
+  ): organizationIds is string[] {
+    if (organizationIds === undefined) {
+      return true;
+    }
+    if (!Array.isArray(organizationIds)) {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.organization_ids_invalid'));
+      return false;
+    }
+    for (const id of organizationIds) {
+      if (typeof id !== 'string' || id.trim().length === 0) {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.organization_ids_invalid'));
+        return false;
+      }
+    }
+    return true;
+  }
+
+  static validateAuthorOrganizationIds(req: Request, res: Response, next: NextFunction): void {
+    if (!ValidationMiddleware.validateOrganizationIds(res, req.body.organizationIds)) {
+      return;
+    }
     next();
   }
 }

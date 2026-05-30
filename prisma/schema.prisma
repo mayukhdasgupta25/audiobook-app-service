@@ -40,6 +40,7 @@ model UserProfile {
   notes               Note[]
   offlineDownloads    OfflineDownload[]
   organizationMembers OrganizationMember[]
+  comments            Comment[]
 
   @@map("user_profiles")
 }
@@ -90,11 +91,11 @@ model AudioBook {
   playlistItems    PlaylistItem[]
   listeningHistory ListeningHistory[]
   chapters         Chapter[]
-  bookmarks        Bookmark[]
   notes            Note[]
   offlineDownloads OfflineDownload[]
   audiobookTags    AudioBookTag[]
   audioBookGenres  AudioBookGenre[]
+  comments         Comment[]
 
   @@index([organizationId])
   @@map("audiobooks")
@@ -127,6 +128,9 @@ model Author {
   // Timestamps
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  // Relations
+  organizations AuthorOrganization[]
 
   @@map("authors")
 }
@@ -209,14 +213,12 @@ model PlaylistItem {
   @@map("playlist_items")
 }
 
-// Review model for user reviews
+// Review model for user reviews (rating only)
 model Review {
-  id            String  @id @default(cuid())
+  id            String @id @default(cuid())
   userProfileId String
   audiobookId   String
   rating        Int // 1-5 stars
-  title         String?
-  content       String?
 
   // Timestamps
   createdAt DateTime @default(now())
@@ -228,6 +230,30 @@ model Review {
 
   @@unique([userProfileId, audiobookId])
   @@map("reviews")
+}
+
+// Comment model for audiobook discussion with nested replies
+model Comment {
+  id            String  @id @default(cuid())
+  userProfileId String
+  audiobookId   String
+  parentId      String?
+  content       String
+  meta          Json? // { position: number } — playback position in seconds
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  userProfile UserProfile @relation(fields: [userProfileId], references: [id], onDelete: Cascade)
+  audiobook   AudioBook   @relation(fields: [audiobookId], references: [id], onDelete: Cascade)
+  parent      Comment?    @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies     Comment[]   @relation("CommentReplies")
+
+  @@index([audiobookId])
+  @@index([parentId])
+  @@map("comments")
 }
 
 // Favorites model for user's favorite audiobooks
@@ -310,28 +336,20 @@ model ChapterProgress {
   @@map("chapter_progress")
 }
 
-// Bookmarks for audiobooks and chapters
+// Bookmarks for chapters (saved chapter per user)
 model Bookmark {
-  id            String  @id @default(cuid())
+  id            String @id @default(cuid())
   userProfileId String
-  audiobookId   String?
-  chapterId     String?
+  chapterId     String
 
-  // Bookmark details
-  title       String?
-  description String?
-  position    Int // Position in seconds
-  timestamp   DateTime @default(now())
-
-  // Timestamps
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // Relations
   userProfile UserProfile @relation(fields: [userProfileId], references: [id], onDelete: Cascade)
-  audiobook   AudioBook?  @relation(fields: [audiobookId], references: [id], onDelete: Cascade)
-  chapter     Chapter?    @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  chapter     Chapter     @relation(fields: [chapterId], references: [id], onDelete: Cascade)
 
+  @@unique([userProfileId, chapterId])
+  @@index([chapterId])
   @@map("bookmarks")
 }
 
@@ -460,8 +478,24 @@ model Organization {
   // Relations
   audiobooks AudioBook[]
   members    OrganizationMember[]
+  authors    AuthorOrganization[]
 
   @@map("organizations")
+}
+
+// Junction table for optional many-to-many between Author and Organization
+model AuthorOrganization {
+  id             String @id @default(cuid())
+  authorId       String
+  organizationId String
+
+  createdAt DateTime @default(now())
+
+  author       Author       @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([authorId, organizationId])
+  @@map("author_organizations")
 }
 
 // Staff who administer an organization (many-to-many with role). Distinct

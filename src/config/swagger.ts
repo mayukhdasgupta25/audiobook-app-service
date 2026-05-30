@@ -425,6 +425,211 @@ const options: swaggerJsdoc.Options = {
                   }
                }
             },
+            CommentUser: {
+               type: 'object',
+               properties: {
+                  firstName: { type: 'string', nullable: true },
+                  lastName: { type: 'string', nullable: true },
+                  avatar: { type: 'string', nullable: true, description: 'URL to profile picture' }
+               }
+            },
+            CommentMeta: {
+               type: 'object',
+               required: ['position'],
+               properties: {
+                  position: {
+                     type: 'number',
+                     minimum: 0,
+                     description: 'Playback position in seconds',
+                     example: 1200
+                  }
+               }
+            },
+            Comment: {
+               type: 'object',
+               properties: {
+                  id: { type: 'string' },
+                  userProfileId: { type: 'string' },
+                  audiobookId: { type: 'string' },
+                  parentId: { type: 'string', nullable: true },
+                  content: { type: 'string' },
+                  meta: { $ref: '#/components/schemas/CommentMeta', nullable: true },
+                  user: { $ref: '#/components/schemas/CommentUser' },
+                  createdAt: { type: 'string', format: 'date-time' },
+                  updatedAt: { type: 'string', format: 'date-time' },
+                  replies: {
+                     type: 'array',
+                     items: { $ref: '#/components/schemas/Comment' }
+                  }
+               }
+            },
+            CreateCommentRequest: {
+               type: 'object',
+               required: ['audiobookId', 'content'],
+               properties: {
+                  audiobookId: { type: 'string' },
+                  content: { type: 'string' },
+                  parentId: { type: 'string' },
+                  meta: { $ref: '#/components/schemas/CommentMeta' }
+               }
+            },
+            UpdateCommentRequest: {
+               type: 'object',
+               properties: {
+                  content: { type: 'string' },
+                  meta: { $ref: '#/components/schemas/CommentMeta', nullable: true }
+               }
+            },
+            Review: {
+               type: 'object',
+               properties: {
+                  id: { type: 'string' },
+                  userProfileId: { type: 'string' },
+                  audiobookId: { type: 'string' },
+                  rating: { type: 'integer', minimum: 1, maximum: 5 },
+                  createdAt: { type: 'string', format: 'date-time' },
+                  updatedAt: { type: 'string', format: 'date-time' }
+               }
+            },
+            CreateReviewRequest: {
+               type: 'object',
+               required: ['audiobookId', 'rating'],
+               properties: {
+                  audiobookId: { type: 'string' },
+                  rating: { type: 'integer', minimum: 1, maximum: 5 }
+               }
+            },
+            UpdateReviewRequest: {
+               type: 'object',
+               required: ['rating'],
+               properties: {
+                  rating: { type: 'integer', minimum: 1, maximum: 5 }
+               }
+            },
+            Favorite: {
+               type: 'object',
+               properties: {
+                  id: { type: 'string' },
+                  userProfileId: { type: 'string' },
+                  audiobookId: { type: 'string' },
+                  createdAt: { type: 'string', format: 'date-time' }
+               }
+            },
+            CreateFavoriteRequest: {
+               type: 'object',
+               required: ['audiobookId'],
+               properties: {
+                  audiobookId: { type: 'string' }
+               }
+            },
+            Bookmark: {
+               type: 'object',
+               properties: {
+                  id: { type: 'string' },
+                  userProfileId: { type: 'string' },
+                  chapterId: { type: 'string' },
+                  createdAt: { type: 'string', format: 'date-time' },
+                  updatedAt: { type: 'string', format: 'date-time' },
+                  chapter: {
+                     type: 'object',
+                     properties: {
+                        id: { type: 'string' },
+                        title: { type: 'string' },
+                        chapterNumber: { type: 'integer' },
+                        audiobookId: { type: 'string' }
+                     }
+                  }
+               }
+            },
+            CreateBookmarkRequest: {
+               type: 'object',
+               required: ['chapterId'],
+               properties: {
+                  chapterId: { type: 'string' }
+               }
+            },
+            Playlist: {
+               type: 'object',
+               properties: {
+                  id: { type: 'string' },
+                  userProfileId: { type: 'string' },
+                  name: { type: 'string' },
+                  description: { type: 'string', nullable: true },
+                  isPublic: { type: 'boolean' },
+                  createdAt: { type: 'string', format: 'date-time' },
+                  updatedAt: { type: 'string', format: 'date-time' },
+                  items: {
+                     type: 'array',
+                     items: { $ref: '#/components/schemas/PlaylistItem' }
+                  }
+               }
+            },
+            CreatePlaylistRequest: {
+               type: 'object',
+               required: ['name'],
+               properties: {
+                  name: { type: 'string' },
+                  description: { type: 'string' },
+                  isPublic: { type: 'boolean', default: false }
+               }
+            },
+            UpdatePlaylistRequest: {
+               type: 'object',
+               properties: {
+                  name: { type: 'string' },
+                  description: { type: 'string', nullable: true },
+                  isPublic: { type: 'boolean' }
+               }
+            },
+            PlaylistItem: {
+               type: 'object',
+               properties: {
+                  id: { type: 'string' },
+                  playlistId: { type: 'string' },
+                  audiobookId: { type: 'string' },
+                  position: { type: 'integer', minimum: 1 },
+                  createdAt: { type: 'string', format: 'date-time' }
+               }
+            },
+            CreatePlaylistItemRequest: {
+               type: 'object',
+               required: ['audiobookId'],
+               properties: {
+                  audiobookId: { type: 'string' },
+                  position: { type: 'integer', minimum: 1 }
+               }
+            },
+            UpdatePlaylistItemRequest: {
+               type: 'object',
+               required: ['position'],
+               properties: {
+                  position: { type: 'integer', minimum: 1 }
+               }
+            },
+            Author: {
+               type: 'object',
+               properties: {
+                  id: { type: 'string' },
+                  firstName: { type: 'string' },
+                  lastName: { type: 'string' },
+                  email: { type: 'string', nullable: true },
+                  address: { type: 'string', nullable: true },
+                  contact: { type: 'string', nullable: true },
+                  organizations: {
+                     type: 'array',
+                     items: {
+                        type: 'object',
+                        properties: {
+                           id: { type: 'string' },
+                           name: { type: 'string' },
+                           slug: { type: 'string' }
+                        }
+                     }
+                  },
+                  createdAt: { type: 'string', format: 'date-time' },
+                  updatedAt: { type: 'string', format: 'date-time' }
+               }
+            },
             ApiResponse: {
                type: 'object',
                properties: {
@@ -866,6 +1071,26 @@ const options: swaggerJsdoc.Options = {
                   }
                }
             },
+            Forbidden: {
+               description: 'Access forbidden',
+               content: {
+                  'application/json': {
+                     schema: {
+                        $ref: '#/components/schemas/ErrorResponse'
+                     }
+                  }
+               }
+            },
+            Conflict: {
+               description: 'Resource conflict',
+               content: {
+                  'application/json': {
+                     schema: {
+                        $ref: '#/components/schemas/ErrorResponse'
+                     }
+                  }
+               }
+            },
             InternalServerError: {
                description: 'Internal server error',
                content: {
@@ -882,6 +1107,34 @@ const options: swaggerJsdoc.Options = {
          {
             name: 'AudioBooks',
             description: 'Operations related to audiobooks'
+         },
+         {
+            name: 'Comments',
+            description: 'Audiobook comments and nested replies'
+         },
+         {
+            name: 'Reviews',
+            description: 'Audiobook star ratings'
+         },
+         {
+            name: 'Favorites',
+            description: 'User favorite audiobooks'
+         },
+         {
+            name: 'Bookmarks',
+            description: 'User chapter bookmarks'
+         },
+         {
+            name: 'Notes',
+            description: 'User notes for audiobooks and chapters'
+         },
+         {
+            name: 'Playlists',
+            description: 'User playlists and playlist items'
+         },
+         {
+            name: 'Authors',
+            description: 'Author management and organization links'
          },
          {
             name: 'Health',

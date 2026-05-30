@@ -2,8 +2,14 @@
  * Author Service Layer
  * Handles business logic and database operations for author management following OOP principles
  */
-import { PrismaClient } from '@prisma/client';
-import { AuthorDto, CreateAuthorDto, UpdateAuthorDto, toAuthorDto } from '../models/AuthorDto';
+import { PrismaClient, Prisma } from '@prisma/client';
+import {
+   AuthorDto,
+   CreateAuthorDto,
+   UpdateAuthorDto,
+   authorInclude,
+   toAuthorDto,
+} from '../models/AuthorDto';
 import { ApiError } from '../types/ApiError';
 import { MessageHandler } from '../utils/MessageHandler';
 import { HttpStatusCode, ErrorType } from '../types/common';
@@ -15,20 +21,66 @@ export class AuthorService {
       this.prisma = prisma;
    }
 
-   /**
-    * Get all authors
-    * Returns all authors sorted by lastName, then firstName in ascending order
-    */
+   private async syncAuthorOrganizations(
+      authorId: string,
+      organizationIds?: string[]
+   ): Promise<void> {
+      if (organizationIds === undefined) {
+         return;
+      }
+
+      const uniqueIds = [...new Set(organizationIds.map((id) => id.trim()).filter(Boolean))];
+
+      if (uniqueIds.length > 0) {
+         const organizations = await this.prisma.organization.findMany({
+            where: { id: { in: uniqueIds } },
+            select: { id: true },
+         });
+
+         if (organizations.length !== uniqueIds.length) {
+            throw new ApiError(
+               MessageHandler.getErrorMessage('authors.organization_not_found'),
+               HttpStatusCode.NOT_FOUND,
+               ErrorType.NOT_FOUND
+            );
+         }
+      }
+
+      await this.prisma.authorOrganization.deleteMany({ where: { authorId } });
+
+      if (uniqueIds.length > 0) {
+         await this.prisma.authorOrganization.createMany({
+            data: uniqueIds.map((organizationId) => ({
+               authorId,
+               organizationId,
+            })),
+         });
+      }
+   }
+
+   private async getAuthorRecord(id: string) {
+      const author = await this.prisma.author.findUnique({
+         where: { id },
+         include: authorInclude,
+      });
+      if (!author) {
+         throw new ApiError(
+            MessageHandler.getErrorMessage('authors.not_found'),
+            HttpStatusCode.NOT_FOUND,
+            ErrorType.NOT_FOUND
+         );
+      }
+      return author;
+   }
+
    async getAllAuthors(): Promise<AuthorDto[]> {
       try {
          const authors = await this.prisma.author.findMany({
-            orderBy: [
-               { lastName: 'asc' },
-               { firstName: 'asc' }
-            ]
+            include: authorInclude,
+            orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
          });
 
-         return authors.map(author => toAuthorDto(author));
+         return authors.map((author) => toAuthorDto(author));
       } catch (_error) {
          throw new ApiError(
             MessageHandler.getErrorMessage('authors.fetch_failed'),
@@ -38,24 +90,9 @@ export class AuthorService {
       }
    }
 
-   /**
-    * Get author by ID
-    * Returns a specific author by its unique identifier
-    */
    async getAuthorById(id: string): Promise<AuthorDto> {
       try {
-         const author = await this.prisma.author.findUnique({
-            where: { id }
-         });
-
-         if (!author) {
-            throw new ApiError(
-               MessageHandler.getErrorMessage('authors.not_found'),
-               HttpStatusCode.NOT_FOUND,
-               ErrorType.NOT_FOUND
-            );
-         }
-
+         const author = await this.getAuthorRecord(id);
          return toAuthorDto(author);
       } catch (error) {
          if (error instanceof ApiError) {
@@ -70,13 +107,8 @@ export class AuthorService {
       }
    }
 
-   /**
-    * Create a new author
-    * Creates an author with validation
-    */
    async createAuthor(createAuthorDto: CreateAuthorDto): Promise<AuthorDto> {
       try {
-         // Validate required fields
          if (!createAuthorDto.firstName || createAuthorDto.firstName.trim().length === 0) {
             throw new ApiError(
                MessageHandler.getErrorMessage('validation.author_first_name_required'),
@@ -99,10 +131,9 @@ export class AuthorService {
          const trimmedAddress = createAuthorDto.address?.trim();
          const trimmedContact = createAuthorDto.contact?.trim();
 
-         // Check email uniqueness if provided
          if (trimmedEmail && trimmedEmail.length > 0) {
             const existingAuthor = await this.prisma.author.findUnique({
-               where: { email: trimmedEmail }
+               where: { email: trimmedEmail },
             });
 
             if (existingAuthor) {
@@ -120,17 +151,19 @@ export class AuthorService {
                lastName: trimmedLastName,
                email: trimmedEmail && trimmedEmail.length > 0 ? trimmedEmail : null,
                address: trimmedAddress && trimmedAddress.length > 0 ? trimmedAddress : null,
-               contact: trimmedContact && trimmedContact.length > 0 ? trimmedContact : null
-            }
+               contact: trimmedContact && trimmedContact.length > 0 ? trimmedContact : null,
+            },
          });
 
-         return toAuthorDto(author);
+         await this.syncAuthorOrganizations(author.id, createAuthorDto.organizationIds);
+
+         const created = await this.getAuthorRecord(author.id);
+         return toAuthorDto(created);
       } catch (error) {
          if (error instanceof ApiError) {
             throw error;
          }
 
-         // Handle Prisma unique constraint violation
          if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
             throw new ApiError(
                MessageHandler.getErrorMessage('authors.email_exists'),
@@ -147,16 +180,9 @@ export class AuthorService {
       }
    }
 
-   /**
-    * Update an existing author
-    * Updates an author with validation
-    */
    async updateAuthor(id: string, updateAuthorDto: UpdateAuthorDto): Promise<AuthorDto> {
       try {
-         // Check if author exists
-         const existingAuthor = await this.prisma.author.findUnique({
-            where: { id }
-         });
+         const existingAuthor = await this.prisma.author.findUnique({ where: { id } });
 
          if (!existingAuthor) {
             throw new ApiError(
@@ -166,8 +192,7 @@ export class AuthorService {
             );
          }
 
-         // Validate and prepare update data
-         const updateData: any = {};
+         const updateData: Prisma.AuthorUpdateInput = {};
 
          if (updateAuthorDto.firstName !== undefined) {
             const trimmed = updateAuthorDto.firstName.trim();
@@ -196,10 +221,9 @@ export class AuthorService {
          if (updateAuthorDto.email !== undefined) {
             const trimmed = updateAuthorDto.email.trim();
             if (trimmed.length > 0) {
-               // Check email uniqueness if email is being changed
                if (trimmed !== existingAuthor.email) {
                   const emailExists = await this.prisma.author.findUnique({
-                     where: { email: trimmed }
+                     where: { email: trimmed },
                   });
 
                   if (emailExists) {
@@ -226,8 +250,10 @@ export class AuthorService {
             updateData.contact = trimmed.length > 0 ? trimmed : null;
          }
 
-         // Check if there's anything to update
-         if (Object.keys(updateData).length === 0) {
+         const hasScalarUpdates = Object.keys(updateData).length > 0;
+         const hasOrgUpdates = updateAuthorDto.organizationIds !== undefined;
+
+         if (!hasScalarUpdates && !hasOrgUpdates) {
             throw new ApiError(
                MessageHandler.getErrorMessage('validation.no_update_fields'),
                HttpStatusCode.BAD_REQUEST,
@@ -235,18 +261,22 @@ export class AuthorService {
             );
          }
 
-         const author = await this.prisma.author.update({
-            where: { id },
-            data: updateData
-         });
+         if (hasScalarUpdates) {
+            await this.prisma.author.update({
+               where: { id },
+               data: updateData,
+            });
+         }
 
-         return toAuthorDto(author);
+         await this.syncAuthorOrganizations(id, updateAuthorDto.organizationIds);
+
+         const updated = await this.getAuthorRecord(id);
+         return toAuthorDto(updated);
       } catch (error) {
          if (error instanceof ApiError) {
             throw error;
          }
 
-         // Handle Prisma unique constraint violation
          if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
             throw new ApiError(
                MessageHandler.getErrorMessage('authors.email_exists'),
@@ -263,16 +293,9 @@ export class AuthorService {
       }
    }
 
-   /**
-    * Delete an existing author
-    * Deletes an author by its unique identifier
-    */
    async deleteAuthor(id: string): Promise<void> {
       try {
-         // Check if author exists
-         const existingAuthor = await this.prisma.author.findUnique({
-            where: { id }
-         });
+         const existingAuthor = await this.prisma.author.findUnique({ where: { id } });
 
          if (!existingAuthor) {
             throw new ApiError(
@@ -282,9 +305,7 @@ export class AuthorService {
             );
          }
 
-         await this.prisma.author.delete({
-            where: { id }
-         });
+         await this.prisma.author.delete({ where: { id } });
       } catch (error) {
          if (error instanceof ApiError) {
             throw error;
@@ -298,4 +319,3 @@ export class AuthorService {
       }
    }
 }
-

@@ -18,6 +18,10 @@ import { createUserAudioBookRoutes } from './userAudioBookRoutes';
 import { createTagRoutes } from './tagRoutes';
 import { createAuthorRoutes } from './authorRoutes';
 import { createOrganizationRoutes } from './organizationRoutes';
+import { createCommentRoutes } from './commentRoutes';
+import { createReviewRoutes } from './reviewRoutes';
+import { createFavoriteRoutes } from './favoriteRoutes';
+import { createPlaylistRoutes } from './playlistRoutes';
 
 export class ApiRouter {
   private static instance: ApiRouter;
@@ -82,6 +86,10 @@ export class ApiRouter {
     v1Router.use('/', createUserProfileRoutes(this.prisma));
     v1Router.use('/user-audiobooks', createUserAudioBookRoutes(this.prisma));
     v1Router.use('/organizations', createOrganizationRoutes(this.prisma));
+    v1Router.use('/comments', createCommentRoutes(this.prisma));
+    v1Router.use('/reviews', createReviewRoutes(this.prisma));
+    v1Router.use('/favorites', createFavoriteRoutes(this.prisma));
+    v1Router.use('/playlists', createPlaylistRoutes(this.prisma));
 
     // Mount v1 routes
     this.router.use('/v1', v1Router);

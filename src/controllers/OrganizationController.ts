@@ -16,31 +16,7 @@ import { MessageHandler } from '../utils/MessageHandler';
 import { ApiError } from '../types/ApiError';
 import { AuthenticatedRequest } from '../types/auth';
 import { AudioBookQueryParams } from '../models/AudioBookDto';
-
-/**
- * Resolve the UserProfile.id for the authenticated user (req.user.id is the
- * external auth-service user id, not the UserProfile primary key).
- */
-async function resolveUserProfileId(
-   prisma: PrismaClient,
-   req: Request
-): Promise<string> {
-   const authReq = req as AuthenticatedRequest;
-   const externalUserId = authReq.user?.id;
-   if (!externalUserId) {
-      throw ApiError.unauthorized(
-         MessageHandler.getErrorMessage('unauthorized.not_authenticated')
-      );
-   }
-   const profile = await prisma.userProfile.findUnique({
-      where: { userId: externalUserId },
-      select: { id: true },
-   });
-   if (!profile) {
-      throw ApiError.notFound(MessageHandler.getErrorMessage('not_found.user'));
-   }
-   return profile.id;
-}
+import { resolveUserProfileId } from '../utils/resolveUserProfileId';
 
 /**
  * Check if the authenticated user is a global admin (e.g. role from JWT
@@ -162,6 +138,48 @@ export class OrganizationController {
             res,
             memberships,
             MessageHandler.getSuccessMessage('organizations.retrieved')
+         );
+      }
+   );
+
+   /**
+    * @swagger
+    * /api/v1/organizations/all:
+    *   get:
+    *     summary: List all organizations
+    *     description: |
+    *       Returns every organization in the system. Not filtered by membership;
+    *       any authenticated user may browse the full catalog.
+    *     tags: [Organizations]
+    *     parameters:
+    *       - $ref: '#/components/parameters/PageParam'
+    *       - $ref: '#/components/parameters/LimitParam'
+    *     responses:
+    *       200:
+    *         description: All organizations retrieved successfully
+    *         content:
+    *           application/json:
+    *             schema:
+    *               allOf:
+    *                 - $ref: '#/components/schemas/PaginatedResponse'
+    *       500:
+    *         $ref: '#/components/responses/InternalServerError'
+    */
+   listAllOrganizations = ErrorHandler.asyncHandler(
+      async (req: Request, res: Response): Promise<void> => {
+         const page = req.query['page'] ? parseInt(req.query['page'] as string, 10) : 1;
+         const limit = req.query['limit'] ? parseInt(req.query['limit'] as string, 10) : 10;
+         const result = await this.organizationService.listOrganizations({ page, limit });
+         const pagination = ResponseHandler.calculatePagination(
+            page,
+            limit,
+            result.totalCount
+         );
+         ResponseHandler.paginated(
+            res,
+            result.organizations,
+            pagination,
+            MessageHandler.getSuccessMessage('organizations.all_retrieved')
          );
       }
    );
