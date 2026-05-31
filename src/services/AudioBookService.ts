@@ -164,6 +164,7 @@ export class AudioBookService {
   private buildWhereClause(params: AudioBookQueryParams): Prisma.AudioBookWhereInput {
     const {
       genreIds,
+      moodIds,
       organizationId,
       organizationIds,
       language,
@@ -183,6 +184,9 @@ export class AudioBookService {
         audioBookGenres: {
           some: { genreId: { in: genreIds } },
         },
+      }),
+      ...(moodIds && moodIds.length > 0 && {
+        moodId: { in: moodIds },
       }),
       ...(organizationId
         ? { organizationId }

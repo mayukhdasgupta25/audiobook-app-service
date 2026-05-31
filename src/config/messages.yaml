@@ -34,6 +34,12 @@ success:
     updated: "Tag updated successfully"
     deleted: "Tag deleted successfully"
 
+  moods:
+    retrieved: "Moods retrieved successfully"
+    created: "Mood created successfully"
+    updated: "Mood updated successfully"
+    deleted: "Mood deleted successfully"
+
   authors:
     retrieved: "Authors retrieved successfully"
     created: "Author created successfully"
@@ -154,6 +160,31 @@ errors:
     tag_name_empty: "Tag name cannot be empty"
     tag_name_too_long: "Tag name must be less than {maxLength} characters"
     tag_name_invalid: "Tag name must be a valid string"
+    mood_name_required: "Mood name is required"
+    mood_name_empty: "Mood name cannot be empty"
+    mood_name_too_long: "Mood name must be less than {maxLength} characters"
+    mood_name_invalid: "Mood name must be a valid string"
+    mood_hexcode_required: "Mood hexcode is required"
+    mood_hexcode_empty: "Mood hexcode cannot be empty"
+    mood_hexcode_invalid: "Mood hexcode must be a valid string"
+    mood_description_invalid: "Mood description must be a valid string"
+    mood_description_too_long: "Mood description must be less than {maxLength} characters"
+    mood_icon_required: "Mood icon is required"
+    mood_icon_empty: "Mood icon cannot be empty"
+    mood_icon_too_long: "Mood icon must be less than {maxLength} characters"
+    mood_icon_invalid: "Mood icon must be a valid string"
+    mood_description_icon_required: "Mood description icon is required"
+    mood_description_icon_empty: "Mood description icon cannot be empty"
+    mood_description_icon_too_long: "Mood description icon must be less than {maxLength} characters"
+    mood_description_icon_invalid: "Mood description icon must be a valid string"
+    mood_attributes_invalid: "Mood attributes must be an array"
+    mood_attribute_invalid: "Each mood attribute must be a valid object"
+    mood_attribute_icon_required: "Mood attribute icon is required"
+    mood_attribute_icon_empty: "Mood attribute icon cannot be empty"
+    mood_attribute_icon_too_long: "Mood attribute icon must be less than {maxLength} characters"
+    mood_attribute_description_required: "Mood attribute description is required"
+    mood_attribute_description_empty: "Mood attribute description cannot be empty"
+    mood_attribute_description_too_long: "Mood attribute description must be less than {maxLength} characters"
     author_first_name_required: "First name is required"
     author_first_name_invalid: "First name must be a valid string"
     author_first_name_too_long: "First name must be less than 100 characters"
@@ -275,6 +306,15 @@ errors:
   tags:
     not_found: "Tag not found"
     fetch_failed: "Failed to fetch tags"
+
+  moods:
+    not_found: "Mood not found"
+    fetch_failed: "Failed to fetch moods"
+    create_failed: "Failed to create mood"
+    update_failed: "Failed to update mood"
+    delete_failed: "Failed to delete mood"
+    name_exists: "Mood name already exists"
+    invalid_hexcode: "Hexcode must be a valid color in #RGB or #RRGGBB format"
 
   comments:
     not_found: "Comment not found"

@@ -83,8 +83,12 @@ model AudioBook {
   updatedAt   DateTime  @updatedAt
   scheduledAt DateTime? // Optional scheduled date/time
 
+  // Mood (each audiobook has at most one mood)
+  moodId String?
+
   // Relations
   organization     Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  mood             Mood?              @relation(fields: [moodId], references: [id], onDelete: SetNull)
   userAudioBooks   UserAudioBook[]
   reviews          Review[]
   favorites        Favorite[]
@@ -98,7 +102,47 @@ model AudioBook {
   comments         Comment[]
 
   @@index([organizationId])
+  @@index([moodId])
   @@map("audiobooks")
+}
+
+// Mood model for audiobook atmosphere / tone
+model Mood {
+  id              String  @id @default(cuid())
+  name            String  @unique
+  description     String?
+  purpose         String  @default("")
+  descriptionIcon String  @map("description_icon")
+  hexcode         String
+  icon            String
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  audiobooks     AudioBook[]
+  moodAttributes MoodAttribute[]
+
+  @@map("moods")
+}
+
+// Attributes describing facets of a mood (icon + description per attribute)
+model MoodAttribute {
+  id          String @id @default(cuid())
+  moodId      String
+  icon        String
+  description String
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  mood Mood @relation(fields: [moodId], references: [id], onDelete: Cascade)
+
+  @@index([moodId])
+  @@map("mood_attributes")
 }
 
 // Genre model for categorizing audiobooks

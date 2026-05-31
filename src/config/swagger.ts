@@ -888,6 +888,16 @@ const options: swaggerJsdoc.Options = {
                   example: 'Fiction'
                }
             },
+            MoodIdParam: {
+               name: 'moodId',
+               in: 'query',
+               description: 'Filter by mood ID (supports comma-separated moodIds for multiple moods)',
+               required: false,
+               schema: {
+                  type: 'string',
+                  example: 'clxyz1234567890abcdefghij'
+               }
+            },
             LanguageParam: {
                name: 'language',
                in: 'query',

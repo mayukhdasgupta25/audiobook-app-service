@@ -306,6 +306,7 @@ describe('AudioBookDto', () => {
             sortBy: 'title',
             sortOrder: 'asc',
             genreIds: ['genre-id'],
+            moodIds: ['cmood1234567890abcdefghij'],
             language: 'en',
             author: 'Author Name',
             narrator: 'Narrator Name',
