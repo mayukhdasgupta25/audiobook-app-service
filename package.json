@@ -20,6 +20,8 @@
     "db:migrate": "prisma migrate dev",
     "db:reset": "prisma migrate reset",
     "db:seed": "ts-node prisma/seed.ts",
+    "db:seed-moods": "ts-node prisma/seed-moods.ts",
+    "db:seed-mood-assets": "ts-node prisma/seed-mood-assets.ts",
     "db:delete-seed": "ts-node prisma/delete-seed.ts",
     "db:studio": "prisma studio"
   },

@@ -58,7 +58,39 @@ export class ValidationMiddleware {
    * Validate audiobook filter parameters
    */
   static validateAudioBookFilters(req: Request, res: Response, next: NextFunction): void {
-    const { genre, language, author, narrator, isActive, isPublic, search } = req.query;
+    const { genre, language, author, narrator, isActive, isPublic, search, moodId, moodIds } = req.query;
+
+    const cuidRegex = /^c[a-z0-9]{24}$/;
+    const moodIdValues: string[] = [];
+
+    if (moodId !== undefined) {
+      if (typeof moodId !== 'string' || !cuidRegex.test(moodId)) {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.id_format'));
+        return;
+      }
+      moodIdValues.push(moodId);
+    }
+
+    if (moodIds !== undefined) {
+      const rawMoodIds = Array.isArray(moodIds)
+        ? moodIds
+        : typeof moodIds === 'string'
+          ? moodIds.split(',').map((id: string) => id.trim()).filter((id: string) => id.length > 0)
+          : [];
+
+      for (const id of rawMoodIds) {
+        if (typeof id !== 'string' || !cuidRegex.test(id)) {
+          ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.id_format'));
+          return;
+        }
+        moodIdValues.push(id);
+      }
+    }
+
+    if (moodIdValues.length > 0) {
+      req.query['moodIds'] = moodIdValues.join(',');
+      delete req.query['moodId'];
+    }
 
     // Validate boolean parameters
     if (isActive !== undefined) {
@@ -665,6 +697,278 @@ export class ValidationMiddleware {
     }
 
     next();
+  }
+
+  /**
+   * Validate mood creation request
+   */
+  static validateCreateMood(req: Request, res: Response, next: NextFunction): void {
+    const { name, description, descriptionIcon, hexcode, icon, attributes } = req.body;
+
+    if (!name || typeof name !== 'string') {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.mood_name_required'));
+      return;
+    }
+
+    const trimmedName = name.trim();
+    if (trimmedName.length === 0) {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.mood_name_empty'));
+      return;
+    }
+
+    const maxNameLength = 100;
+    if (trimmedName.length > maxNameLength) {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.mood_name_too_long', { maxLength: maxNameLength }));
+      return;
+    }
+
+    if (!hexcode || typeof hexcode !== 'string') {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.mood_hexcode_required'));
+      return;
+    }
+
+    const trimmedHexcode = hexcode.trim();
+    if (trimmedHexcode.length === 0) {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.mood_hexcode_empty'));
+      return;
+    }
+
+    if (!icon || typeof icon !== 'string') {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.mood_icon_required'));
+      return;
+    }
+
+    const trimmedIcon = icon.trim();
+    if (trimmedIcon.length === 0) {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.mood_icon_empty'));
+      return;
+    }
+
+    const maxIconLength = 100;
+    if (trimmedIcon.length > maxIconLength) {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.mood_icon_too_long', { maxLength: maxIconLength }));
+      return;
+    }
+
+    if (!descriptionIcon || typeof descriptionIcon !== 'string') {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.mood_description_icon_required'));
+      return;
+    }
+
+    const trimmedDescriptionIcon = descriptionIcon.trim();
+    if (trimmedDescriptionIcon.length === 0) {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.mood_description_icon_empty'));
+      return;
+    }
+
+    if (trimmedDescriptionIcon.length > maxIconLength) {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.mood_description_icon_too_long', { maxLength: maxIconLength }));
+      return;
+    }
+
+    if (description !== undefined && description !== null && typeof description !== 'string') {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.mood_description_invalid'));
+      return;
+    }
+
+    if (typeof description === 'string') {
+      const trimmedDescription = description.trim();
+      if (trimmedDescription.length > 500) {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.mood_description_too_long', { maxLength: 500 }));
+        return;
+      }
+      req.body.description = trimmedDescription.length > 0 ? trimmedDescription : null;
+    }
+
+    if (attributes !== undefined && !ValidationMiddleware.validateMoodAttributes(req, res, attributes)) {
+      return;
+    }
+
+    req.body.name = trimmedName;
+    req.body.hexcode = trimmedHexcode;
+    req.body.icon = trimmedIcon;
+    req.body.descriptionIcon = trimmedDescriptionIcon;
+
+    next();
+  }
+
+  /**
+   * Validate mood update request
+   */
+  static validateUpdateMood(req: Request, res: Response, next: NextFunction): void {
+    const { name, description, descriptionIcon, hexcode, icon, attributes } = req.body;
+
+    if (
+      name === undefined &&
+      description === undefined &&
+      descriptionIcon === undefined &&
+      hexcode === undefined &&
+      icon === undefined &&
+      attributes === undefined
+    ) {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.no_update_fields'));
+      return;
+    }
+
+    if (name !== undefined) {
+      if (typeof name !== 'string') {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.mood_name_invalid'));
+        return;
+      }
+
+      const trimmedName = name.trim();
+      if (trimmedName.length === 0) {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.mood_name_empty'));
+        return;
+      }
+
+      const maxNameLength = 100;
+      if (trimmedName.length > maxNameLength) {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.mood_name_too_long', { maxLength: maxNameLength }));
+        return;
+      }
+
+      req.body.name = trimmedName;
+    }
+
+    if (description !== undefined) {
+      if (description !== null && typeof description !== 'string') {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.mood_description_invalid'));
+        return;
+      }
+
+      if (typeof description === 'string') {
+        const trimmedDescription = description.trim();
+        if (trimmedDescription.length > 500) {
+          ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.mood_description_too_long', { maxLength: 500 }));
+          return;
+        }
+        req.body.description = trimmedDescription.length > 0 ? trimmedDescription : null;
+      }
+    }
+
+    if (descriptionIcon !== undefined) {
+      if (typeof descriptionIcon !== 'string') {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.mood_description_icon_invalid'));
+        return;
+      }
+
+      const trimmedDescriptionIcon = descriptionIcon.trim();
+      if (trimmedDescriptionIcon.length === 0) {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.mood_description_icon_empty'));
+        return;
+      }
+
+      const maxIconLength = 100;
+      if (trimmedDescriptionIcon.length > maxIconLength) {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.mood_description_icon_too_long', { maxLength: maxIconLength }));
+        return;
+      }
+
+      req.body.descriptionIcon = trimmedDescriptionIcon;
+    }
+
+    if (hexcode !== undefined) {
+      if (typeof hexcode !== 'string') {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.mood_hexcode_invalid'));
+        return;
+      }
+
+      const trimmedHexcode = hexcode.trim();
+      if (trimmedHexcode.length === 0) {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.mood_hexcode_empty'));
+        return;
+      }
+
+      req.body.hexcode = trimmedHexcode;
+    }
+
+    if (icon !== undefined) {
+      if (typeof icon !== 'string') {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.mood_icon_invalid'));
+        return;
+      }
+
+      const trimmedIcon = icon.trim();
+      if (trimmedIcon.length === 0) {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.mood_icon_empty'));
+        return;
+      }
+
+      const maxIconLength = 100;
+      if (trimmedIcon.length > maxIconLength) {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.mood_icon_too_long', { maxLength: maxIconLength }));
+        return;
+      }
+
+      req.body.icon = trimmedIcon;
+    }
+
+    if (attributes !== undefined && !ValidationMiddleware.validateMoodAttributes(req, res, attributes)) {
+      return;
+    }
+
+    next();
+  }
+
+  private static validateMoodAttributes(req: Request, res: Response, attributes: unknown): boolean {
+    if (!Array.isArray(attributes)) {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.mood_attributes_invalid'));
+      return false;
+    }
+
+    const maxIconLength = 100;
+    const maxDescriptionLength = 500;
+    const sanitizedAttributes: Array<{ icon: string; description: string }> = [];
+
+    for (const attribute of attributes) {
+      if (!attribute || typeof attribute !== 'object') {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.mood_attribute_invalid'));
+        return false;
+      }
+
+      const { icon, description } = attribute as { icon?: unknown; description?: unknown };
+
+      if (!icon || typeof icon !== 'string') {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.mood_attribute_icon_required'));
+        return false;
+      }
+
+      const trimmedIcon = icon.trim();
+      if (trimmedIcon.length === 0) {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.mood_attribute_icon_empty'));
+        return false;
+      }
+
+      if (trimmedIcon.length > maxIconLength) {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.mood_attribute_icon_too_long', { maxLength: maxIconLength }));
+        return false;
+      }
+
+      if (!description || typeof description !== 'string') {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.mood_attribute_description_required'));
+        return false;
+      }
+
+      const trimmedDescription = description.trim();
+      if (trimmedDescription.length === 0) {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.mood_attribute_description_empty'));
+        return false;
+      }
+
+      if (trimmedDescription.length > maxDescriptionLength) {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.mood_attribute_description_too_long', { maxLength: maxDescriptionLength }));
+        return false;
+      }
+
+      sanitizedAttributes.push({
+        icon: trimmedIcon,
+        description: trimmedDescription
+      });
+    }
+
+    req.body.attributes = sanitizedAttributes;
+    return true;
   }
 
   /**

@@ -31,6 +31,7 @@ export function createAudioBookRoutes(prisma: PrismaClient): Router {
     *       - $ref: '#/components/parameters/SortByParam'
     *       - $ref: '#/components/parameters/SortOrderParam'
     *       - $ref: '#/components/parameters/GenreParam'
+    *       - $ref: '#/components/parameters/MoodIdParam'
     *       - $ref: '#/components/parameters/LanguageParam'
     *       - $ref: '#/components/parameters/AuthorParam'
     *       - $ref: '#/components/parameters/NarratorParam'

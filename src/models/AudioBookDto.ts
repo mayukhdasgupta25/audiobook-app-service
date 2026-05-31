@@ -101,6 +101,7 @@ export interface AudioBookQueryParams {
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
   genreIds?: string[] | undefined;
+  moodIds?: string[] | undefined;
   organizationId?: string | undefined;
   /** Optional filter: restrict to these publisher org IDs (not access control). */
   organizationIds?: string[] | undefined;

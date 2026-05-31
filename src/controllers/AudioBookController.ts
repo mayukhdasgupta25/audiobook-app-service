@@ -30,7 +30,7 @@ export class AudioBookController {
    * /api/v1/audiobooks:
    *   get:
    *     summary: Get all audiobooks with pagination and filtering
-   *     description: Retrieve a paginated list of audiobooks with optional filtering by genre, language, author, narrator, and search terms
+   *     description: Retrieve a paginated list of audiobooks with optional filtering by genre, mood, language, author, narrator, and search terms
    *     tags: [AudioBooks]
    *     parameters:
    *       - $ref: '#/components/parameters/PageParam'
@@ -38,6 +38,7 @@ export class AudioBookController {
    *       - $ref: '#/components/parameters/SortByParam'
    *       - $ref: '#/components/parameters/SortOrderParam'
    *       - $ref: '#/components/parameters/GenreParam'
+   *       - $ref: '#/components/parameters/MoodIdParam'
    *       - $ref: '#/components/parameters/LanguageParam'
    *       - $ref: '#/components/parameters/AuthorParam'
    *       - $ref: '#/components/parameters/NarratorParam'
@@ -66,12 +67,24 @@ export class AudioBookController {
       genreIds = [req.query['genreId'] as string];
     }
 
+    let moodIds: string[] | undefined = undefined;
+    if (req.query['moodIds']) {
+      if (Array.isArray(req.query['moodIds'])) {
+        moodIds = req.query['moodIds'] as string[];
+      } else if (typeof req.query['moodIds'] === 'string') {
+        moodIds = req.query['moodIds'].split(',').map((id: string) => id.trim()).filter((id: string) => id.length > 0);
+      }
+    } else if (req.query['moodId']) {
+      moodIds = [req.query['moodId'] as string];
+    }
+
     const queryParams: AudioBookQueryParams = {
       page: req.query['page'] ? parseInt(req.query['page'] as string, 10) : 1,
       limit: req.query['limit'] ? parseInt(req.query['limit'] as string, 10) : 10,
       sortBy: req.query['sortBy'] as string || 'createdAt',
       sortOrder: (req.query['sortOrder'] as 'asc' | 'desc') || 'desc',
       genreIds: genreIds,
+      moodIds: moodIds,
       organizationId: req.query['organizationId'] as string,
       language: req.query['language'] as string,
       author: req.query['author'] as string,
