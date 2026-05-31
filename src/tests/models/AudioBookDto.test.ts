@@ -34,6 +34,7 @@ describe('AudioBookDto', () => {
          createdAt: new Date('2024-01-01'),
          updatedAt: new Date('2024-01-02'),
          scheduledAt: null,
+         moodId: null,
          audiobookTags: [],
          audioBookGenres: [],
          organization: null,
