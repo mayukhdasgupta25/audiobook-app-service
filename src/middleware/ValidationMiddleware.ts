@@ -369,8 +369,6 @@ export class ValidationMiddleware {
       avatar,
       gender,
       location,
-      latitude,
-      longitude,
       age,
       preferences,
     } = req.body;
@@ -383,8 +381,6 @@ export class ValidationMiddleware {
       'avatar',
       'gender',
       'location',
-      'latitude',
-      'longitude',
       'age',
       'preferences',
     ];
@@ -443,35 +439,39 @@ export class ValidationMiddleware {
       }
     }
 
-    // Validate coordinates (both required together; resolved to location in controller)
-    const hasLatitude = latitude !== undefined;
-    const hasLongitude = longitude !== undefined;
-    if (hasLatitude !== hasLongitude) {
-      ResponseHandler.validationError(
-        res,
-        MessageHandler.getErrorMessage('validation.coordinates_required_together')
-      );
-      return;
-    }
-    if (hasLatitude) {
-      if (typeof latitude !== 'number' || latitude < -90 || latitude > 90) {
-        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.latitude_invalid'));
-        return;
-      }
-      if (typeof longitude !== 'number' || longitude < -180 || longitude > 180) {
-        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.longitude_invalid'));
-        return;
-      }
-    }
+    // Validate location coordinates (resolved to a location string in controller); null clears the field
+    if (location !== undefined) {
+      if (location === null) {
+        // pass through — clears stored location
+      } else if (typeof location === 'object' && !Array.isArray(location)) {
+        const { latitude, longitude } = location as { latitude?: unknown; longitude?: unknown };
+        const hasLatitude = latitude !== undefined && latitude !== null && latitude !== '';
+        const hasLongitude = longitude !== undefined && longitude !== null && longitude !== '';
 
-    // Validate location if provided (null clears the field); skipped when coordinates are sent
-    if (location !== undefined && !hasLatitude) {
-      if (location !== null && (typeof location !== 'string' || location.trim().length === 0 || location.length > 200)) {
+        if (hasLatitude !== hasLongitude) {
+          ResponseHandler.validationError(
+            res,
+            MessageHandler.getErrorMessage('validation.coordinates_required_together')
+          );
+          return;
+        }
+
+        const parsedLatitude = ValidationMiddleware.parseCoordinate(latitude);
+        if (parsedLatitude === null || parsedLatitude < -90 || parsedLatitude > 90) {
+          ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.latitude_invalid'));
+          return;
+        }
+
+        const parsedLongitude = ValidationMiddleware.parseCoordinate(longitude);
+        if (parsedLongitude === null || parsedLongitude < -180 || parsedLongitude > 180) {
+          ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.longitude_invalid'));
+          return;
+        }
+
+        req.body.location = { latitude: parsedLatitude, longitude: parsedLongitude };
+      } else {
         ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.location_invalid'));
         return;
-      }
-      if (typeof location === 'string') {
-        req.body.location = location.trim();
       }
     }
 
@@ -507,18 +507,32 @@ export class ValidationMiddleware {
     }
 
     // Must have at least one updatable field
-    const hasCoordinates = hasLatitude && hasLongitude;
     if (
       [username, firstName, lastName, avatar, gender, location, age, preferences].every(
         v => v === undefined
-      ) &&
-      !hasCoordinates
+      )
     ) {
       ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.no_update_fields'));
       return;
     }
 
     next();
+  }
+
+  /** Parses latitude/longitude sent as string or number; returns null when invalid. */
+  private static parseCoordinate(value: unknown): number | null {
+    if (typeof value === 'number') {
+      return Number.isFinite(value) ? value : null;
+    }
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (trimmed.length === 0) {
+        return null;
+      }
+      const parsed = Number(trimmed);
+      return Number.isFinite(parsed) ? parsed : null;
+    }
+    return null;
   }
 
   /**

@@ -69,8 +69,9 @@ export class UserProfileController {
     *                 firstName: "Jane"
     *                 lastName: "Smith"
     *                 avatar: "https://example.com/avatar.jpg"
-    *                 latitude: 23.8103
-    *                 longitude: 90.4125
+    *                 location:
+    *                   latitude: "13.0595592"
+    *                   longitude: "77.5962203"
     *                 preferences:
     *                   theme: "dark"
     *                   language: "en"
@@ -95,14 +96,18 @@ export class UserProfileController {
     */
    updateProfile = ErrorHandler.asyncHandler(async (req: Request, res: Response): Promise<void> => {
       const userId = (req as any).user.id;
-      const { latitude, longitude, ...profileFields } = req.body as UpdateUserProfileDto;
-      const updateData: UpdateUserProfileDto = { ...profileFields };
+      const { location, ...profileFields } = req.body as UpdateUserProfileDto;
+      const updateData: Parameters<UserProfileService['updateUserProfile']>[1] = { ...profileFields };
 
-      if (latitude !== undefined && longitude !== undefined) {
-         updateData.location = await this.locationResolver.resolveFromCoordinates(
-            latitude,
-            longitude
-         );
+      if (location !== undefined) {
+         if (location === null) {
+            updateData.location = null;
+         } else {
+            updateData.location = await this.locationResolver.resolveFromCoordinates(
+               Number(location.latitude),
+               Number(location.longitude)
+            );
+         }
       }
 
       const updated = await this.userProfileService.updateUserProfile(userId, updateData);

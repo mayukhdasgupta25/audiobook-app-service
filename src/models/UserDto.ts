@@ -39,17 +39,19 @@ export interface CreateUserProfileDto {
 
 
 
+export interface LocationCoordinatesInput {
+   latitude: string | number;
+   longitude: string | number;
+}
+
 export interface UpdateUserProfileDto {
    username?: string;
    firstName?: string;
    lastName?: string;
    avatar?: string;
    gender?: Gender | null;
-   location?: string | null;
-   /** When provided with longitude, reverse-geocoded into `location` on update. */
-   latitude?: number;
-   /** When provided with latitude, reverse-geocoded into `location` on update. */
-   longitude?: number;
+   /** Coordinates from the client; reverse-geocoded to a location string on update. Pass null to clear. */
+   location?: LocationCoordinatesInput | null;
    age?: number | null;
    preferences?: any;
 }
