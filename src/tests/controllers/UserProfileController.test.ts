@@ -105,10 +105,12 @@ describe('UserProfileController', () => {
          );
       });
 
-      it('should resolve latitude and longitude into location before update', async () => {
+      it('should resolve location coordinates into a location string before update', async () => {
          mockReq.body = {
-            latitude: 23.8103,
-            longitude: 90.4125,
+            location: {
+               latitude: '23.8103',
+               longitude: '90.4125',
+            },
          };
 
          mockLocationResolver.resolveFromCoordinates.mockResolvedValue('Dhaka, Dhaka Division, Bangladesh');
@@ -128,6 +130,27 @@ describe('UserProfileController', () => {
          expect(mockLocationResolver.resolveFromCoordinates).toHaveBeenCalledWith(23.8103, 90.4125);
          expect(mockService.updateUserProfile).toHaveBeenCalledWith('user-123', {
             location: 'Dhaka, Dhaka Division, Bangladesh',
+         });
+      });
+
+      it('should clear location when location is null', async () => {
+         mockReq.body = { location: null };
+
+         const updated = {
+            id: 'profile-1',
+            userId: 'user-123',
+            location: null,
+            updatedAt: new Date(),
+         } as any;
+
+         mockService.updateUserProfile.mockResolvedValue(updated);
+         (MessageHandler.getSuccessMessage as jest.Mock).mockReturnValue('Profile updated');
+
+         await controller.updateProfile(mockReq, mockRes, mockReq.next);
+
+         expect(mockLocationResolver.resolveFromCoordinates).not.toHaveBeenCalled();
+         expect(mockService.updateUserProfile).toHaveBeenCalledWith('user-123', {
+            location: null,
          });
       });
    });
