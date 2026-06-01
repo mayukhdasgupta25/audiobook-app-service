@@ -23,6 +23,7 @@ import { createCommentRoutes } from './commentRoutes';
 import { createReviewRoutes } from './reviewRoutes';
 import { createFavoriteRoutes } from './favoriteRoutes';
 import { createPlaylistRoutes } from './playlistRoutes';
+import { createListeningHistoryRoutes } from './listeningHistoryRoutes';
 
 export class ApiRouter {
   private static instance: ApiRouter;
@@ -92,6 +93,7 @@ export class ApiRouter {
     v1Router.use('/reviews', createReviewRoutes(this.prisma));
     v1Router.use('/favorites', createFavoriteRoutes(this.prisma));
     v1Router.use('/playlists', createPlaylistRoutes(this.prisma));
+    v1Router.use('/listening-history', createListeningHistoryRoutes(this.prisma));
 
     // Mount v1 routes
     this.router.use('/v1', v1Router);

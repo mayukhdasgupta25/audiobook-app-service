@@ -86,6 +86,9 @@ success:
     created: "Favorite created successfully"
     deleted: "Favorite deleted successfully"
 
+  listening_history:
+    retrieved: "Listening history retrieved successfully"
+
   bookmarks:
     retrieved: "Bookmarks retrieved successfully"
     retrieved_by_id: "Bookmark retrieved successfully"
@@ -208,7 +211,8 @@ errors:
     audiobook_id_required: "Audiobook ID is required"
     user_profile_id_required: "User profile ID is required"
     organization_id_required: "Organization ID is required"
-    user_audiobook_type_invalid: "User-audiobook type must be one of: OWNED, UPLOADED, PURCHASED"
+    user_audiobook_type_invalid: "User-audiobook type must be one of: OWNED, PURCHASED"
+    user_audiobook_type_not_settable: "User-audiobook type is assigned by the server and cannot be set in the request body"
     no_update_fields: "At least one field must be provided for update"
     min_subscription_tier_invalid: "minSubscriptionTier must be a non-negative integer or null"
     comment_content_required: "Comment content is required"

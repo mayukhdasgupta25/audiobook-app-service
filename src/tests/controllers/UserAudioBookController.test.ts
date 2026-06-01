@@ -65,15 +65,14 @@ describe('UserAudioBookController', () => {
             id: 'ua1',
             userProfileId: 'user1',
             audiobookId: 'book1',
-            type: UserAudioBookType.OWNED,
+            type: UserAudioBookType.PURCHASED,
             createdAt: new Date(),
             updatedAt: new Date()
          };
 
          mockReq.body = {
             userProfileId: 'user1',
-            audiobookId: 'book1',
-            type: UserAudioBookType.OWNED
+            audiobookId: 'book1'
          };
 
          mockUserAudioBookService.createUserAudioBook.mockResolvedValue(mockUserAudioBook as any);
@@ -83,8 +82,7 @@ describe('UserAudioBookController', () => {
 
          expect(mockUserAudioBookService.createUserAudioBook).toHaveBeenCalledWith({
             userProfileId: 'user1',
-            audiobookId: 'book1',
-            type: UserAudioBookType.OWNED
+            audiobookId: 'book1'
          });
          expect(ResponseHandler.success).toHaveBeenCalledWith(
             mockRes,
@@ -110,7 +108,7 @@ describe('UserAudioBookController', () => {
                id: 'ua2',
                userProfileId: 'user2',
                audiobookId: 'book2',
-               type: UserAudioBookType.UPLOADED,
+               type: UserAudioBookType.PURCHASED,
                createdAt: new Date(),
                updatedAt: new Date()
             }
@@ -191,35 +189,6 @@ describe('UserAudioBookController', () => {
             mockRes,
             mockUserAudioBook,
             'User-audiobook relationship retrieved successfully'
-         );
-      });
-   });
-
-   describe('updateUserAudioBook', () => {
-      it('updates and returns user-audiobook relationship', async () => {
-         const mockUpdated = {
-            id: 'ua1',
-            userProfileId: 'user1',
-            audiobookId: 'book1',
-            type: UserAudioBookType.PURCHASED,
-            createdAt: new Date(),
-            updatedAt: new Date()
-         };
-
-         mockReq.params = { id: 'ua1' };
-         mockReq.body = { type: UserAudioBookType.PURCHASED };
-         mockUserAudioBookService.updateUserAudioBook.mockResolvedValue(mockUpdated as any);
-         (MessageHandler.getSuccessMessage as jest.Mock).mockReturnValue('User-audiobook relationship updated successfully');
-
-         await userAudioBookController.updateUserAudioBook(mockReq, mockRes, mockNext);
-
-         expect(mockUserAudioBookService.updateUserAudioBook).toHaveBeenCalledWith('ua1', {
-            type: UserAudioBookType.PURCHASED
-         });
-         expect(ResponseHandler.success).toHaveBeenCalledWith(
-            mockRes,
-            mockUpdated,
-            'User-audiobook relationship updated successfully'
          );
       });
    });

@@ -196,17 +196,17 @@ model AudioBookGenre {
   @@map("audiobook_genres")
 }
 
-// Junction table for user-audiobook relationships (ownership, uploads, etc.)
+// Junction table for user-audiobook relationships (ownership, purchases)
 model UserAudioBook {
   id            String @id @default(cuid())
   userProfileId String
   audiobookId   String
 
-  // Relationship type
-  type UserAudioBookType @default(OWNED) // OWNED, UPLOADED, PURCHASED
+  // Relationship type: OWNED (creator on audiobook create) or PURCHASED (all other cases)
+  type UserAudioBookType @default(PURCHASED)
 
-  // User-specific progress (updated by background job)
-  progress Float @default(0.0) // Percentage (0-100)
+  // User-specific progress (updated by background job): total seconds listened across chapters
+  progress Float @default(0.0)
 
   // Timestamps
   createdAt DateTime @default(now())
@@ -576,7 +576,6 @@ enum Gender {
 
 enum UserAudioBookType {
   OWNED
-  UPLOADED
   PURCHASED
 }
 

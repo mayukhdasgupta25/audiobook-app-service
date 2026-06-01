@@ -783,21 +783,39 @@ export class ChapterService {
    }
 
    /**
-    * Calculate overall audiobook progress based on chapter progress
+    * Total audiobook duration in seconds (sum of all chapter durations).
+    */
+   async getAudiobookTotalDurationSeconds(audiobookId: string): Promise<number> {
+      const result = await this.prisma.chapter.aggregate({
+         where: { audiobookId },
+         _sum: { duration: true },
+      });
+      return result._sum.duration ?? 0;
+   }
+
+   /**
+    * Calculate audiobook progress as the sum of chapter progress positions (seconds).
     */
    async calculateAudiobookProgress(userProfileId: string, audiobookId: string): Promise<number> {
       try {
-         const chaptersWithProgress = await this.getChaptersWithProgress(userProfileId, audiobookId);
+         const chapters = await this.prisma.chapter.findMany({
+            where: { audiobookId },
+            select: { id: true },
+         });
 
-         if (chaptersWithProgress.length === 0) {
+         if (chapters.length === 0) {
             return 0;
          }
 
-         const totalProgress = chaptersWithProgress.reduce((sum, chapter) => {
-            return sum + (chapter.overallProgress || 0);
-         }, 0);
+         const progressRows = await this.prisma.chapterProgress.findMany({
+            where: {
+               userProfileId,
+               chapterId: { in: chapters.map((c) => c.id) },
+            },
+            select: { currentPosition: true },
+         });
 
-         return totalProgress / chaptersWithProgress.length;
+         return progressRows.reduce((sum, row) => sum + row.currentPosition, 0);
       } catch (_error) {
          throw new ApiError('Failed to calculate audiobook progress', 500);
       }
