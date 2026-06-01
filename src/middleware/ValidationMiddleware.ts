@@ -142,6 +142,26 @@ export class ValidationMiddleware {
   }
 
   /**
+   * Validate userProfileId path parameter (CUID)
+   */
+  static validateUserProfileIdParam(req: Request, res: Response, next: NextFunction): void {
+    const { userProfileId } = req.params;
+
+    if (!userProfileId || typeof userProfileId !== 'string') {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.user_profile_id_required'));
+      return;
+    }
+
+    const cuidRegex = /^c[a-z0-9]{24}$/;
+    if (!cuidRegex.test(userProfileId)) {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.id_format'));
+      return;
+    }
+
+    next();
+  }
+
+  /**
    * Validate tag parameters for audiobook filtering
    */
   static validateTags(req: Request, res: Response, next: NextFunction): void {
@@ -573,6 +593,11 @@ export class ValidationMiddleware {
   static validateUserAudioBookCreation(req: Request, res: Response, next: NextFunction): void {
     const { userProfileId, audiobookId, type } = req.body;
 
+    if (type !== undefined) {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.user_audiobook_type_not_settable'));
+      return;
+    }
+
     // Validate required fields
     if (!userProfileId || typeof userProfileId !== 'string') {
       ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.user_profile_id_required'));
@@ -597,35 +622,6 @@ export class ValidationMiddleware {
       return;
     }
 
-    // Validate type if provided
-    if (type !== undefined) {
-      if (!['OWNED', 'UPLOADED', 'PURCHASED'].includes(type)) {
-        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.user_audiobook_type_invalid'));
-        return;
-      }
-    }
-
-    next();
-  }
-
-  /**
-   * Validate UserAudioBook update request
-   */
-  static validateUserAudioBookUpdate(req: Request, res: Response, next: NextFunction): void {
-    const { type } = req.body;
-
-    // Type is optional for update, but if provided must be valid
-    if (type !== undefined) {
-      if (!['OWNED', 'UPLOADED', 'PURCHASED'].includes(type)) {
-        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.user_audiobook_type_invalid'));
-        return;
-      }
-    } else {
-      // Must have at least one field to update
-      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.no_update_fields'));
-      return;
-    }
-
     next();
   }
 
@@ -635,7 +631,7 @@ export class ValidationMiddleware {
   static validateUserAudioBookType(req: Request, res: Response, next: NextFunction): void {
     const { type } = req.params;
 
-    if (!type || !['OWNED', 'UPLOADED', 'PURCHASED'].includes(type)) {
+    if (!type || !['OWNED', 'PURCHASED'].includes(type)) {
       ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.user_audiobook_type_invalid'));
       return;
     }

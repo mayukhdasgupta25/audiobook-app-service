@@ -287,20 +287,21 @@ export class AudioBookController {
       return;
     }
 
+    const authReq = req as AuthenticatedRequest;
+    const externalUserId = authReq.user?.id;
+    const creatorProfile = externalUserId
+      ? await this.prisma.userProfile.findUnique({
+        where: { userId: externalUserId },
+        select: { id: true }
+      })
+      : null;
+
     // Non-admin users may only create audiobooks as staff (OWNER or ADMIN)
     // of the target organization. Global admins bypass this check.
-    const authReq = req as AuthenticatedRequest;
     const role = (authReq.user?.role || '').trim().toLowerCase();
     if (role !== 'admin') {
-      const externalUserId = authReq.user?.id;
-      const profile = externalUserId
-        ? await this.prisma.userProfile.findUnique({
-          where: { userId: externalUserId },
-          select: { id: true }
-        })
-        : null;
-      const allowed = profile
-        ? await this.organizationService.isAdmin(organizationId, profile.id)
+      const allowed = creatorProfile
+        ? await this.organizationService.isAdmin(organizationId, creatorProfile.id)
         : false;
       if (!allowed) {
         ResponseHandler.forbidden(
@@ -366,7 +367,10 @@ export class AudioBookController {
       genreIds: genreIds
     };
 
-    const audiobook = await this.audioBookService.createAudioBook(audiobookData);
+    const audiobook = await this.audioBookService.createAudioBook(
+      audiobookData,
+      creatorProfile?.id
+    );
 
     ResponseHandler.success(res, audiobook, MessageHandler.getSuccessMessage('audiobooks.created'), 201);
   });

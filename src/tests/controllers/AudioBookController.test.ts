@@ -234,7 +234,8 @@ describe('AudioBookController', () => {
                author: 'Author Name',
                genreIds: ['genre-123'],
                coverImage: 'https://example.com/uploads/covers/cover.jpg',
-            })
+            }),
+            'profile-1'
          );
          expect(ResponseHandler.success).toHaveBeenCalledWith(
             mockRes,
@@ -271,9 +272,12 @@ describe('AudioBookController', () => {
          await audioBookController.createAudioBook(mockReq, mockRes, mockReq.next);
          await flushPromises();
 
-         expect(mockAudioBookService.createAudioBook).toHaveBeenCalled();
-         const callArgs = mockAudioBookService.createAudioBook.mock.calls[0]?.[0];
-         expect(callArgs?.coverImage).toBe('https://example.com/uploads/covers/cover.jpg');
+         expect(mockAudioBookService.createAudioBook).toHaveBeenCalledWith(
+            expect.objectContaining({
+               coverImage: 'https://example.com/uploads/covers/cover.jpg',
+            }),
+            'profile-1'
+         );
       });
 
       it('should return validation error when organizationId is missing', async () => {

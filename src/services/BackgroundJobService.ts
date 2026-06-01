@@ -3,7 +3,7 @@
  * Handles background jobs using Bull queue for progress calculation and other tasks
  */
 import Bull from 'bull';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, UserAudioBookType } from '@prisma/client';
 import { ChapterService } from './ChapterService';
 import { ApiError } from '../types/ApiError';
 import { RedisConfigHelper } from '../config/redis';
@@ -491,9 +491,15 @@ export class BackgroundJobService {
             return;
          }
 
-         const overallProgress = await this.chapterService.calculateAudiobookProgress(userProfileId, audiobookId);
+         const progressSeconds = await this.chapterService.calculateAudiobookProgress(
+            userProfileId,
+            audiobookId
+         );
+         const totalDurationSeconds = await this.chapterService.getAudiobookTotalDurationSeconds(audiobookId);
+         const completed =
+            totalDurationSeconds > 0 && progressSeconds >= totalDurationSeconds * 0.95;
 
-         // Update user-audiobook progress
+         // Update user-audiobook progress (total seconds listened)
          await this.prisma.userAudioBook.upsert({
             where: {
                userProfileId_audiobookId: {
@@ -502,13 +508,13 @@ export class BackgroundJobService {
                }
             },
             update: {
-               progress: overallProgress
+               progress: progressSeconds
             },
             create: {
                userProfileId,
                audiobookId,
-               type: 'OWNED', // Default type, can be updated later if needed
-               progress: overallProgress
+               type: UserAudioBookType.PURCHASED,
+               progress: progressSeconds
             }
          });
 
@@ -521,13 +527,14 @@ export class BackgroundJobService {
                },
             },
             update: {
-               completed: overallProgress >= 95, // Consider 95% as completed
+               currentPosition: progressSeconds,
+               completed,
             },
             create: {
                userProfileId,
                audiobookId,
-               currentPosition: 0,
-               completed: overallProgress >= 95,
+               currentPosition: progressSeconds,
+               completed,
             },
          });
       } catch (error) {

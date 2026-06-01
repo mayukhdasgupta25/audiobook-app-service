@@ -52,49 +52,14 @@ describe('UserAudioBookService', () => {
    });
 
    describe('createUserAudioBook', () => {
-      it('creates a user-audiobook relationship when valid', async () => {
+      it('creates a user-audiobook relationship as PURCHASED when valid', async () => {
          const mockUserProfile = { id: 'user1', userId: 'user-123', username: 'testuser' };
          const mockAudioBook = { id: 'book1', title: 'Test Book', author: 'Test Author' };
          const mockUserAudioBook = {
             id: 'ua1',
             userProfileId: 'user1',
             audiobookId: 'book1',
-            type: UserAudioBookType.OWNED,
-            createdAt: new Date(),
-            updatedAt: new Date()
-         };
-
-         mockPrisma.userProfile.findUnique.mockResolvedValue(mockUserProfile);
-         mockPrisma.audioBook.findUnique.mockResolvedValue(mockAudioBook);
-         mockPrisma.userAudioBook.findUnique.mockResolvedValue(null);
-         mockPrisma.userAudioBook.create.mockResolvedValue(mockUserAudioBook);
-
-         const result = await userAudioBookService.createUserAudioBook({
-            userProfileId: 'user1',
-            audiobookId: 'book1',
-            type: UserAudioBookType.OWNED
-         });
-
-         expect(result.userProfileId).toBe('user1');
-         expect(result.audiobookId).toBe('book1');
-         expect(result.type).toBe(UserAudioBookType.OWNED);
-         expect(mockPrisma.userAudioBook.create).toHaveBeenCalledWith({
-            data: {
-               userProfileId: 'user1',
-               audiobookId: 'book1',
-               type: UserAudioBookType.OWNED
-            }
-         });
-      });
-
-      it('defaults to OWNED type when type not provided', async () => {
-         const mockUserProfile = { id: 'user1', userId: 'user-123', username: 'testuser' };
-         const mockAudioBook = { id: 'book1', title: 'Test Book', author: 'Test Author' };
-         const mockUserAudioBook = {
-            id: 'ua1',
-            userProfileId: 'user1',
-            audiobookId: 'book1',
-            type: UserAudioBookType.OWNED,
+            type: UserAudioBookType.PURCHASED,
             createdAt: new Date(),
             updatedAt: new Date()
          };
@@ -109,12 +74,14 @@ describe('UserAudioBookService', () => {
             audiobookId: 'book1'
          });
 
-         expect(result.type).toBe(UserAudioBookType.OWNED);
+         expect(result.userProfileId).toBe('user1');
+         expect(result.audiobookId).toBe('book1');
+         expect(result.type).toBe(UserAudioBookType.PURCHASED);
          expect(mockPrisma.userAudioBook.create).toHaveBeenCalledWith({
             data: {
                userProfileId: 'user1',
                audiobookId: 'book1',
-               type: UserAudioBookType.OWNED
+               type: UserAudioBookType.PURCHASED
             }
          });
       });
@@ -173,6 +140,59 @@ describe('UserAudioBookService', () => {
       });
    });
 
+   describe('createOwnedUserAudioBook', () => {
+      it('creates OWNED relationship for audiobook creator', async () => {
+         const mockUserProfile = { id: 'user1', userId: 'user-123', username: 'testuser' };
+         const mockAudioBook = { id: 'book1', title: 'Test Book', author: 'Test Author' };
+         const mockUserAudioBook = {
+            id: 'ua1',
+            userProfileId: 'user1',
+            audiobookId: 'book1',
+            type: UserAudioBookType.OWNED,
+            createdAt: new Date(),
+            updatedAt: new Date()
+         };
+
+         mockPrisma.userProfile.findUnique.mockResolvedValue(mockUserProfile);
+         mockPrisma.audioBook.findUnique.mockResolvedValue(mockAudioBook);
+         mockPrisma.userAudioBook.findUnique.mockResolvedValue(null);
+         mockPrisma.userAudioBook.create.mockResolvedValue(mockUserAudioBook);
+
+         const result = await userAudioBookService.createOwnedUserAudioBook('user1', 'book1');
+
+         expect(result?.type).toBe(UserAudioBookType.OWNED);
+         expect(mockPrisma.userAudioBook.create).toHaveBeenCalledWith({
+            data: {
+               userProfileId: 'user1',
+               audiobookId: 'book1',
+               type: UserAudioBookType.OWNED
+            }
+         });
+      });
+
+      it('returns existing relationship without creating duplicate', async () => {
+         const mockUserProfile = { id: 'user1', userId: 'user-123', username: 'testuser' };
+         const mockAudioBook = { id: 'book1', title: 'Test Book', author: 'Test Author' };
+         const mockExisting = {
+            id: 'ua1',
+            userProfileId: 'user1',
+            audiobookId: 'book1',
+            type: UserAudioBookType.OWNED,
+            createdAt: new Date(),
+            updatedAt: new Date()
+         };
+
+         mockPrisma.userProfile.findUnique.mockResolvedValue(mockUserProfile);
+         mockPrisma.audioBook.findUnique.mockResolvedValue(mockAudioBook);
+         mockPrisma.userAudioBook.findUnique.mockResolvedValue(mockExisting);
+
+         const result = await userAudioBookService.createOwnedUserAudioBook('user1', 'book1');
+
+         expect(result?.id).toBe('ua1');
+         expect(mockPrisma.userAudioBook.create).not.toHaveBeenCalled();
+      });
+   });
+
    describe('getAllUserAudioBooks', () => {
       it('returns paginated user-audiobook relationships', async () => {
          const mockUserAudioBooks = [
@@ -188,7 +208,7 @@ describe('UserAudioBookService', () => {
                id: 'ua2',
                userProfileId: 'user2',
                audiobookId: 'book2',
-               type: UserAudioBookType.UPLOADED,
+               type: UserAudioBookType.PURCHASED,
                createdAt: new Date(),
                updatedAt: new Date()
             }
@@ -341,46 +361,6 @@ describe('UserAudioBookService', () => {
          mockPrisma.userAudioBook.findUnique.mockResolvedValue(null);
 
          await expect(userAudioBookService.getUserAudioBookById('ua1')).rejects.toBeInstanceOf(ApiError);
-      });
-   });
-
-   describe('updateUserAudioBook', () => {
-      it('updates type successfully', async () => {
-         const mockExisting = {
-            id: 'ua1',
-            userProfileId: 'user1',
-            audiobookId: 'book1',
-            type: UserAudioBookType.OWNED,
-            createdAt: new Date(),
-            updatedAt: new Date()
-         };
-         const mockUpdated = {
-            ...mockExisting,
-            type: UserAudioBookType.PURCHASED
-         };
-
-         mockPrisma.userAudioBook.findUnique.mockResolvedValue(mockExisting);
-         mockPrisma.userAudioBook.update.mockResolvedValue(mockUpdated);
-
-         const result = await userAudioBookService.updateUserAudioBook('ua1', {
-            type: UserAudioBookType.PURCHASED
-         });
-
-         expect(result.type).toBe(UserAudioBookType.PURCHASED);
-         expect(mockPrisma.userAudioBook.update).toHaveBeenCalledWith({
-            where: { id: 'ua1' },
-            data: { type: UserAudioBookType.PURCHASED }
-         });
-      });
-
-      it('throws error when not found', async () => {
-         mockPrisma.userAudioBook.findUnique.mockResolvedValue(null);
-
-         await expect(
-            userAudioBookService.updateUserAudioBook('ua1', { type: UserAudioBookType.PURCHASED })
-         ).rejects.toBeInstanceOf(ApiError);
-
-         expect(mockPrisma.userAudioBook.update).not.toHaveBeenCalled();
       });
    });
 

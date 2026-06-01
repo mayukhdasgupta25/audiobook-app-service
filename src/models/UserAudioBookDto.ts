@@ -9,13 +9,13 @@ export interface UserAudioBookDto {
    userProfileId: string;
    audiobookId: string;
    type: UserAudioBookType;
-   progress?: number; // Percentage (0-100)
+   progress?: number; // Total seconds listened (sum of chapter currentPosition values)
    createdAt: Date;
    updatedAt: Date;
 }
 
 export interface UserAudioBookWithRelations extends UserAudioBookDto {
-   progress?: number; // Percentage (0-100)
+   progress?: number; // Total seconds listened (sum of chapter currentPosition values)
    userProfile: {
       id: string;
       userId: string;
@@ -35,11 +35,6 @@ export interface UserAudioBookWithRelations extends UserAudioBookDto {
 export interface CreateUserAudioBookDto {
    userProfileId: string;
    audiobookId: string;
-   type?: UserAudioBookType;
-}
-
-export interface UpdateUserAudioBookDto {
-   type?: UserAudioBookType;
 }
 
 export interface UserAudioBookQueryParams {

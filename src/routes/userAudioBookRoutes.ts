@@ -132,27 +132,6 @@ export function createUserAudioBookRoutes(prisma: PrismaClient): Router {
    /**
     * @swagger
     * /api/v1/user-audiobooks/{id}:
-    *   put:
-    *     summary: Update user-audiobook relationship
-    *     tags: [UserAudioBooks]
-    *     responses:
-    *       200:
-    *         description: User-audiobook relationship updated successfully
-    *       404:
-    *         $ref: '#/components/responses/NotFound'
-    *       500:
-    *         $ref: '#/components/responses/InternalServerError'
-    */
-   router.put(
-      '/:id',
-      ValidationMiddleware.validateId,
-      ValidationMiddleware.validateUserAudioBookUpdate,
-      userAudioBookController.updateUserAudioBook
-   );
-
-   /**
-    * @swagger
-    * /api/v1/user-audiobooks/{id}:
     *   delete:
     *     summary: Delete user-audiobook relationship
     *     tags: [UserAudioBooks]

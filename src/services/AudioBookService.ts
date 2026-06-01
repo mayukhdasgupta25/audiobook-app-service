@@ -2,7 +2,7 @@
  * AudioBook Service Layer
  * Handles business logic and database operations following OOP principles
  */
-import { PrismaClient, Prisma } from '@prisma/client';
+import { PrismaClient, Prisma, UserAudioBookType } from '@prisma/client';
 import { SubscriptionClient, subscriptionClient } from '../clients/SubscriptionClient';
 import {
   AudioBookDto,
@@ -15,6 +15,8 @@ import {
 import { ApiError } from '../types/ApiError';
 import { MessageHandler } from '../utils/MessageHandler';
 import { BackgroundJobService } from './BackgroundJobService';
+import { UserAudioBookService } from './UserAudioBookService';
+import { ChapterService } from './ChapterService';
 import { HttpStatusCode, ErrorType } from '../types/common';
 
 export class AudioBookService {
@@ -290,7 +292,10 @@ export class AudioBookService {
   /**
    * Create a new audiobook
    */
-  async createAudioBook(data: CreateAudioBookDto & { tagIds?: string[]; genreIds?: string[] }): Promise<AudioBookDto> {
+  async createAudioBook(
+    data: CreateAudioBookDto & { tagIds?: string[]; genreIds?: string[] },
+    ownerUserProfileId?: string
+  ): Promise<AudioBookDto> {
     try {
       // Extract tagIds and genreIds from data before validation
       const { tagIds, genreIds, ...audiobookData } = data;
@@ -393,6 +398,12 @@ export class AudioBookService {
           // Log error but don't fail audiobook creation
           console.error(`Error scheduling activation job for audiobook ${audiobook.id}:`, _error);
         }
+      }
+
+      // Creator owns the audiobook when they have a user profile (skipped for admins without a profile)
+      if (ownerUserProfileId) {
+        const userAudioBookService = new UserAudioBookService(this.prisma);
+        await userAudioBookService.createOwnedUserAudioBook(ownerUserProfileId, audiobook.id);
       }
 
       return toAudioBookDto(audiobookWithRelations);
@@ -563,15 +574,10 @@ export class AudioBookService {
   }
 
   /**
-   * Update user-audiobook progress
+   * Recalculate and store user-audiobook progress (total seconds listened across chapters).
    */
-  async updateAudiobookProgress(id: string, userProfileId: string, progress: number): Promise<AudioBookDto> {
+  async updateAudiobookProgress(id: string, userProfileId: string): Promise<AudioBookDto> {
     try {
-      // Validate progress value
-      if (progress < 0 || progress > 100) {
-        throw ApiError.validationError('Progress must be between 0 and 100');
-      }
-
       // Verify audiobook exists
       const audiobook = await this.prisma.audioBook.findUnique({
         where: { id }
@@ -580,6 +586,9 @@ export class AudioBookService {
       if (!audiobook) {
         throw ApiError.notFound(MessageHandler.getErrorMessage('not_found.audiobook'));
       }
+
+      const chapterService = new ChapterService(this.prisma);
+      const progressSeconds = await chapterService.calculateAudiobookProgress(userProfileId, id);
 
       // Update user-audiobook progress
       await this.prisma.userAudioBook.upsert({
@@ -590,13 +599,13 @@ export class AudioBookService {
           }
         },
         update: {
-          progress: progress
+          progress: progressSeconds
         },
         create: {
           userProfileId,
           audiobookId: id,
-          type: 'OWNED', // Default type, can be updated later if needed
-          progress: progress
+          type: UserAudioBookType.PURCHASED,
+          progress: progressSeconds
         }
       });
 
