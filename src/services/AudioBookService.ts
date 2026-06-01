@@ -590,7 +590,17 @@ export class AudioBookService {
       const chapterService = new ChapterService(this.prisma);
       const progressSeconds = await chapterService.calculateAudiobookProgress(userProfileId, id);
 
-      // Update user-audiobook progress
+      const existingUserAudioBook = await this.prisma.userAudioBook.findUnique({
+        where: {
+          userProfileId_audiobookId: { userProfileId, audiobookId: id },
+        },
+        select: { progress: true },
+      });
+      const storedProgress = existingUserAudioBook
+        ? Math.max(existingUserAudioBook.progress, progressSeconds)
+        : progressSeconds;
+
+      // Update user-audiobook progress (never decrease)
       await this.prisma.userAudioBook.upsert({
         where: {
           userProfileId_audiobookId: {
@@ -599,13 +609,13 @@ export class AudioBookService {
           }
         },
         update: {
-          progress: progressSeconds
+          progress: storedProgress
         },
         create: {
           userProfileId,
           audiobookId: id,
           type: UserAudioBookType.PURCHASED,
-          progress: progressSeconds
+          progress: storedProgress
         }
       });
 
