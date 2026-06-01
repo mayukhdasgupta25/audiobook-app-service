@@ -495,11 +495,21 @@ export class BackgroundJobService {
             userProfileId,
             audiobookId
          );
+         const existingUserAudioBook = await this.prisma.userAudioBook.findUnique({
+            where: {
+               userProfileId_audiobookId: { userProfileId, audiobookId },
+            },
+            select: { progress: true },
+         });
+         const storedProgress = existingUserAudioBook
+            ? Math.max(existingUserAudioBook.progress, progressSeconds)
+            : progressSeconds;
+
          const totalDurationSeconds = await this.chapterService.getAudiobookTotalDurationSeconds(audiobookId);
          const completed =
-            totalDurationSeconds > 0 && progressSeconds >= totalDurationSeconds * 0.95;
+            totalDurationSeconds > 0 && storedProgress >= totalDurationSeconds * 0.95;
 
-         // Update user-audiobook progress (total seconds listened)
+         // Update user-audiobook progress (total seconds listened; never decrease)
          await this.prisma.userAudioBook.upsert({
             where: {
                userProfileId_audiobookId: {
@@ -508,15 +518,27 @@ export class BackgroundJobService {
                }
             },
             update: {
-               progress: progressSeconds
+               progress: storedProgress
             },
             create: {
                userProfileId,
                audiobookId,
                type: UserAudioBookType.PURCHASED,
-               progress: progressSeconds
+               progress: storedProgress
             }
          });
+
+         const existingListeningHistory = await this.prisma.listeningHistory.findUnique({
+            where: {
+               userProfileId_audiobookId: { userProfileId, audiobookId },
+            },
+            select: { currentPosition: true, completed: true },
+         });
+         const storedPosition = existingListeningHistory
+            ? Math.max(existingListeningHistory.currentPosition, progressSeconds)
+            : progressSeconds;
+         const listeningCompleted =
+            existingListeningHistory?.completed === true || completed;
 
          // Update listening history
          await this.prisma.listeningHistory.upsert({
@@ -527,14 +549,14 @@ export class BackgroundJobService {
                },
             },
             update: {
-               currentPosition: progressSeconds,
-               completed,
+               currentPosition: storedPosition,
+               completed: listeningCompleted,
             },
             create: {
                userProfileId,
                audiobookId,
-               currentPosition: progressSeconds,
-               completed,
+               currentPosition: storedPosition,
+               completed: listeningCompleted,
             },
          });
       } catch (error) {
