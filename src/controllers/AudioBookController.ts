@@ -10,7 +10,7 @@ import { ResponseHandler } from '../utils/ResponseHandler';
 import { AudioBookQueryParams } from '../models/AudioBookDto';
 import { ErrorHandler } from '../middleware/ErrorHandler';
 import { MessageHandler } from '../utils/MessageHandler';
-import { getFileUrl } from '../middleware/UploadMiddleware';
+import { fileUrlService } from '../services/FileUrlService';
 import { OrganizationService } from '../services/OrganizationService';
 import { AuthenticatedRequest } from '../types/auth';
 
@@ -356,12 +356,20 @@ export class AudioBookController {
       }
     }
 
+    const coverImage = uploadedCoverImage
+      ? await fileUrlService.processUploadedCoverFile(
+         uploadedCoverImage.path,
+         'uploads/images/audiobooks',
+         uploadedCoverImage.mimetype || 'image/jpeg'
+      )
+      : undefined;
+
     const audiobookData: any = {
       ...req.body,
       // Parse scheduledAt if provided (can be ISO string or Date)
       scheduledAt: req.body.scheduledAt ? new Date(req.body.scheduledAt) : undefined,
       // Cover image from uploaded file
-      coverImage: getFileUrl(uploadedCoverImage.path),
+      coverImage,
       // Include tagIds and genreIds in the data object (service expects them as part of data)
       tagIds: tagIds,
       genreIds: genreIds
@@ -483,7 +491,11 @@ export class AudioBookController {
     // Handle uploaded file - use req.file (singular) for single file upload
     // The middleware uploadSingleImage populates req.file, not req.files
     if (req.file) {
-      updateData.coverImage = getFileUrl(req.file.path);
+      updateData.coverImage = await fileUrlService.processUploadedCoverFile(
+         req.file.path,
+         'uploads/images/audiobooks',
+         req.file.mimetype || 'image/jpeg'
+      );
     }
 
     const audiobook = await this.audioBookService.updateAudioBook(id as string, updateData, tagIds, genreIds);

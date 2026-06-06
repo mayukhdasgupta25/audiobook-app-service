@@ -13,6 +13,7 @@ import {
 } from '../models/OfflineDownloadDto';
 import { BackgroundJobService } from './BackgroundJobService';
 import { ApiError } from '../types/ApiError';
+import { fileUrlService } from './FileUrlService';
 
 export class OfflineDownloadService {
    private backgroundJobService: BackgroundJobService;
@@ -192,31 +193,63 @@ export class OfflineDownloadService {
             orderBy: { createdAt: 'desc' },
          });
 
-         return downloads.map(download => ({
-            id: download.id,
-            userProfileId: download.userProfileId,
-            audiobookId: download.audiobookId,
-            status: download.status,
-            progress: download.progress,
-            filePath: download.filePath || undefined,
-            fileSize: download.fileSize ? Number(download.fileSize) : undefined,
-            errorMessage: download.errorMessage || undefined,
-            retryCount: download.retryCount,
-            createdAt: download.createdAt,
-            updatedAt: download.updatedAt,
-            completedAt: download.completedAt || undefined,
-            audiobook: {
-               id: download.audiobook.id,
-               title: download.audiobook.title,
-               duration: download.audiobook.duration,
-               fileSize: download.audiobook.fileSize,
-               author: download.audiobook.author,
-               coverImage: download.audiobook.coverImage || undefined
-            }
-         } as OfflineDownloadWithRelations));
+         return Promise.all(downloads.map(download => this.mapOfflineDownloadWithRelations(download)));
       } catch (_error) {
          throw new ApiError('Failed to retrieve user downloads', 500);
       }
+   }
+
+   private async mapOfflineDownloadWithRelations(
+      download: {
+         id: string;
+         userProfileId: string;
+         audiobookId: string;
+         status: DownloadStatus;
+         progress: number;
+         filePath: string | null;
+         fileSize: bigint | null;
+         errorMessage: string | null;
+         retryCount: number;
+         createdAt: Date;
+         updatedAt: Date;
+         completedAt: Date | null;
+         audiobook: {
+            id: string;
+            title: string;
+            author: string;
+            duration: number | null;
+            fileSize: bigint | null;
+            coverImage: string | null;
+         };
+      }
+   ): Promise<OfflineDownloadWithRelations> {
+      const [filePath, coverImage] = await fileUrlService.resolveManyForClient([
+         download.filePath,
+         download.audiobook.coverImage,
+      ]);
+
+      return {
+         id: download.id,
+         userProfileId: download.userProfileId,
+         audiobookId: download.audiobookId,
+         status: download.status,
+         progress: download.progress,
+         filePath,
+         fileSize: download.fileSize ? Number(download.fileSize) : undefined,
+         errorMessage: download.errorMessage || undefined,
+         retryCount: download.retryCount,
+         createdAt: download.createdAt,
+         updatedAt: download.updatedAt,
+         completedAt: download.completedAt || undefined,
+         audiobook: {
+            id: download.audiobook.id,
+            title: download.audiobook.title,
+            duration: download.audiobook.duration,
+            fileSize: download.audiobook.fileSize,
+            author: download.audiobook.author,
+            coverImage,
+         },
+      } as OfflineDownloadWithRelations;
    }
 
    /**

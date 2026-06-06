@@ -15,6 +15,7 @@ import {
 import { ApiError } from '../types/ApiError';
 import { MessageHandler } from '../utils/MessageHandler';
 import { BackgroundJobService } from './BackgroundJobService';
+import { fileUrlService } from './FileUrlService';
 import { UserAudioBookService } from './UserAudioBookService';
 import { ChapterService } from './ChapterService';
 import { HttpStatusCode, ErrorType } from '../types/common';
@@ -82,7 +83,9 @@ export class AudioBookService {
       ]);
 
       return {
-        audiobooks: audiobooks.map(toAudioBookDto),
+        audiobooks: await fileUrlService.resolveAudioBookMediaList(
+          audiobooks.map(toAudioBookDto)
+        ),
         totalCount
       };
     } catch (_error) {
@@ -142,11 +145,15 @@ export class AudioBookService {
         this.prisma.audioBook.count({ where })
       ]);
 
-      return {
-        audiobooks: audiobooks.map(audiobook => ({
-          ...toAudioBookDto(audiobook),
+      const resolved = await Promise.all(
+        audiobooks.map(async audiobook => ({
+          ...(await fileUrlService.resolveAudioBookMedia(toAudioBookDto(audiobook))),
           chapterCount: audiobook._count.chapters
-        })),
+        }))
+      );
+
+      return {
+        audiobooks: resolved,
         totalCount
       };
     } catch (_error) {
@@ -239,7 +246,7 @@ export class AudioBookService {
         throw ApiError.notFound(MessageHandler.getErrorMessage('not_found.audiobook'));
       }
 
-      return toAudioBookDto(audiobook);
+      return fileUrlService.resolveAudioBookMedia(toAudioBookDto(audiobook));
     } catch (error) {
       if (error instanceof ApiError) {
         throw error;
@@ -277,8 +284,9 @@ export class AudioBookService {
         throw ApiError.notFound(MessageHandler.getErrorMessage('not_found.audiobook'));
       }
 
+      const dto = await fileUrlService.resolveAudioBookMedia(toAudioBookDto(audiobook));
       return {
-        ...toAudioBookDto(audiobook),
+        ...dto,
         chapters: audiobook.chapters
       };
     } catch (error) {
@@ -406,7 +414,7 @@ export class AudioBookService {
         await userAudioBookService.createOwnedUserAudioBook(ownerUserProfileId, audiobook.id);
       }
 
-      return toAudioBookDto(audiobookWithRelations);
+      return fileUrlService.resolveAudioBookMedia(toAudioBookDto(audiobookWithRelations));
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError) {
         if (error.code === 'P2002') {
@@ -534,7 +542,7 @@ export class AudioBookService {
         throw ApiError.internalError(MessageHandler.getErrorMessage('internal.update_audiobook'));
       }
 
-      return toAudioBookDto(audiobookWithRelations);
+      return fileUrlService.resolveAudioBookMedia(toAudioBookDto(audiobookWithRelations));
     } catch (error) {
       if (error instanceof ApiError) {
         throw error;
@@ -619,7 +627,7 @@ export class AudioBookService {
         }
       });
 
-      return toAudioBookDto(audiobook);
+      return fileUrlService.resolveAudioBookMedia(toAudioBookDto(audiobook));
     } catch (error) {
       if (error instanceof ApiError) {
         throw error;
@@ -643,7 +651,7 @@ export class AudioBookService {
         data: { isOfflineAvailable: isAvailable }
       });
 
-      return toAudioBookDto(audiobook);
+      return fileUrlService.resolveAudioBookMedia(toAudioBookDto(audiobook));
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError) {
         if (error.code === 'P2025') {
@@ -711,7 +719,9 @@ export class AudioBookService {
       ]);
 
       return {
-        audiobooks: audiobooks.map(toAudioBookDto),
+        audiobooks: await fileUrlService.resolveAudioBookMediaList(
+          audiobooks.map(toAudioBookDto)
+        ),
         totalCount
       };
     } catch (_error) {

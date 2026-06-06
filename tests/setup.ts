@@ -17,6 +17,7 @@ process.env['AWS_S3_REGION'] = 'us-east-1';
 process.env['AWS_ACCESS_KEY_ID'] = '';
 process.env['AWS_SECRET_ACCESS_KEY'] = '';
 process.env['AWS_S3_ENDPOINT'] = '';
+process.env['AWS_SIGNED_URL_EXPIRES_IN'] = '3600';
 process.env['TRANSCODING_BITRATES'] = '[64, 128, 256]';
 process.env['STREAMING_CACHE_TTL'] = '3600';
 process.env['STREAMING_SERVICE_STORAGE_PATH'] = './test-storage';
