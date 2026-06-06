@@ -1,3 +1,4 @@
+import '../src/config/env';
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
@@ -88,7 +89,7 @@ async function main() {
       console.log('✅ Database cleanup completed successfully!');
       console.log('All tables have been emptied.');
       console.log('');
-      console.log('💡 To repopulate the database, run: npm run db:seed');
+      console.log('💡 To repopulate the database, run: npm run db:seed:dev');
 
    } catch (error) {
       console.error('❌ Error during database cleanup:', error);

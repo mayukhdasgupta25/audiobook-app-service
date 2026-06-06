@@ -49,8 +49,7 @@ export class QueueManager {
          return this.queues.get(name)!;
       }
 
-      const redisConfig = RedisConfigHelper.getConfigFromEnv();
-      const redisUrl = RedisConfigHelper.getRedisUrl(redisConfig);
+      const redisUrl = RedisConfigHelper.getRedisUrl();
 
       const queueConfig: QueueConfig = {
          name,

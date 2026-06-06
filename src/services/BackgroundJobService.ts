@@ -45,9 +45,7 @@ export class BackgroundJobService {
    private chapterService: ChapterService;
 
    constructor(private prisma: PrismaClient) {
-      // Get Redis configuration
-      const redisConfig = RedisConfigHelper.getConfigFromEnv();
-      const redisUrl = RedisConfigHelper.getRedisUrl(redisConfig);
+      const redisUrl = RedisConfigHelper.getRedisUrl();
 
       // Initialize Bull queues
       this.progressQueue = new Bull('progress-calculation', {

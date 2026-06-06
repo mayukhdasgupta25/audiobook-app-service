@@ -23,23 +23,12 @@ const app = express();
 // Middleware
 app.use(helmet());
 
-// CORS configuration - allow multiple client origins
-const allowedOrigins = [
-   ...config.CLIENT_URLS
-];
-
+// CORS configuration — allow any origin (reflects request origin for credentials)
 app.use(cors({
-   origin: (origin, callback) => {
-      // Allow requests with no origin (like mobile apps or curl requests)
-      if (!origin) return callback(null, true);
-
-      if (allowedOrigins.includes(origin)) {
-         callback(null, true);
-      } else {
-         callback(new Error('Not allowed by CORS'));
-      }
-   },
-   credentials: true
+   origin: true,
+   credentials: true,
+   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -50,11 +39,11 @@ app.use(apiLoggerMiddleware);
 
 // Session configuration
 app.use(session({
-   secret: process.env['SESSION_SECRET'] || 'your-secret-key',
+   secret: config.SESSION_SECRET,
    resave: false,
    saveUninitialized: false,
    cookie: {
-      secure: process.env['NODE_ENV'] === 'production',
+      secure: config.USE_SECURE_COOKIES,
       maxAge: 24 * 60 * 60 * 1000 // 24 hours
    }
 }));

@@ -236,7 +236,7 @@ export class ImageProcessingService {
 
          // In production, upload to S3 and clean up temp files
          if (!isDevelopment) {
-            const s3BasePath = 'images/chapters/thumbnails';
+            const s3BasePath = 'uploads/images/chapters/thumbnails';
             const chapterCardS3Key = await this.uploadThumbnailToS3(chapterCardPath, `${s3BasePath}/chapter-card-${uniqueSuffix}.jpg`);
             const maximizedS3Key = await this.uploadThumbnailToS3(maximizedPath, `${s3BasePath}/maximized-${uniqueSuffix}.jpg`);
             const minimizedS3Key = await this.uploadThumbnailToS3(minimizedPath, `${s3BasePath}/minimized-${uniqueSuffix}.jpg`);
