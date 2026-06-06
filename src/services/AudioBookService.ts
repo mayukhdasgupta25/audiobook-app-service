@@ -2,7 +2,8 @@
  * AudioBook Service Layer
  * Handles business logic and database operations following OOP principles
  */
-import { PrismaClient, Prisma, SubscriptionStatus } from '@prisma/client';
+import { PrismaClient, Prisma, UserAudioBookType } from '@prisma/client';
+import { SubscriptionClient, subscriptionClient } from '../clients/SubscriptionClient';
 import {
   AudioBookDto,
   AudiobookSubscriptionAccessDto,
@@ -14,15 +15,24 @@ import {
 import { ApiError } from '../types/ApiError';
 import { MessageHandler } from '../utils/MessageHandler';
 import { BackgroundJobService } from './BackgroundJobService';
+import { fileUrlService } from './FileUrlService';
+import { UserAudioBookService } from './UserAudioBookService';
+import { ChapterService } from './ChapterService';
 import { HttpStatusCode, ErrorType } from '../types/common';
 
 export class AudioBookService {
   private prisma: PrismaClient;
   private backgroundJobService: BackgroundJobService | undefined;
+  private subscriptionClient: SubscriptionClient;
 
-  constructor(prisma: PrismaClient, backgroundJobService?: BackgroundJobService) {
+  constructor(
+    prisma: PrismaClient,
+    backgroundJobService?: BackgroundJobService,
+    subscriptionClientInstance: SubscriptionClient = subscriptionClient
+  ) {
     this.prisma = prisma;
     this.backgroundJobService = backgroundJobService;
+    this.subscriptionClient = subscriptionClientInstance;
   }
 
   /**
@@ -73,7 +83,9 @@ export class AudioBookService {
       ]);
 
       return {
-        audiobooks: audiobooks.map(toAudioBookDto),
+        audiobooks: await fileUrlService.resolveAudioBookMediaList(
+          audiobooks.map(toAudioBookDto)
+        ),
         totalCount
       };
     } catch (_error) {
@@ -133,11 +145,15 @@ export class AudioBookService {
         this.prisma.audioBook.count({ where })
       ]);
 
-      return {
-        audiobooks: audiobooks.map(audiobook => ({
-          ...toAudioBookDto(audiobook),
+      const resolved = await Promise.all(
+        audiobooks.map(async audiobook => ({
+          ...(await fileUrlService.resolveAudioBookMedia(toAudioBookDto(audiobook))),
           chapterCount: audiobook._count.chapters
-        })),
+        }))
+      );
+
+      return {
+        audiobooks: resolved,
         totalCount
       };
     } catch (_error) {
@@ -157,6 +173,7 @@ export class AudioBookService {
   private buildWhereClause(params: AudioBookQueryParams): Prisma.AudioBookWhereInput {
     const {
       genreIds,
+      moodIds,
       organizationId,
       organizationIds,
       language,
@@ -172,7 +189,14 @@ export class AudioBookService {
     const where: Prisma.AudioBookWhereInput = {
       ...(isActive !== undefined && { isActive }),
       ...(isPublic !== undefined && { isPublic }),
-      ...(genreIds && genreIds.length > 0 && { genreId: { in: genreIds } }),
+      ...(genreIds && genreIds.length > 0 && {
+        audioBookGenres: {
+          some: { genreId: { in: genreIds } },
+        },
+      }),
+      ...(moodIds && moodIds.length > 0 && {
+        moodId: { in: moodIds },
+      }),
       ...(organizationId
         ? { organizationId }
         : organizationIds && organizationIds.length > 0
@@ -222,7 +246,7 @@ export class AudioBookService {
         throw ApiError.notFound(MessageHandler.getErrorMessage('not_found.audiobook'));
       }
 
-      return toAudioBookDto(audiobook);
+      return fileUrlService.resolveAudioBookMedia(toAudioBookDto(audiobook));
     } catch (error) {
       if (error instanceof ApiError) {
         throw error;
@@ -260,8 +284,9 @@ export class AudioBookService {
         throw ApiError.notFound(MessageHandler.getErrorMessage('not_found.audiobook'));
       }
 
+      const dto = await fileUrlService.resolveAudioBookMedia(toAudioBookDto(audiobook));
       return {
-        ...toAudioBookDto(audiobook),
+        ...dto,
         chapters: audiobook.chapters
       };
     } catch (error) {
@@ -275,7 +300,10 @@ export class AudioBookService {
   /**
    * Create a new audiobook
    */
-  async createAudioBook(data: CreateAudioBookDto & { tagIds?: string[]; genreIds?: string[] }): Promise<AudioBookDto> {
+  async createAudioBook(
+    data: CreateAudioBookDto & { tagIds?: string[]; genreIds?: string[] },
+    ownerUserProfileId?: string
+  ): Promise<AudioBookDto> {
     try {
       // Extract tagIds and genreIds from data before validation
       const { tagIds, genreIds, ...audiobookData } = data;
@@ -380,7 +408,13 @@ export class AudioBookService {
         }
       }
 
-      return toAudioBookDto(audiobookWithRelations);
+      // Creator owns the audiobook when they have a user profile (skipped for admins without a profile)
+      if (ownerUserProfileId) {
+        const userAudioBookService = new UserAudioBookService(this.prisma);
+        await userAudioBookService.createOwnedUserAudioBook(ownerUserProfileId, audiobook.id);
+      }
+
+      return fileUrlService.resolveAudioBookMedia(toAudioBookDto(audiobookWithRelations));
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError) {
         if (error.code === 'P2002') {
@@ -508,7 +542,7 @@ export class AudioBookService {
         throw ApiError.internalError(MessageHandler.getErrorMessage('internal.update_audiobook'));
       }
 
-      return toAudioBookDto(audiobookWithRelations);
+      return fileUrlService.resolveAudioBookMedia(toAudioBookDto(audiobookWithRelations));
     } catch (error) {
       if (error instanceof ApiError) {
         throw error;
@@ -548,15 +582,10 @@ export class AudioBookService {
   }
 
   /**
-   * Update user-audiobook progress
+   * Recalculate and store user-audiobook progress (total seconds listened across chapters).
    */
-  async updateAudiobookProgress(id: string, userProfileId: string, progress: number): Promise<AudioBookDto> {
+  async updateAudiobookProgress(id: string, userProfileId: string): Promise<AudioBookDto> {
     try {
-      // Validate progress value
-      if (progress < 0 || progress > 100) {
-        throw ApiError.validationError('Progress must be between 0 and 100');
-      }
-
       // Verify audiobook exists
       const audiobook = await this.prisma.audioBook.findUnique({
         where: { id }
@@ -566,7 +595,20 @@ export class AudioBookService {
         throw ApiError.notFound(MessageHandler.getErrorMessage('not_found.audiobook'));
       }
 
-      // Update user-audiobook progress
+      const chapterService = new ChapterService(this.prisma);
+      const progressSeconds = await chapterService.calculateAudiobookProgress(userProfileId, id);
+
+      const existingUserAudioBook = await this.prisma.userAudioBook.findUnique({
+        where: {
+          userProfileId_audiobookId: { userProfileId, audiobookId: id },
+        },
+        select: { progress: true },
+      });
+      const storedProgress = existingUserAudioBook
+        ? Math.max(existingUserAudioBook.progress, progressSeconds)
+        : progressSeconds;
+
+      // Update user-audiobook progress (never decrease)
       await this.prisma.userAudioBook.upsert({
         where: {
           userProfileId_audiobookId: {
@@ -575,17 +617,17 @@ export class AudioBookService {
           }
         },
         update: {
-          progress: progress
+          progress: storedProgress
         },
         create: {
           userProfileId,
           audiobookId: id,
-          type: 'OWNED', // Default type, can be updated later if needed
-          progress: progress
+          type: UserAudioBookType.PURCHASED,
+          progress: storedProgress
         }
       });
 
-      return toAudioBookDto(audiobook);
+      return fileUrlService.resolveAudioBookMedia(toAudioBookDto(audiobook));
     } catch (error) {
       if (error instanceof ApiError) {
         throw error;
@@ -609,7 +651,7 @@ export class AudioBookService {
         data: { isOfflineAvailable: isAvailable }
       });
 
-      return toAudioBookDto(audiobook);
+      return fileUrlService.resolveAudioBookMedia(toAudioBookDto(audiobook));
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError) {
         if (error.code === 'P2025') {
@@ -677,7 +719,9 @@ export class AudioBookService {
       ]);
 
       return {
-        audiobooks: audiobooks.map(toAudioBookDto),
+        audiobooks: await fileUrlService.resolveAudioBookMediaList(
+          audiobooks.map(toAudioBookDto)
+        ),
         totalCount
       };
     } catch (_error) {
@@ -805,27 +849,8 @@ export class AudioBookService {
    * Returns the highest `tierLevel` among the user's qualifying subscriptions,
    * or `null` if the user has no qualifying subscription.
    */
-  async getUserHighestActiveTier(userProfileId: string): Promise<number | null> {
-    const subs = await this.prisma.userSubscription.findMany({
-      where: {
-        userProfileId,
-        status: { in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.TRIALING] }
-      },
-      include: { plan: true }
-    });
-
-    if (subs.length === 0) {
-      return null;
-    }
-
-    let highest: number | null = null;
-    for (const sub of subs) {
-      const tier = (sub.plan as { tierLevel?: number }).tierLevel ?? 0;
-      if (highest === null || tier > highest) {
-        highest = tier;
-      }
-    }
-    return highest;
+  async getUserHighestActiveTier(userId: string, accessToken: string): Promise<number | null> {
+    return this.subscriptionClient.getUserHighestActiveTier(userId, accessToken);
   }
 
   /**
@@ -836,14 +861,15 @@ export class AudioBookService {
   async getSubscriptionAccessForAudiobook(
     _audiobookId: string,
     minSubscriptionTier: number | null | undefined,
-    userProfileId: string | null
+    userId: string | null,
+    accessToken: string | null
   ): Promise<AudiobookSubscriptionAccessDto> {
     const requiredTier = minSubscriptionTier ?? null;
     if (requiredTier === null) {
       return { canAccess: true };
     }
 
-    if (!userProfileId) {
+    if (!userId || !accessToken) {
       return {
         canAccess: false,
         message: MessageHandler.getErrorMessage('forbidden.subscription_required'),
@@ -852,7 +878,7 @@ export class AudioBookService {
       };
     }
 
-    const userTier = await this.getUserHighestActiveTier(userProfileId);
+    const userTier = await this.getUserHighestActiveTier(userId, accessToken);
     if (userTier === null) {
       return {
         canAccess: false,
@@ -875,12 +901,45 @@ export class AudioBookService {
   }
 
   /**
+   * Returns the authenticated user's review rating for an audiobook, or null if none.
+   */
+  async getUserReviewRatingForAudiobook(
+    audiobookId: string,
+    externalUserId: string | null
+  ): Promise<number | null> {
+    if (!externalUserId) {
+      return null;
+    }
+
+    const profile = await this.prisma.userProfile.findUnique({
+      where: { userId: externalUserId },
+      select: { id: true },
+    });
+    if (!profile) {
+      return null;
+    }
+
+    const review = await this.prisma.review.findUnique({
+      where: {
+        userProfileId_audiobookId: {
+          userProfileId: profile.id,
+          audiobookId,
+        },
+      },
+      select: { rating: true },
+    });
+
+    return review?.rating ?? null;
+  }
+
+  /**
    * @deprecated Use {@link getSubscriptionAccessForAudiobook} for API responses.
    * Throws only when the audiobook does not exist (for scripts/tests that enforce access).
    */
   async assertUserCanAccessBySubscription(
     audiobookId: string,
-    userProfileId: string | null
+    userId: string | null,
+    accessToken: string | null
   ): Promise<void> {
     const audiobook = await this.prisma.audioBook.findUnique({
       where: { id: audiobookId },
@@ -893,7 +952,8 @@ export class AudioBookService {
     const access = await this.getSubscriptionAccessForAudiobook(
       audiobookId,
       (audiobook as { minSubscriptionTier?: number | null }).minSubscriptionTier,
-      userProfileId
+      userId,
+      accessToken
     );
     if (!access.canAccess) {
       throw new ApiError(

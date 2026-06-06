@@ -22,7 +22,7 @@ import { BackgroundJobService } from './BackgroundJobService';
 import { ImageProcessingService } from './ImageProcessingService';
 import { validateChapterCoverImageOrThrow } from '../utils/ImageValidator';
 import path from 'path';
-import { getFileUrl } from '../middleware/UploadMiddleware';
+import { fileUrlService } from './FileUrlService';
 
 export class ChapterService {
    private fileUploadService: FileUploadService;
@@ -71,30 +71,9 @@ export class ChapterService {
          ]);
 
          return {
-            chapters: chapters.map(chapter => ({
-               id: chapter.id,
-               audiobookId: chapter.audiobookId,
-               title: chapter.title,
-               description: chapter.description || undefined,
-               chapterNumber: chapter.chapterNumber,
-               duration: chapter.duration,
-               filePath: chapter.filePath,
-               fileSize: Number(chapter.fileSize),
-               coverImage: chapter.coverImage,
-               chapterCardCoverImage: chapter.chapterCardCoverImage || undefined,
-               maximizedChapterCoverImage: chapter.maximizedChapterCoverImage || undefined,
-               minimizedChapterCoverImage: chapter.minimizedChapterCoverImage || undefined,
-               startPosition: chapter.startPosition,
-               endPosition: chapter.endPosition,
-               isActive: chapter.isActive,
-               scheduledAt: chapter.scheduledAt ?? null,
-               createdAt: chapter.createdAt,
-               updatedAt: chapter.updatedAt,
-               audiobook: chapter.audiobook,
-               bookmarks: chapter.bookmarks,
-               notes: chapter.notes,
-               chapterProgress: chapter.chapterProgress
-            } as ChapterWithRelations)),
+            chapters: await fileUrlService.resolveChapterMediaList(
+               chapters.map(chapter => this.mapChapterRecord(chapter))
+            ),
             totalCount
          };
       } catch (_error) {
@@ -127,30 +106,7 @@ export class ChapterService {
             throw new ApiError('Chapter not found', 404);
          }
 
-         return {
-            id: chapter.id,
-            audiobookId: chapter.audiobookId,
-            title: chapter.title,
-            description: chapter.description || undefined,
-            chapterNumber: chapter.chapterNumber,
-            duration: chapter.duration,
-            filePath: chapter.filePath,
-            fileSize: Number(chapter.fileSize),
-            coverImage: chapter.coverImage,
-            chapterCardCoverImage: chapter.chapterCardCoverImage || undefined,
-            maximizedChapterCoverImage: chapter.maximizedChapterCoverImage || undefined,
-            minimizedChapterCoverImage: chapter.minimizedChapterCoverImage || undefined,
-            startPosition: chapter.startPosition,
-            endPosition: chapter.endPosition,
-            isActive: chapter.isActive,
-            scheduledAt: chapter.scheduledAt || undefined,
-            createdAt: chapter.createdAt,
-            updatedAt: chapter.updatedAt,
-            audiobook: chapter.audiobook,
-            chapterProgress: chapter.chapterProgress,
-            bookmarks: chapter.bookmarks,
-            notes: chapter.notes
-         } as ChapterWithRelations;
+         return fileUrlService.resolveChapterMedia(this.mapChapterRecord(chapter));
       } catch (error) {
          if (error instanceof ApiError) {
             throw error;
@@ -223,7 +179,11 @@ export class ChapterService {
             coverImagePath = uploadedCoverImage.path;
             // In local environment, multer already saved the file to the correct directory
             // Just convert the path to a URL using getFileUrl (similar to audiobooks)
-            coverImage = getFileUrl(uploadedCoverImage.path);
+            coverImage = await fileUrlService.processUploadedCoverFile(
+               uploadedCoverImage.path,
+               'uploads/images/chapters',
+               uploadedCoverImage.mimetype || 'image/jpeg'
+            );
          }
 
          // Validate that coverImage is provided
@@ -319,26 +279,7 @@ export class ChapterService {
             }
          }
 
-         return {
-            id: chapter.id,
-            audiobookId: chapter.audiobookId,
-            title: chapter.title,
-            description: chapter.description || undefined,
-            chapterNumber: chapter.chapterNumber,
-            duration: chapter.duration,
-            filePath: chapter.filePath,
-            fileSize: Number(chapter.fileSize),
-            coverImage: chapter.coverImage,
-            chapterCardCoverImage: chapter.chapterCardCoverImage || undefined,
-            maximizedChapterCoverImage: chapter.maximizedChapterCoverImage || undefined,
-            minimizedChapterCoverImage: chapter.minimizedChapterCoverImage || undefined,
-            startPosition: chapter.startPosition,
-            endPosition: chapter.endPosition,
-            isActive: chapter.isActive,
-            createdAt: chapter.createdAt,
-            updatedAt: chapter.updatedAt,
-            scheduledAt: chapter.scheduledAt || undefined
-         } as ChapterData;
+         return fileUrlService.resolveChapterMedia(this.mapChapterData(chapter));
       } catch (error) {
          if (error instanceof ApiError) {
             throw error;
@@ -473,7 +414,11 @@ export class ChapterService {
             coverImagePath = uploadedCoverImage.path;
             // In local environment, multer already saved the file to the correct directory
             // Just convert the path to a URL using getFileUrl (similar to audiobooks)
-            coverImage = getFileUrl(uploadedCoverImage.path);
+            coverImage = await fileUrlService.processUploadedCoverFile(
+               uploadedCoverImage.path,
+               'uploads/images/chapters',
+               uploadedCoverImage.mimetype || 'image/jpeg'
+            );
          }
 
          // Ensure coverImage is always set (required field)
@@ -536,26 +481,7 @@ export class ChapterService {
             }
          }
 
-         return {
-            id: chapter.id,
-            audiobookId: chapter.audiobookId,
-            title: chapter.title,
-            description: chapter.description || undefined,
-            chapterNumber: chapter.chapterNumber,
-            duration: chapter.duration,
-            filePath: chapter.filePath,
-            fileSize: Number(chapter.fileSize),
-            coverImage: chapter.coverImage,
-            chapterCardCoverImage: chapter.chapterCardCoverImage || undefined,
-            maximizedChapterCoverImage: chapter.maximizedChapterCoverImage || undefined,
-            minimizedChapterCoverImage: chapter.minimizedChapterCoverImage || undefined,
-            startPosition: chapter.startPosition,
-            endPosition: chapter.endPosition,
-            isActive: chapter.isActive,
-            createdAt: chapter.createdAt,
-            updatedAt: chapter.updatedAt,
-            scheduledAt: chapter.scheduledAt ?? null,
-         } as ChapterData;
+         return fileUrlService.resolveChapterMedia(this.mapChapterData(chapter));
       } catch (error) {
          if (error instanceof ApiError) {
             throw error;
@@ -783,23 +709,116 @@ export class ChapterService {
    }
 
    /**
-    * Calculate overall audiobook progress based on chapter progress
+    * Total audiobook duration in seconds (sum of all chapter durations).
+    */
+   async getAudiobookTotalDurationSeconds(audiobookId: string): Promise<number> {
+      const result = await this.prisma.chapter.aggregate({
+         where: { audiobookId },
+         _sum: { duration: true },
+      });
+      return result._sum.duration ?? 0;
+   }
+
+   /**
+    * Calculate audiobook progress as the sum of chapter progress positions (seconds).
     */
    async calculateAudiobookProgress(userProfileId: string, audiobookId: string): Promise<number> {
       try {
-         const chaptersWithProgress = await this.getChaptersWithProgress(userProfileId, audiobookId);
+         const chapters = await this.prisma.chapter.findMany({
+            where: { audiobookId },
+            select: { id: true },
+         });
 
-         if (chaptersWithProgress.length === 0) {
+         if (chapters.length === 0) {
             return 0;
          }
 
-         const totalProgress = chaptersWithProgress.reduce((sum, chapter) => {
-            return sum + (chapter.overallProgress || 0);
-         }, 0);
+         const progressRows = await this.prisma.chapterProgress.findMany({
+            where: {
+               userProfileId,
+               chapterId: { in: chapters.map((c) => c.id) },
+            },
+            select: { currentPosition: true },
+         });
 
-         return totalProgress / chaptersWithProgress.length;
+         return progressRows.reduce((sum, row) => sum + row.currentPosition, 0);
       } catch (_error) {
          throw new ApiError('Failed to calculate audiobook progress', 500);
       }
+   }
+
+   private mapChapterRecord(chapter: {
+      id: string;
+      audiobookId: string;
+      title: string;
+      description: string | null;
+      chapterNumber: number;
+      duration: number;
+      filePath: string;
+      fileSize: bigint;
+      coverImage: string;
+      chapterCardCoverImage: string | null;
+      maximizedChapterCoverImage: string | null;
+      minimizedChapterCoverImage: string | null;
+      startPosition: number;
+      endPosition: number;
+      isActive: boolean;
+      scheduledAt: Date | null;
+      createdAt: Date;
+      updatedAt: Date;
+      audiobook?: { id: string; title: string; author: string };
+      chapterProgress?: unknown[];
+      bookmarks?: unknown[];
+      notes?: unknown[];
+   }): ChapterWithRelations {
+      return {
+         id: chapter.id,
+         audiobookId: chapter.audiobookId,
+         title: chapter.title,
+         description: chapter.description || undefined,
+         chapterNumber: chapter.chapterNumber,
+         duration: chapter.duration,
+         filePath: chapter.filePath,
+         fileSize: Number(chapter.fileSize),
+         coverImage: chapter.coverImage,
+         chapterCardCoverImage: chapter.chapterCardCoverImage || undefined,
+         maximizedChapterCoverImage: chapter.maximizedChapterCoverImage || undefined,
+         minimizedChapterCoverImage: chapter.minimizedChapterCoverImage || undefined,
+         startPosition: chapter.startPosition,
+         endPosition: chapter.endPosition,
+         isActive: chapter.isActive,
+         scheduledAt: chapter.scheduledAt ?? null,
+         createdAt: chapter.createdAt,
+         updatedAt: chapter.updatedAt,
+         ...(chapter.audiobook && { audiobook: chapter.audiobook }),
+         ...(chapter.bookmarks && { bookmarks: chapter.bookmarks as ChapterWithRelations['bookmarks'] }),
+         ...(chapter.notes && { notes: chapter.notes as ChapterWithRelations['notes'] }),
+         ...(chapter.chapterProgress && {
+            chapterProgress: chapter.chapterProgress as ChapterWithRelations['chapterProgress'],
+         }),
+      } as ChapterWithRelations;
+   }
+
+   private mapChapterData(chapter: {
+      id: string;
+      audiobookId: string;
+      title: string;
+      description: string | null;
+      chapterNumber: number;
+      duration: number;
+      filePath: string;
+      fileSize: bigint;
+      coverImage: string;
+      chapterCardCoverImage: string | null;
+      maximizedChapterCoverImage: string | null;
+      minimizedChapterCoverImage: string | null;
+      startPosition: number;
+      endPosition: number;
+      isActive: boolean;
+      scheduledAt: Date | null;
+      createdAt: Date;
+      updatedAt: Date;
+   }): ChapterWithRelations {
+      return this.mapChapterRecord(chapter);
    }
 }

@@ -1,112 +1,169 @@
-import dotenv from "dotenv";
-import path from "path";
+import dotenv from 'dotenv';
+import path from 'path';
 
-const nodeEnv = process.env['NODE_ENV'] || 'development';
-const envFile = `.env${nodeEnv !== 'development' ? `.${nodeEnv}` : ''}`;
-dotenv.config({ path: path.resolve(process.cwd(), envFile) });
+const LOCALHOST_PATTERN = /localhost|127\.0\.0\.1/i;
 
-// Load .env.local for local overrides (highest priority)
-dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
+const ENV_FILE_BY_NODE_ENV: Record<string, string | null> = {
+   development: '.env.development',
+   test: null,
+   testing: '.env.testing',
+   staging: '.env.staging',
+   production: '.env.production',
+};
 
+function getEnvFileForBootstrap(): string | null {
+   const bootstrapEnv = process.env['NODE_ENV'] ?? 'development';
+   return ENV_FILE_BY_NODE_ENV[bootstrapEnv] ?? `.env.${bootstrapEnv}`;
+}
+
+function loadEnvFiles(): void {
+   const envFile = getEnvFileForBootstrap();
+   if (envFile) {
+      dotenv.config({ path: path.resolve(process.cwd(), envFile) });
+   }
+}
+
+function requireEnv(key: string): string {
+   const value = process.env[key];
+   if (value === undefined) {
+      throw new Error(`Missing required environment variable: ${key}`);
+   }
+   return value;
+}
+
+function requireIntEnv(key: string): number {
+   const raw = requireEnv(key);
+   const parsed = parseInt(raw, 10);
+   if (Number.isNaN(parsed)) {
+      throw new Error(`Environment variable ${key} must be a valid integer`);
+   }
+   return parsed;
+}
+
+function parseTranscodingBitrates(raw: string): number[] {
+   const envValue = raw.trim();
+
+   if (envValue.startsWith('[') && envValue.endsWith(']')) {
+      try {
+         const parsed = JSON.parse(envValue);
+         if (Array.isArray(parsed)) {
+            const bitrates = parsed
+               .map(b => (typeof b === 'number' ? b : parseInt(String(b), 10)))
+               .filter(b => !Number.isNaN(b) && b > 0);
+            if (bitrates.length > 0) {
+               return bitrates;
+            }
+         }
+      } catch {
+         // Fall through to comma-separated parsing
+      }
+   }
+
+   const bitrates = envValue
+      .split(',')
+      .map(b => b.trim())
+      .filter(b => b.length > 0)
+      .map(b => parseInt(b, 10))
+      .filter(b => !Number.isNaN(b) && b > 0);
+
+   if (bitrates.length === 0) {
+      throw new Error('TRANSCODING_BITRATES must contain at least one valid positive integer');
+   }
+
+   return bitrates;
+}
+
+function assertNoLocalhost(envVar: string, value: string, nodeEnv: string): void {
+   if (LOCALHOST_PATTERN.test(value)) {
+      throw new Error(`${envVar} must not reference localhost in ${nodeEnv}`);
+   }
+}
+
+function validateNoLocalhostInStagingOrProduction(
+   nodeEnv: string,
+   values: {
+      DATABASE_URL: string;
+      REDIS_URL: string;
+      RABBITMQ_URL: string;
+      STREAMING_SERVICE_URL: string;
+      AUTH_SERVICE_URL: string;
+      JWKS_ENDPOINT: string;
+   }
+): void {
+   if (nodeEnv !== 'staging' && nodeEnv !== 'production') {
+      return;
+   }
+
+   assertNoLocalhost('DATABASE_URL', values.DATABASE_URL, nodeEnv);
+   assertNoLocalhost('REDIS_URL', values.REDIS_URL, nodeEnv);
+   assertNoLocalhost('RABBITMQ_URL', values.RABBITMQ_URL, nodeEnv);
+   assertNoLocalhost('STREAMING_SERVICE_URL', values.STREAMING_SERVICE_URL, nodeEnv);
+   assertNoLocalhost('AUTH_SERVICE_URL', values.AUTH_SERVICE_URL, nodeEnv);
+   assertNoLocalhost('JWKS_ENDPOINT', values.JWKS_ENDPOINT, nodeEnv);
+}
+
+loadEnvFiles();
+
+const nodeEnv = requireEnv('NODE_ENV');
+
+const DATABASE_URL = requireEnv('DATABASE_URL');
+const REDIS_URL = requireEnv('REDIS_URL');
+const RABBITMQ_URL = requireEnv('RABBITMQ_URL');
+const STREAMING_SERVICE_URL = requireEnv('STREAMING_SERVICE_URL');
+const AUTH_SERVICE_URL = requireEnv('AUTH_SERVICE_URL');
+const JWKS_ENDPOINT = requireEnv('JWKS_ENDPOINT');
+
+validateNoLocalhostInStagingOrProduction(nodeEnv, {
+   DATABASE_URL,
+   REDIS_URL,
+   RABBITMQ_URL,
+   STREAMING_SERVICE_URL,
+   AUTH_SERVICE_URL,
+   JWKS_ENDPOINT,
+});
+
+const USE_SECURE_COOKIES = nodeEnv === 'production' || nodeEnv === 'staging' || nodeEnv === 'testing';
 
 export const config = {
    NODE_ENV: nodeEnv,
-   PORT: parseInt(process.env['PORT'] || '8082', 10),
-   DATABASE_URL: process.env['DATABASE_URL'] || '',
-   SESSION_SECRET: process.env['SESSION_SECRET'] || '',
-   CLIENT_URL: process.env['CLIENT_URL'] || 'http://localhost:3000',
-   // Multiple allowed client URLs for CORS
-   CLIENT_URLS: process.env['CLIENT_URLS']?.split(',').map(url => url.trim()) || [
-      'http://localhost:5173',
-      'http://localhost:3000',
-      'http://localhost:3001'
-   ],
+   PORT: requireIntEnv('PORT'),
+   USE_SECURE_COOKIES,
 
-   // Database configuration
-   DB_HOST: process.env['DB_HOST'] || 'localhost',
-   DB_PORT: parseInt(process.env['DB_PORT'] || '5432', 10),
-   DB_NAME: process.env['DB_NAME'] || 'audiobook_dev',
-   DB_USER: process.env['DB_USER'] || 'postgres',
-   DB_PASSWORD: process.env['DB_PASSWORD'] || '',
+   DATABASE_URL,
+   SESSION_SECRET: requireEnv('SESSION_SECRET'),
 
-   // File upload settings
-   MAX_FILE_SIZE: parseInt(process.env['MAX_FILE_SIZE'] || '52428800', 10), // 50MB default
-   UPLOAD_DIR: process.env['UPLOAD_DIR'] || './uploads',
+   REDIS_URL,
+   RABBITMQ_URL,
+   RABBITMQ_QUEUE_PREFIX: requireEnv('RABBITMQ_QUEUE_PREFIX'),
 
-   // Development upload paths
+   MAX_FILE_SIZE: requireIntEnv('MAX_FILE_SIZE'),
+   UPLOAD_DIR: requireEnv('UPLOAD_DIR'),
+
    DEV_UPLOAD_DIR: nodeEnv === 'development' ? './src/uploads' : './uploads',
    DEV_AUDIOBOOK_IMAGE_DIR: nodeEnv === 'development' ? './src/uploads/images/audiobooks' : './uploads/images/audiobooks',
    DEV_CHAPTER_IMAGE_DIR: nodeEnv === 'development' ? './src/uploads/images/chapters' : './uploads/images/chapters',
    DEV_AUDIO_DIR: nodeEnv === 'development' ? './src/uploads/audio' : './uploads/audio',
 
-   // Security settings
-   BCRYPT_ROUNDS: parseInt(process.env['BCRYPT_ROUNDS'] || '12', 10),
-   JWT_EXPIRES_IN: process.env['JWT_EXPIRES_IN'] || '7d',
+   TRANSCODING_BITRATES: parseTranscodingBitrates(requireEnv('TRANSCODING_BITRATES')),
+   STREAMING_CACHE_TTL: requireIntEnv('STREAMING_CACHE_TTL'),
+   STREAMING_SERVICE_STORAGE_PATH: requireEnv('STREAMING_SERVICE_STORAGE_PATH'),
 
-   // Feature flags
-   ENABLE_REGISTRATION: process.env['ENABLE_REGISTRATION'] === 'true',
-   ENABLE_PASSWORD_RESET: process.env['ENABLE_PASSWORD_RESET'] === 'true',
+   AWS_S3_BUCKET: requireEnv('AWS_S3_BUCKET'),
+   AWS_S3_REGION: requireEnv('AWS_S3_REGION'),
+   AWS_ACCESS_KEY_ID: requireEnv('AWS_ACCESS_KEY_ID'),
+   AWS_SECRET_ACCESS_KEY: requireEnv('AWS_SECRET_ACCESS_KEY'),
+   AWS_S3_ENDPOINT: requireEnv('AWS_S3_ENDPOINT'),
+   AWS_SIGNED_URL_EXPIRES_IN: requireIntEnv('AWS_SIGNED_URL_EXPIRES_IN'),
 
-   // Streaming service configuration
-   TRANSCODING_BITRATES: (() => {
-      if (!process.env['TRANSCODING_BITRATES']) {
-         return [64, 128, 256];
-      }
-      const envValue = process.env['TRANSCODING_BITRATES'].trim();
+   STORAGE_PROVIDER: requireEnv('STORAGE_PROVIDER'),
 
-      // Try to parse as JSON array first (handles '[64, 128, 256]' format)
-      if (envValue.startsWith('[') && envValue.endsWith(']')) {
-         try {
-            const parsed = JSON.parse(envValue);
-            if (Array.isArray(parsed)) {
-               const bitrates = parsed
-                  .map(b => typeof b === 'number' ? b : parseInt(String(b), 10))
-                  .filter(b => !isNaN(b) && b > 0);
-               return bitrates.length > 0 ? bitrates : [64, 128, 256];
-            }
-         } catch (_error) {
-            // If JSON parsing fails, fall through to comma-separated parsing
-         }
-      }
+   STREAMING_SERVICE_URL,
+   AUTH_SERVICE_URL,
+   JWKS_ENDPOINT,
 
-      // Fall back to comma-separated parsing (handles '64,128,256' format)
-      const bitrates = envValue
-         .split(',')
-         .map(b => b.trim())
-         .filter(b => b.length > 0)
-         .map(b => parseInt(b, 10))
-         .filter(b => !isNaN(b) && b > 0);
-      return bitrates.length > 0 ? bitrates : [64, 128, 256];
-   })(), // kbps
-   STREAMING_CACHE_TTL: parseInt(process.env['STREAMING_CACHE_TTL'] || '3600', 10), // seconds
+   LOG_LEVEL: requireEnv('LOG_LEVEL'),
+   LOG_DIR: requireEnv('LOG_DIR'),
 
-   // RabbitMQ configuration
-   RABBITMQ_URL: process.env['RABBITMQ_URL'] || 'amqp://localhost:5672',
-   RABBITMQ_QUEUE_PREFIX: process.env['RABBITMQ_QUEUE_PREFIX'] || 'audiobook',
-
-   // AWS S3 configuration
-   AWS_S3_BUCKET: process.env['AWS_S3_BUCKET'] || '',
-   AWS_S3_REGION: process.env['AWS_S3_REGION'] || 'us-east-1',
-   AWS_ACCESS_KEY_ID: process.env['AWS_ACCESS_KEY_ID'] || '',
-   AWS_SECRET_ACCESS_KEY: process.env['AWS_SECRET_ACCESS_KEY'] || '',
-   AWS_S3_ENDPOINT: process.env['AWS_S3_ENDPOINT'] || '', // For S3-compatible services
-
-
-
-   // Storage provider selection
-   STORAGE_PROVIDER: process.env['STORAGE_PROVIDER'] || 'local', // local, s3
-
-   // Streaming service storage path for development
-   STREAMING_SERVICE_STORAGE_PATH: process.env['STREAMING_SERVICE_STORAGE_PATH'] || 'C:\\Users\\mayuk\\Desktop\\Projects\\AudioBook\\backend\\streaming-service\\storage',
-
-   // External streaming service URL
-   STREAMING_SERVICE_URL: process.env['STREAMING_SERVICE_URL'] || 'http://localhost:8083/api/v1/stream',
-
-   // Auth service configuration
-   AUTH_SERVICE_URL: process.env['AUTH_SERVICE_URL'] || 'http://localhost:8080',
-   JWKS_ENDPOINT: process.env['JWKS_ENDPOINT'] || 'http://localhost:8080/auth/.well-known/jwks.json',
-
-   // Logging configuration
-   LOG_LEVEL: process.env['LOG_LEVEL'] || (nodeEnv === 'production' ? 'info' : 'debug'),
-   LOG_DIR: process.env['LOG_DIR'] || './logs',
+   NOMINATIM_BASE_URL: requireEnv('NOMINATIM_BASE_URL'),
+   NOMINATIM_USER_AGENT: requireEnv('NOMINATIM_USER_AGENT'),
 };

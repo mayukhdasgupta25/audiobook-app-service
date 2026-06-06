@@ -37,6 +37,8 @@ export interface AudioBookDto {
   organizationId: string;
   organization?: AudioBookOrganizationDto | undefined;
   subscriptionAccess?: AudiobookSubscriptionAccessDto;
+  /** Current user's star rating (1–5) for this audiobook; null if not reviewed. */
+  rating?: number | null;
 }
 
 export interface AudioBookOrganizationDto {
@@ -99,6 +101,7 @@ export interface AudioBookQueryParams {
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
   genreIds?: string[] | undefined;
+  moodIds?: string[] | undefined;
   organizationId?: string | undefined;
   /** Optional filter: restrict to these publisher org IDs (not access control). */
   organizationIds?: string[] | undefined;

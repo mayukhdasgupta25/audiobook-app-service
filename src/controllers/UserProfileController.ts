@@ -4,13 +4,16 @@ import { ErrorHandler } from '../middleware/ErrorHandler';
 import { ResponseHandler } from '../utils/ResponseHandler';
 import { MessageHandler } from '../utils/MessageHandler';
 import { UserProfileService } from '../services/UserProfileService';
+import { LocationResolverService } from '../services/LocationResolverService';
 import { UpdateUserProfileDto } from '../models/UserDto';
 
 export class UserProfileController {
-   private userProfileService: UserProfileService
+   private userProfileService: UserProfileService;
+   private locationResolver: LocationResolverService;
 
-   constructor(prisma: PrismaClient) {
+   constructor(prisma: PrismaClient, locationResolver?: LocationResolverService) {
       this.userProfileService = new UserProfileService(prisma);
+      this.locationResolver = locationResolver ?? new LocationResolverService();
    }
 
    /**
@@ -66,6 +69,9 @@ export class UserProfileController {
     *                 firstName: "Jane"
     *                 lastName: "Smith"
     *                 avatar: "https://example.com/avatar.jpg"
+    *                 location:
+    *                   latitude: "13.0595592"
+    *                   longitude: "77.5962203"
     *                 preferences:
     *                   theme: "dark"
     *                   language: "en"
@@ -90,7 +96,19 @@ export class UserProfileController {
     */
    updateProfile = ErrorHandler.asyncHandler(async (req: Request, res: Response): Promise<void> => {
       const userId = (req as any).user.id;
-      const updateData: UpdateUserProfileDto = req.body;
+      const { location, ...profileFields } = req.body as UpdateUserProfileDto;
+      const updateData: Parameters<UserProfileService['updateUserProfile']>[1] = { ...profileFields };
+
+      if (location !== undefined) {
+         if (location === null) {
+            updateData.location = null;
+         } else {
+            updateData.location = await this.locationResolver.resolveFromCoordinates(
+               Number(location.latitude),
+               Number(location.longitude)
+            );
+         }
+      }
 
       const updated = await this.userProfileService.updateUserProfile(userId, updateData);
 

@@ -8,16 +8,19 @@ import { AudioBookController } from '../../controllers/AudioBookController';
 import { AudioBookService } from '../../services/AudioBookService';
 import { ResponseHandler } from '../../utils/ResponseHandler';
 import { MessageHandler } from '../../utils/MessageHandler';
+import { fileUrlService } from '../../services/FileUrlService';
 import { ApiError } from '../../types/ApiError';
 import { HttpStatusCode } from '../../types/common';
 
 // Mock dependencies
 jest.mock('../../services/AudioBookService');
+jest.mock('../../services/FileUrlService', () => ({
+   fileUrlService: {
+      processUploadedCoverFile: jest.fn(async (path: string) => `https://example.com${path}`),
+   },
+}));
 jest.mock('../../utils/ResponseHandler');
 jest.mock('../../utils/MessageHandler');
-jest.mock('../../middleware/UploadMiddleware', () => ({
-   getFileUrl: jest.fn((path: string) => `https://example.com${path}`)
-}));
 
 // The controller is wrapped in `ErrorHandler.asyncHandler` which fires its
 // inner async function but returns void synchronously. To make sure all of
@@ -43,6 +46,7 @@ describe('AudioBookController', () => {
          params: {},
          query: {},
          body: {},
+         headers: {},
          files: undefined,
          file: undefined,
          originalUrl: '/api/v1/audiobooks',
@@ -63,6 +67,9 @@ describe('AudioBookController', () => {
       mockAudioBookService.getSubscriptionAccessForAudiobook = jest
          .fn()
          .mockResolvedValue({ canAccess: true }) as any;
+      mockAudioBookService.getUserReviewRatingForAudiobook = jest
+         .fn()
+         .mockResolvedValue(null) as any;
    });
 
    describe('getAllAudioBooks', () => {
@@ -107,6 +114,7 @@ describe('AudioBookController', () => {
             sortBy: 'title',
             sortOrder: 'asc',
             genreId: 'genre-123',
+            moodId: 'cmood1234567890abcdefghij',
             language: 'English',
             author: 'Test Author',
             narrator: 'Test Narrator',
@@ -132,6 +140,7 @@ describe('AudioBookController', () => {
                sortBy: 'title',
                sortOrder: 'asc',
                genreIds: ['genre-123'],
+               moodIds: ['cmood1234567890abcdefghij'],
                language: 'English',
                author: 'Test Author',
                narrator: 'Test Narrator',
@@ -171,6 +180,7 @@ describe('AudioBookController', () => {
          mockAudioBookService.getSubscriptionAccessForAudiobook.mockResolvedValue(
             subscriptionAccess as any
          );
+         mockAudioBookService.getUserReviewRatingForAudiobook.mockResolvedValue(4);
          (MessageHandler.getSuccessMessage as jest.Mock).mockReturnValue('Retrieved');
 
          await audioBookController.getAudioBookById(mockReq, mockRes, mockReq.next);
@@ -180,11 +190,16 @@ describe('AudioBookController', () => {
          expect(mockAudioBookService.getSubscriptionAccessForAudiobook).toHaveBeenCalledWith(
             'book-123',
             null,
-            'profile-1'
+            'auth-user-1',
+            null
+         );
+         expect(mockAudioBookService.getUserReviewRatingForAudiobook).toHaveBeenCalledWith(
+            'book-123',
+            'auth-user-1'
          );
          expect(ResponseHandler.success).toHaveBeenCalledWith(
             mockRes,
-            { ...mockBook, subscriptionAccess },
+            { ...mockBook, subscriptionAccess, rating: 4 },
             'Retrieved'
          );
       });
@@ -222,7 +237,13 @@ describe('AudioBookController', () => {
                author: 'Author Name',
                genreIds: ['genre-123'],
                coverImage: 'https://example.com/uploads/covers/cover.jpg',
-            })
+            }),
+            'profile-1'
+         );
+         expect(fileUrlService.processUploadedCoverFile).toHaveBeenCalledWith(
+            '/uploads/covers/cover.jpg',
+            'uploads/images/audiobooks',
+            'image/jpeg'
          );
          expect(ResponseHandler.success).toHaveBeenCalledWith(
             mockRes,
@@ -259,9 +280,17 @@ describe('AudioBookController', () => {
          await audioBookController.createAudioBook(mockReq, mockRes, mockReq.next);
          await flushPromises();
 
-         expect(mockAudioBookService.createAudioBook).toHaveBeenCalled();
-         const callArgs = mockAudioBookService.createAudioBook.mock.calls[0]?.[0];
-         expect(callArgs?.coverImage).toBe('https://example.com/uploads/covers/cover.jpg');
+         expect(mockAudioBookService.createAudioBook).toHaveBeenCalledWith(
+            expect.objectContaining({
+               coverImage: 'https://example.com/uploads/covers/cover.jpg',
+            }),
+            'profile-1'
+         );
+         expect(fileUrlService.processUploadedCoverFile).toHaveBeenCalledWith(
+            '/uploads/covers/cover.jpg',
+            'uploads/images/audiobooks',
+            'image/jpeg'
+         );
       });
 
       it('should return validation error when organizationId is missing', async () => {

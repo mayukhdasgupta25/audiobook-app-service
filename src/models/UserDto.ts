@@ -2,7 +2,9 @@
  * User DTO (Data Transfer Object) classes
  * Provides type-safe data structures for user authentication and profile management
  */
-import { UserProfile as PrismaUserProfile } from '@prisma/client';
+import { Gender, UserProfile as PrismaUserProfile } from '@prisma/client';
+
+export { Gender };
 
 
 // UserProfile DTO for profile information
@@ -13,6 +15,9 @@ export interface UserProfileDto {
    firstName?: string | undefined;
    lastName?: string | undefined;
    avatar?: string | undefined;
+   gender?: Gender | undefined;
+   location?: string | undefined;
+   age?: number | undefined;
    preferences?: any | undefined;
    createdAt: Date;
    updatedAt: Date;
@@ -26,16 +31,28 @@ export interface CreateUserProfileDto {
    firstName?: string;
    lastName?: string;
    avatar?: string;
+   gender?: Gender;
+   location?: string;
+   age?: number;
    preferences?: any;
 }
 
 
+
+export interface LocationCoordinatesInput {
+   latitude: string | number;
+   longitude: string | number;
+}
 
 export interface UpdateUserProfileDto {
    username?: string;
    firstName?: string;
    lastName?: string;
    avatar?: string;
+   gender?: Gender | null;
+   /** Coordinates from the client; reverse-geocoded to a location string on update. Pass null to clear. */
+   location?: LocationCoordinatesInput | null;
+   age?: number | null;
    preferences?: any;
 }
 
@@ -55,6 +72,9 @@ export function toUserProfileDto(profile: PrismaUserProfile): UserProfileDto {
       firstName: profile.firstName || undefined,
       lastName: profile.lastName || undefined,
       avatar: profile.avatar || undefined,
+      gender: profile.gender ?? undefined,
+      location: profile.location ?? undefined,
+      age: profile.age ?? undefined,
       preferences: profile.preferences || undefined,
       createdAt: profile.createdAt,
       updatedAt: profile.updatedAt

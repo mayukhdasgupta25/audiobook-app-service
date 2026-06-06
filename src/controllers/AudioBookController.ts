@@ -10,7 +10,7 @@ import { ResponseHandler } from '../utils/ResponseHandler';
 import { AudioBookQueryParams } from '../models/AudioBookDto';
 import { ErrorHandler } from '../middleware/ErrorHandler';
 import { MessageHandler } from '../utils/MessageHandler';
-import { getFileUrl } from '../middleware/UploadMiddleware';
+import { fileUrlService } from '../services/FileUrlService';
 import { OrganizationService } from '../services/OrganizationService';
 import { AuthenticatedRequest } from '../types/auth';
 
@@ -30,7 +30,7 @@ export class AudioBookController {
    * /api/v1/audiobooks:
    *   get:
    *     summary: Get all audiobooks with pagination and filtering
-   *     description: Retrieve a paginated list of audiobooks with optional filtering by genre, language, author, narrator, and search terms
+   *     description: Retrieve a paginated list of audiobooks with optional filtering by genre, mood, language, author, narrator, and search terms
    *     tags: [AudioBooks]
    *     parameters:
    *       - $ref: '#/components/parameters/PageParam'
@@ -38,6 +38,7 @@ export class AudioBookController {
    *       - $ref: '#/components/parameters/SortByParam'
    *       - $ref: '#/components/parameters/SortOrderParam'
    *       - $ref: '#/components/parameters/GenreParam'
+   *       - $ref: '#/components/parameters/MoodIdParam'
    *       - $ref: '#/components/parameters/LanguageParam'
    *       - $ref: '#/components/parameters/AuthorParam'
    *       - $ref: '#/components/parameters/NarratorParam'
@@ -66,12 +67,24 @@ export class AudioBookController {
       genreIds = [req.query['genreId'] as string];
     }
 
+    let moodIds: string[] | undefined = undefined;
+    if (req.query['moodIds']) {
+      if (Array.isArray(req.query['moodIds'])) {
+        moodIds = req.query['moodIds'] as string[];
+      } else if (typeof req.query['moodIds'] === 'string') {
+        moodIds = req.query['moodIds'].split(',').map((id: string) => id.trim()).filter((id: string) => id.length > 0);
+      }
+    } else if (req.query['moodId']) {
+      moodIds = [req.query['moodId'] as string];
+    }
+
     const queryParams: AudioBookQueryParams = {
       page: req.query['page'] ? parseInt(req.query['page'] as string, 10) : 1,
       limit: req.query['limit'] ? parseInt(req.query['limit'] as string, 10) : 10,
       sortBy: req.query['sortBy'] as string || 'createdAt',
       sortOrder: (req.query['sortOrder'] as 'asc' | 'desc') || 'desc',
       genreIds: genreIds,
+      moodIds: moodIds,
       organizationId: req.query['organizationId'] as string,
       language: req.query['language'] as string,
       author: req.query['author'] as string,
@@ -138,6 +151,7 @@ export class AudioBookController {
    *                     isbn: "978-0-7432-7356-5"
    *                     isActive: true
    *                     isPublic: true
+   *                     rating: 4
    *                     createdAt: "2024-01-15T10:30:00Z"
    *                     updatedAt: "2024-01-15T10:30:00Z"
    *                   timestamp: "2024-01-15T10:30:00Z"
@@ -152,24 +166,27 @@ export class AudioBookController {
     const audiobook = await this.audioBookService.getAudioBookById(id as string);
 
     const authReq = req as AuthenticatedRequest;
-    const externalUserId = authReq.user?.id;
-    const profile = externalUserId
-      ? await this.prisma.userProfile.findUnique({
-        where: { userId: externalUserId },
-        select: { id: true }
-      })
-      : null;
+    const externalUserId = authReq.user?.id ?? null;
+    const authHeader = req.headers.authorization;
+    const accessToken =
+      authHeader && authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
 
     const subscriptionAccess =
       await this.audioBookService.getSubscriptionAccessForAudiobook(
         audiobook.id,
         audiobook.minSubscriptionTier,
-        profile?.id ?? null
+        externalUserId,
+        accessToken
       );
+
+    const rating = await this.audioBookService.getUserReviewRatingForAudiobook(
+      audiobook.id,
+      externalUserId
+    );
 
     ResponseHandler.success(
       res,
-      { ...audiobook, subscriptionAccess },
+      { ...audiobook, subscriptionAccess, rating },
       MessageHandler.getSuccessMessage('audiobooks.retrieved_by_id')
     );
   });
@@ -270,20 +287,21 @@ export class AudioBookController {
       return;
     }
 
+    const authReq = req as AuthenticatedRequest;
+    const externalUserId = authReq.user?.id;
+    const creatorProfile = externalUserId
+      ? await this.prisma.userProfile.findUnique({
+        where: { userId: externalUserId },
+        select: { id: true }
+      })
+      : null;
+
     // Non-admin users may only create audiobooks as staff (OWNER or ADMIN)
     // of the target organization. Global admins bypass this check.
-    const authReq = req as AuthenticatedRequest;
     const role = (authReq.user?.role || '').trim().toLowerCase();
     if (role !== 'admin') {
-      const externalUserId = authReq.user?.id;
-      const profile = externalUserId
-        ? await this.prisma.userProfile.findUnique({
-          where: { userId: externalUserId },
-          select: { id: true }
-        })
-        : null;
-      const allowed = profile
-        ? await this.organizationService.isAdmin(organizationId, profile.id)
+      const allowed = creatorProfile
+        ? await this.organizationService.isAdmin(organizationId, creatorProfile.id)
         : false;
       if (!allowed) {
         ResponseHandler.forbidden(
@@ -338,18 +356,29 @@ export class AudioBookController {
       }
     }
 
+    const coverImage = uploadedCoverImage
+      ? await fileUrlService.processUploadedCoverFile(
+         uploadedCoverImage.path,
+         'uploads/images/audiobooks',
+         uploadedCoverImage.mimetype || 'image/jpeg'
+      )
+      : undefined;
+
     const audiobookData: any = {
       ...req.body,
       // Parse scheduledAt if provided (can be ISO string or Date)
       scheduledAt: req.body.scheduledAt ? new Date(req.body.scheduledAt) : undefined,
       // Cover image from uploaded file
-      coverImage: getFileUrl(uploadedCoverImage.path),
+      coverImage,
       // Include tagIds and genreIds in the data object (service expects them as part of data)
       tagIds: tagIds,
       genreIds: genreIds
     };
 
-    const audiobook = await this.audioBookService.createAudioBook(audiobookData);
+    const audiobook = await this.audioBookService.createAudioBook(
+      audiobookData,
+      creatorProfile?.id
+    );
 
     ResponseHandler.success(res, audiobook, MessageHandler.getSuccessMessage('audiobooks.created'), 201);
   });
@@ -462,7 +491,11 @@ export class AudioBookController {
     // Handle uploaded file - use req.file (singular) for single file upload
     // The middleware uploadSingleImage populates req.file, not req.files
     if (req.file) {
-      updateData.coverImage = getFileUrl(req.file.path);
+      updateData.coverImage = await fileUrlService.processUploadedCoverFile(
+         req.file.path,
+         'uploads/images/audiobooks',
+         req.file.mimetype || 'image/jpeg'
+      );
     }
 
     const audiobook = await this.audioBookService.updateAudioBook(id as string, updateData, tagIds, genreIds);

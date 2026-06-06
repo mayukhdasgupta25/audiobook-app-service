@@ -22,7 +22,6 @@ describe('AudioBookDto', () => {
          duration: 3600, // 1 hour in seconds
          fileSize: BigInt(1024 * 1024 * 500), // 500 MB
          coverImage: 'https://example.com/cover.jpg',
-         genreId: 'genre-1',
          organizationId: 'org-1',
          language: 'en',
          publisher: 'Test Publisher',
@@ -35,6 +34,7 @@ describe('AudioBookDto', () => {
          createdAt: new Date('2024-01-01'),
          updatedAt: new Date('2024-01-02'),
          scheduledAt: null,
+         moodId: null,
          audiobookTags: [],
          audioBookGenres: [],
          organization: null,
@@ -307,6 +307,7 @@ describe('AudioBookDto', () => {
             sortBy: 'title',
             sortOrder: 'asc',
             genreIds: ['genre-id'],
+            moodIds: ['cmood1234567890abcdefghij'],
             language: 'en',
             author: 'Author Name',
             narrator: 'Narrator Name',

@@ -31,6 +31,10 @@ npm run dev
 
 **Important**: The `.env.example` file contains template values and is safe to commit. The actual `.env` file contains secrets and should never be committed to version control.
 
+## Subscriptions
+
+Subscription plans and user subscriptions are in **auth-service** (`/auth/subscription-plans`, `/auth/subscriptions`). This service evaluates audiobook tier gating via `AUTH_SERVICE_URL`. See [auth-service/docs/SUBSCRIPTIONS.md](../auth-service/docs/SUBSCRIPTIONS.md).
+
 ## 📚 Documentation
 
 All documentation is available in the [`docs/`](./docs/) folder:

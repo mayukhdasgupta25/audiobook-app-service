@@ -7,7 +7,6 @@ import {
    UserAudioBookDto,
    UserAudioBookWithRelations,
    CreateUserAudioBookDto,
-   UpdateUserAudioBookDto,
    UserAudioBookQueryParams,
    toUserAudioBookDto,
    toUserAudioBookWithRelations
@@ -15,6 +14,7 @@ import {
 import { ApiError } from '../types/ApiError';
 import { MessageHandler } from '../utils/MessageHandler';
 import { HttpStatusCode, ErrorType } from '../types/common';
+import { fileUrlService } from './FileUrlService';
 
 export class UserAudioBookService {
    private prisma: PrismaClient;
@@ -24,57 +24,18 @@ export class UserAudioBookService {
    }
 
    /**
-    * Create a new user-audiobook relationship
+    * Create a new user-audiobook relationship (always PURCHASED — type is server-assigned)
     */
    async createUserAudioBook(data: CreateUserAudioBookDto): Promise<UserAudioBookDto> {
       try {
-         // Validate that userProfile exists
-         const userProfile = await this.prisma.userProfile.findUnique({
-            where: { id: data.userProfileId }
-         });
-         if (!userProfile) {
-            throw new ApiError(
-               MessageHandler.getErrorMessage('not_found.user'),
-               HttpStatusCode.NOT_FOUND,
-               ErrorType.NOT_FOUND
-            );
-         }
-
-         // Validate that audiobook exists
-         const audiobook = await this.prisma.audioBook.findUnique({
-            where: { id: data.audiobookId }
-         });
-         if (!audiobook) {
-            throw new ApiError(
-               MessageHandler.getErrorMessage('not_found.audiobook'),
-               HttpStatusCode.NOT_FOUND,
-               ErrorType.NOT_FOUND
-            );
-         }
-
-         // Check for duplicate relationship
-         const existing = await this.prisma.userAudioBook.findUnique({
-            where: {
-               userProfileId_audiobookId: {
-                  userProfileId: data.userProfileId,
-                  audiobookId: data.audiobookId
-               }
-            }
-         });
-
-         if (existing) {
-            throw new ApiError(
-               MessageHandler.getErrorMessage('conflict.user_audiobook_exists'),
-               HttpStatusCode.CONFLICT,
-               ErrorType.CONFLICT
-            );
-         }
+         await this.validateUserProfileAndAudiobook(data.userProfileId, data.audiobookId);
+         await this.assertNoDuplicateRelationship(data.userProfileId, data.audiobookId);
 
          const created = await this.prisma.userAudioBook.create({
             data: {
                userProfileId: data.userProfileId,
                audiobookId: data.audiobookId,
-               type: data.type || UserAudioBookType.OWNED
+               type: UserAudioBookType.PURCHASED
             }
          });
 
@@ -87,6 +48,91 @@ export class UserAudioBookService {
             MessageHandler.getErrorMessage('internal.create_user_audiobook'),
             HttpStatusCode.INTERNAL_SERVER_ERROR,
             ErrorType.INTERNAL_ERROR
+         );
+      }
+   }
+
+   /**
+    * Create OWNED relationship when the user creates an audiobook (creator is owner).
+    * Skips silently if the relationship already exists.
+    */
+   async createOwnedUserAudioBook(userProfileId: string, audiobookId: string): Promise<UserAudioBookDto | null> {
+      try {
+         await this.validateUserProfileAndAudiobook(userProfileId, audiobookId);
+
+         const existing = await this.prisma.userAudioBook.findUnique({
+            where: {
+               userProfileId_audiobookId: {
+                  userProfileId,
+                  audiobookId
+               }
+            }
+         });
+
+         if (existing) {
+            return toUserAudioBookDto(existing);
+         }
+
+         const created = await this.prisma.userAudioBook.create({
+            data: {
+               userProfileId,
+               audiobookId,
+               type: UserAudioBookType.OWNED
+            }
+         });
+
+         return toUserAudioBookDto(created);
+      } catch (error) {
+         if (error instanceof ApiError) {
+            throw error;
+         }
+         throw new ApiError(
+            MessageHandler.getErrorMessage('internal.create_user_audiobook'),
+            HttpStatusCode.INTERNAL_SERVER_ERROR,
+            ErrorType.INTERNAL_ERROR
+         );
+      }
+   }
+
+   private async validateUserProfileAndAudiobook(userProfileId: string, audiobookId: string): Promise<void> {
+      const userProfile = await this.prisma.userProfile.findUnique({
+         where: { id: userProfileId }
+      });
+      if (!userProfile) {
+         throw new ApiError(
+            MessageHandler.getErrorMessage('not_found.user'),
+            HttpStatusCode.NOT_FOUND,
+            ErrorType.NOT_FOUND
+         );
+      }
+
+      const audiobook = await this.prisma.audioBook.findUnique({
+         where: { id: audiobookId }
+      });
+      if (!audiobook) {
+         throw new ApiError(
+            MessageHandler.getErrorMessage('not_found.audiobook'),
+            HttpStatusCode.NOT_FOUND,
+            ErrorType.NOT_FOUND
+         );
+      }
+   }
+
+   private async assertNoDuplicateRelationship(userProfileId: string, audiobookId: string): Promise<void> {
+      const existing = await this.prisma.userAudioBook.findUnique({
+         where: {
+            userProfileId_audiobookId: {
+               userProfileId,
+               audiobookId
+            }
+         }
+      });
+
+      if (existing) {
+         throw new ApiError(
+            MessageHandler.getErrorMessage('conflict.user_audiobook_exists'),
+            HttpStatusCode.CONFLICT,
+            ErrorType.CONFLICT
          );
       }
    }
@@ -183,52 +229,13 @@ export class UserAudioBookService {
             );
          }
 
-         return toUserAudioBookWithRelations(userAudioBook);
+         return this.resolveUserAudioBookWithRelations(userAudioBook);
       } catch (error) {
          if (error instanceof ApiError) {
             throw error;
          }
          throw new ApiError(
             MessageHandler.getErrorMessage('internal.fetch_user_audiobooks'),
-            HttpStatusCode.INTERNAL_SERVER_ERROR,
-            ErrorType.INTERNAL_ERROR
-         );
-      }
-   }
-
-   /**
-    * Update user-audiobook relationship (type only)
-    */
-   async updateUserAudioBook(id: string, updateData: UpdateUserAudioBookDto): Promise<UserAudioBookDto> {
-      try {
-         // Ensure the relationship exists
-         const existing = await this.prisma.userAudioBook.findUnique({ where: { id } });
-         if (!existing) {
-            throw new ApiError(
-               MessageHandler.getErrorMessage('not_found.user_audiobook'),
-               HttpStatusCode.NOT_FOUND,
-               ErrorType.NOT_FOUND
-            );
-         }
-
-         // Build update data object, only including defined fields
-         const updateFields: { type?: UserAudioBookType } = {};
-         if (updateData.type !== undefined) {
-            updateFields.type = updateData.type;
-         }
-
-         const updated = await this.prisma.userAudioBook.update({
-            where: { id },
-            data: updateFields
-         });
-
-         return toUserAudioBookDto(updated);
-      } catch (error) {
-         if (error instanceof ApiError) {
-            throw error;
-         }
-         throw new ApiError(
-            MessageHandler.getErrorMessage('internal.update_user_audiobook'),
             HttpStatusCode.INTERNAL_SERVER_ERROR,
             ErrorType.INTERNAL_ERROR
          );
@@ -301,6 +308,20 @@ export class UserAudioBookService {
          ...queryParams,
          type
       });
+   }
+
+   private async resolveUserAudioBookWithRelations(
+      userAudioBook: Parameters<typeof toUserAudioBookWithRelations>[0]
+   ): Promise<UserAudioBookWithRelations> {
+      const dto = toUserAudioBookWithRelations(userAudioBook);
+      const resolvedCover = await fileUrlService.resolveNestedAudiobookCoverImage(dto.audiobook);
+      return {
+         ...dto,
+         audiobook: {
+            ...dto.audiobook,
+            ...resolvedCover,
+         },
+      };
    }
 }
 

@@ -18,6 +18,9 @@ model UserProfile {
   firstName String?
   lastName  String?
   avatar    String? // URL to profile picture
+  gender    Gender?
+  location  String?
+  age       Int?
 
   // User preferences
   preferences Json? // Store user preferences as JSON
@@ -37,7 +40,7 @@ model UserProfile {
   notes               Note[]
   offlineDownloads    OfflineDownload[]
   organizationMembers OrganizationMember[]
-  subscriptions       UserSubscription[]
+  comments            Comment[]
 
   @@map("user_profiles")
 }
@@ -56,7 +59,6 @@ model AudioBook {
   coverImage String? // URL to cover image
 
   // Metadata
-  genreId        String
   organizationId String
   language       String    @default("bn")
   publisher      String?
@@ -81,22 +83,66 @@ model AudioBook {
   updatedAt   DateTime  @updatedAt
   scheduledAt DateTime? // Optional scheduled date/time
 
+  // Mood (each audiobook has at most one mood)
+  moodId String?
+
   // Relations
   organization     Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  mood             Mood?              @relation(fields: [moodId], references: [id], onDelete: SetNull)
   userAudioBooks   UserAudioBook[]
   reviews          Review[]
   favorites        Favorite[]
   playlistItems    PlaylistItem[]
   listeningHistory ListeningHistory[]
   chapters         Chapter[]
-  bookmarks        Bookmark[]
   notes            Note[]
   offlineDownloads OfflineDownload[]
   audiobookTags    AudioBookTag[]
   audioBookGenres  AudioBookGenre[]
+  comments         Comment[]
 
   @@index([organizationId])
+  @@index([moodId])
   @@map("audiobooks")
+}
+
+// Mood model for audiobook atmosphere / tone
+model Mood {
+  id              String  @id @default(cuid())
+  name            String  @unique
+  description     String?
+  purpose         String  @default("")
+  descriptionIcon String  @map("description_icon")
+  hexcode         String
+  icon            String
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  audiobooks     AudioBook[]
+  moodAttributes MoodAttribute[]
+
+  @@map("moods")
+}
+
+// Attributes describing facets of a mood (icon + description per attribute)
+model MoodAttribute {
+  id          String @id @default(cuid())
+  moodId      String
+  icon        String
+  description String
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  mood Mood @relation(fields: [moodId], references: [id], onDelete: Cascade)
+
+  @@index([moodId])
+  @@map("mood_attributes")
 }
 
 // Genre model for categorizing audiobooks
@@ -127,6 +173,9 @@ model Author {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // Relations
+  organizations AuthorOrganization[]
+
   @@map("authors")
 }
 
@@ -147,17 +196,17 @@ model AudioBookGenre {
   @@map("audiobook_genres")
 }
 
-// Junction table for user-audiobook relationships (ownership, uploads, etc.)
+// Junction table for user-audiobook relationships (ownership, purchases)
 model UserAudioBook {
   id            String @id @default(cuid())
   userProfileId String
   audiobookId   String
 
-  // Relationship type
-  type UserAudioBookType @default(OWNED) // OWNED, UPLOADED, PURCHASED
+  // Relationship type: OWNED (creator on audiobook create) or PURCHASED (all other cases)
+  type UserAudioBookType @default(PURCHASED)
 
-  // User-specific progress (updated by background job)
-  progress Float @default(0.0) // Percentage (0-100)
+  // User-specific progress (updated by background job): total seconds listened across chapters
+  progress Float @default(0.0)
 
   // Timestamps
   createdAt DateTime @default(now())
@@ -208,14 +257,12 @@ model PlaylistItem {
   @@map("playlist_items")
 }
 
-// Review model for user reviews
+// Review model for user reviews (rating only)
 model Review {
-  id            String  @id @default(cuid())
+  id            String @id @default(cuid())
   userProfileId String
   audiobookId   String
   rating        Int // 1-5 stars
-  title         String?
-  content       String?
 
   // Timestamps
   createdAt DateTime @default(now())
@@ -227,6 +274,30 @@ model Review {
 
   @@unique([userProfileId, audiobookId])
   @@map("reviews")
+}
+
+// Comment model for audiobook discussion with nested replies
+model Comment {
+  id            String  @id @default(cuid())
+  userProfileId String
+  audiobookId   String
+  parentId      String?
+  content       String
+  meta          Json? // { position: number } — playback position in seconds
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  userProfile UserProfile @relation(fields: [userProfileId], references: [id], onDelete: Cascade)
+  audiobook   AudioBook   @relation(fields: [audiobookId], references: [id], onDelete: Cascade)
+  parent      Comment?    @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies     Comment[]   @relation("CommentReplies")
+
+  @@index([audiobookId])
+  @@index([parentId])
+  @@map("comments")
 }
 
 // Favorites model for user's favorite audiobooks
@@ -309,28 +380,20 @@ model ChapterProgress {
   @@map("chapter_progress")
 }
 
-// Bookmarks for audiobooks and chapters
+// Bookmarks for chapters (saved chapter per user)
 model Bookmark {
-  id            String  @id @default(cuid())
+  id            String @id @default(cuid())
   userProfileId String
-  audiobookId   String?
-  chapterId     String?
+  chapterId     String
 
-  // Bookmark details
-  title       String?
-  description String?
-  position    Int // Position in seconds
-  timestamp   DateTime @default(now())
-
-  // Timestamps
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // Relations
   userProfile UserProfile @relation(fields: [userProfileId], references: [id], onDelete: Cascade)
-  audiobook   AudioBook?  @relation(fields: [audiobookId], references: [id], onDelete: Cascade)
-  chapter     Chapter?    @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  chapter     Chapter     @relation(fields: [chapterId], references: [id], onDelete: Cascade)
 
+  @@unique([userProfileId, chapterId])
+  @@index([chapterId])
   @@map("bookmarks")
 }
 
@@ -459,8 +522,24 @@ model Organization {
   // Relations
   audiobooks AudioBook[]
   members    OrganizationMember[]
+  authors    AuthorOrganization[]
 
   @@map("organizations")
+}
+
+// Junction table for optional many-to-many between Author and Organization
+model AuthorOrganization {
+  id             String @id @default(cuid())
+  authorId       String
+  organizationId String
+
+  createdAt DateTime @default(now())
+
+  author       Author       @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([authorId, organizationId])
+  @@map("author_organizations")
 }
 
 // Staff who administer an organization (many-to-many with role). Distinct
@@ -486,110 +565,17 @@ model OrganizationMember {
   @@map("organization_members")
 }
 
-// Subscription plan model defining the pricing tiers offered by the service
-model SubscriptionPlan {
-  id          String  @id @default(cuid())
-  name        String  @unique
-  description String?
-
-  // Pricing
-  price    Decimal @db.Decimal(10, 2)
-  currency String  @default("USD") // ISO 4217 currency code
-
-  // Hierarchical tier used for subscription-gated content. Higher = more access.
-  // Plans with `tierLevel >= AudioBook.minSubscriptionTier` grant access to a
-  // gated audiobook. Conventionally: 1 = Base, 2 = Standard, 3 = Premium.
-  tierLevel Int @default(0)
-
-  // Billing
-  billingInterval BillingInterval @default(MONTHLY)
-  trialDays       Int             @default(0)
-
-  // Feature flags / limits stored as JSON for flexibility
-  features Json?
-
-  // Status
-  isActive Boolean @default(true)
-
-  // Timestamps
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Relations
-  subscriptions        UserSubscription[] @relation("CurrentPlan")
-  pendingSubscriptions UserSubscription[] @relation("PendingPlan")
-
-  @@map("subscription_plans")
-}
-
-// User subscription model tracking each user's subscription lifecycle
-model UserSubscription {
-  id            String @id @default(cuid())
-  userProfileId String
-  planId        String
-
-  // Lifecycle
-  status             SubscriptionStatus @default(PENDING)
-  startDate          DateTime           @default(now())
-  endDate            DateTime?
-  currentPeriodStart DateTime           @default(now())
-  currentPeriodEnd   DateTime
-  trialEndsAt        DateTime?
-
-  // Cancellation
-  cancelAtPeriodEnd Boolean   @default(false)
-  canceledAt        DateTime?
-
-  // Renewal & payment
-  autoRenew     Boolean @default(true)
-  paymentMethod String? // e.g. STRIPE, PAYPAL, MANUAL - identifier for the payment provider
-
-  // Scheduled plan change (downgrades at period end)
-  pendingPlanId         String?
-  pendingPlanChangeAt   DateTime?
-  pendingPlanChangeType PlanChangeType?
-
-  // Dunning: retries after first failed renewal while PAST_DUE (expire after 2 failed retries)
-  pastDueRetryCount Int @default(0)
-
-  // Timestamps
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Relations
-  userProfile   UserProfile                @relation(fields: [userProfileId], references: [id], onDelete: Cascade)
-  plan          SubscriptionPlan           @relation("CurrentPlan", fields: [planId], references: [id])
-  pendingPlan   SubscriptionPlan?          @relation("PendingPlan", fields: [pendingPlanId], references: [id])
-  billingEvents SubscriptionBillingEvent[]
-
-  @@index([userProfileId])
-  @@index([planId])
-  @@index([status])
-  @@index([pendingPlanId])
-  @@map("user_subscriptions")
-}
-
-// Audit trail for proration, renewals, and scheduled plan changes
-model SubscriptionBillingEvent {
-  id                 String           @id @default(cuid())
-  userSubscriptionId String
-  type               BillingEventType
-  amount             Decimal          @db.Decimal(10, 2)
-  currency           String
-  metadata           Json?
-  createdAt          DateTime         @default(now())
-
-  userSubscription UserSubscription @relation(fields: [userSubscriptionId], references: [id], onDelete: Cascade)
-
-  @@index([userSubscriptionId])
-  @@index([type])
-  @@map("subscription_billing_events")
-}
-
 // Enums
+enum Gender {
+  MALE
+  FEMALE
+  NON_BINARY
+  OTHER
+  PREFER_NOT_TO_SAY
+}
+
 enum UserAudioBookType {
   OWNED
-  UPLOADED
   PURCHASED
 }
 
@@ -597,36 +583,6 @@ enum OrganizationRole {
   OWNER
   ADMIN
   MEMBER
-}
-
-enum BillingInterval {
-  MONTHLY
-  QUARTERLY
-  YEARLY
-  LIFETIME
-}
-
-enum SubscriptionStatus {
-  PENDING
-  TRIALING
-  ACTIVE
-  PAST_DUE
-  PAUSED
-  CANCELED
-  EXPIRED
-}
-
-enum PlanChangeType {
-  UPGRADE
-  DOWNGRADE
-}
-
-enum BillingEventType {
-  PRORATION_CHARGE
-  RENEWAL_CHARGE
-  RENEWAL_FAILED
-  RENEWAL_RETRY_FAILED
-  PLAN_CHANGE_SCHEDULED
 }
 
 enum DownloadStatus {

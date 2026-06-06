@@ -8,7 +8,7 @@ import { UserAudioBookService } from '../services/UserAudioBookService';
 import { ResponseHandler } from '../utils/ResponseHandler';
 import { ErrorHandler } from '../middleware/ErrorHandler';
 import { MessageHandler } from '../utils/MessageHandler';
-import { UserAudioBookQueryParams, CreateUserAudioBookDto, UpdateUserAudioBookDto } from '../models/UserAudioBookDto';
+import { UserAudioBookQueryParams, CreateUserAudioBookDto } from '../models/UserAudioBookDto';
 
 export class UserAudioBookController {
    private userAudioBookService: UserAudioBookService;
@@ -35,9 +35,7 @@ export class UserAudioBookController {
     *                 type: string
     *               audiobookId:
     *                 type: string
-    *               type:
-    *                 type: string
-    *                 enum: [OWNED, UPLOADED, PURCHASED]
+    *     description: Type is assigned by the server (PURCHASED for this endpoint).
     *     responses:
     *       201:
     *         description: User-audiobook relationship created successfully
@@ -80,7 +78,7 @@ export class UserAudioBookController {
     *         in: query
     *         schema:
     *           type: string
-    *           enum: [OWNED, UPLOADED, PURCHASED]
+    *           enum: [OWNED, PURCHASED]
     *     responses:
     *       200:
     *         $ref: '#/components/responses/PaginatedSuccess'
@@ -134,40 +132,6 @@ export class UserAudioBookController {
       const { id } = req.params;
       const userAudioBook = await this.userAudioBookService.getUserAudioBookById(id as string);
       ResponseHandler.success(res, userAudioBook, MessageHandler.getSuccessMessage('user_audiobooks.retrieved_by_id'));
-   });
-
-   /**
-    * @swagger
-    * /api/v1/user-audiobooks/{id}:
-    *   put:
-    *     summary: Update user-audiobook relationship
-    *     description: Update the type of a user-audiobook relationship
-    *     tags: [UserAudioBooks]
-    *     parameters:
-    *       - $ref: '#/components/parameters/IdParam'
-    *     requestBody:
-    *       required: true
-    *       content:
-    *         application/json:
-    *           schema:
-    *             type: object
-    *             properties:
-    *               type:
-    *                 type: string
-    *                 enum: [OWNED, UPLOADED, PURCHASED]
-    *     responses:
-    *       200:
-    *         description: User-audiobook relationship updated successfully
-    *       404:
-    *         $ref: '#/components/responses/NotFound'
-    *       500:
-    *         $ref: '#/components/responses/InternalServerError'
-    */
-   updateUserAudioBook = ErrorHandler.asyncHandler(async (req: Request, res: Response): Promise<void> => {
-      const { id } = req.params;
-      const updateData: UpdateUserAudioBookDto = req.body;
-      const updated = await this.userAudioBookService.updateUserAudioBook(id as string, updateData);
-      ResponseHandler.success(res, updated, MessageHandler.getSuccessMessage('user_audiobooks.updated'));
    });
 
    /**
@@ -300,7 +264,7 @@ export class UserAudioBookController {
     *         required: true
     *         schema:
     *           type: string
-    *           enum: [OWNED, UPLOADED, PURCHASED]
+    *           enum: [OWNED, PURCHASED]
     *       - $ref: '#/components/parameters/PageParam'
     *       - $ref: '#/components/parameters/LimitParam'
     *     responses:

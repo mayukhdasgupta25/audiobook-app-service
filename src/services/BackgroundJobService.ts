@@ -3,7 +3,7 @@
  * Handles background jobs using Bull queue for progress calculation and other tasks
  */
 import Bull from 'bull';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, UserAudioBookType } from '@prisma/client';
 import { ChapterService } from './ChapterService';
 import { ApiError } from '../types/ApiError';
 import { RedisConfigHelper } from '../config/redis';
@@ -45,9 +45,7 @@ export class BackgroundJobService {
    private chapterService: ChapterService;
 
    constructor(private prisma: PrismaClient) {
-      // Get Redis configuration
-      const redisConfig = RedisConfigHelper.getConfigFromEnv();
-      const redisUrl = RedisConfigHelper.getRedisUrl(redisConfig);
+      const redisUrl = RedisConfigHelper.getRedisUrl();
 
       // Initialize Bull queues
       this.progressQueue = new Bull('progress-calculation', {
@@ -491,9 +489,25 @@ export class BackgroundJobService {
             return;
          }
 
-         const overallProgress = await this.chapterService.calculateAudiobookProgress(userProfileId, audiobookId);
+         const progressSeconds = await this.chapterService.calculateAudiobookProgress(
+            userProfileId,
+            audiobookId
+         );
+         const existingUserAudioBook = await this.prisma.userAudioBook.findUnique({
+            where: {
+               userProfileId_audiobookId: { userProfileId, audiobookId },
+            },
+            select: { progress: true },
+         });
+         const storedProgress = existingUserAudioBook
+            ? Math.max(existingUserAudioBook.progress, progressSeconds)
+            : progressSeconds;
 
-         // Update user-audiobook progress
+         const totalDurationSeconds = await this.chapterService.getAudiobookTotalDurationSeconds(audiobookId);
+         const completed =
+            totalDurationSeconds > 0 && storedProgress >= totalDurationSeconds * 0.95;
+
+         // Update user-audiobook progress (total seconds listened; never decrease)
          await this.prisma.userAudioBook.upsert({
             where: {
                userProfileId_audiobookId: {
@@ -502,15 +516,27 @@ export class BackgroundJobService {
                }
             },
             update: {
-               progress: overallProgress
+               progress: storedProgress
             },
             create: {
                userProfileId,
                audiobookId,
-               type: 'OWNED', // Default type, can be updated later if needed
-               progress: overallProgress
+               type: UserAudioBookType.PURCHASED,
+               progress: storedProgress
             }
          });
+
+         const existingListeningHistory = await this.prisma.listeningHistory.findUnique({
+            where: {
+               userProfileId_audiobookId: { userProfileId, audiobookId },
+            },
+            select: { currentPosition: true, completed: true },
+         });
+         const storedPosition = existingListeningHistory
+            ? Math.max(existingListeningHistory.currentPosition, progressSeconds)
+            : progressSeconds;
+         const listeningCompleted =
+            existingListeningHistory?.completed === true || completed;
 
          // Update listening history
          await this.prisma.listeningHistory.upsert({
@@ -521,13 +547,14 @@ export class BackgroundJobService {
                },
             },
             update: {
-               completed: overallProgress >= 95, // Consider 95% as completed
+               currentPosition: storedPosition,
+               completed: listeningCompleted,
             },
             create: {
                userProfileId,
                audiobookId,
-               currentPosition: 0,
-               completed: overallProgress >= 95,
+               currentPosition: storedPosition,
+               completed: listeningCompleted,
             },
          });
       } catch (error) {

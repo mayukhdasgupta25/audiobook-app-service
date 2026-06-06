@@ -2,52 +2,75 @@
  * Bookmark and Note Data Transfer Objects
  * Defines the structure for bookmark and note functionality
  */
+import { Bookmark as PrismaBookmark } from '@prisma/client';
 
-// Base Bookmark interface
+// --- Bookmark types (chapter-only) ---
+
+export interface BookmarkChapterSummary {
+   id: string;
+   title: string;
+   chapterNumber: number;
+   audiobookId: string;
+}
+
 export interface BookmarkData {
    id: string;
    userProfileId: string;
-   audiobookId?: string;
-   chapterId?: string;
-   title?: string;
-   description?: string;
-   position: number; // Position in seconds
-   timestamp: Date;
+   chapterId: string;
    createdAt: Date;
    updatedAt: Date;
 }
 
-// Bookmark with relations
 export interface BookmarkWithRelations extends BookmarkData {
-   audiobook?: {
-      id: string;
-      title: string;
-      author: string;
-   };
-   chapter?: {
-      id: string;
-      title: string;
-      chapterNumber: number;
-   };
+   chapter?: BookmarkChapterSummary;
 }
 
-// Bookmark creation request
 export interface CreateBookmarkRequest {
+   chapterId: string;
+}
+
+export interface BookmarkQueryParams {
    audiobookId?: string;
    chapterId?: string;
-   title?: string;
-   description?: string;
-   position: number;
+   page?: number;
+   limit?: number;
+   sortBy?: 'createdAt' | 'updatedAt';
+   sortOrder?: 'asc' | 'desc';
 }
 
-// Bookmark update request
-export interface UpdateBookmarkRequest {
-   title?: string;
-   description?: string;
-   position?: number;
+type BookmarkWithChapter = PrismaBookmark & {
+   chapter?: BookmarkChapterSummary;
+};
+
+export const bookmarkChapterInclude = {
+   chapter: {
+      select: {
+         id: true,
+         title: true,
+         chapterNumber: true,
+         audiobookId: true,
+      },
+   },
+} as const;
+
+export function toBookmarkDto(bookmark: BookmarkWithChapter): BookmarkWithRelations {
+   const dto: BookmarkWithRelations = {
+      id: bookmark.id,
+      userProfileId: bookmark.userProfileId,
+      chapterId: bookmark.chapterId,
+      createdAt: bookmark.createdAt,
+      updatedAt: bookmark.updatedAt,
+   };
+
+   if (bookmark.chapter) {
+      dto.chapter = bookmark.chapter;
+   }
+
+   return dto;
 }
 
-// Base Note interface
+// --- Note types (unchanged) ---
+
 export interface NoteData {
    id: string;
    userProfileId: string;
@@ -55,13 +78,12 @@ export interface NoteData {
    chapterId?: string;
    title?: string;
    content: string;
-   position?: number; // Position in seconds (optional)
+   position?: number;
    timestamp: Date;
    createdAt: Date;
    updatedAt: Date;
 }
 
-// Note with relations
 export interface NoteWithRelations extends NoteData {
    audiobook?: {
       id: string;
@@ -75,7 +97,6 @@ export interface NoteWithRelations extends NoteData {
    };
 }
 
-// Note creation request
 export interface CreateNoteRequest {
    audiobookId?: string;
    chapterId?: string;
@@ -84,25 +105,22 @@ export interface CreateNoteRequest {
    position?: number;
 }
 
-// Note update request
 export interface UpdateNoteRequest {
    title?: string;
    content?: string;
    position?: number;
 }
 
-// Bookmark and Note query parameters
 export interface BookmarkNoteQueryParams {
    audiobookId?: string;
    chapterId?: string;
    page?: number;
    limit?: number;
-   sortBy?: string;
+   sortBy?: 'createdAt' | 'updatedAt' | 'timestamp' | 'position' | 'title';
    sortOrder?: 'asc' | 'desc';
-   search?: string; // For searching in title/content
+   search?: string;
 }
 
-// Combined bookmark and note response
 export interface BookmarkNoteResponse {
    bookmarks: BookmarkWithRelations[];
    notes: NoteWithRelations[];
@@ -110,7 +128,6 @@ export interface BookmarkNoteResponse {
    totalNotes: number;
 }
 
-// Bookmark/Note statistics
 export interface BookmarkNoteStats {
    totalBookmarks: number;
    totalNotes: number;

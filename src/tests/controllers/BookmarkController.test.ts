@@ -10,11 +10,15 @@ import { ResponseHandler } from '../../utils/ResponseHandler';
 import { MessageHandler } from '../../utils/MessageHandler';
 import { ApiError } from '../../types/ApiError';
 import { HttpStatusCode } from '../../types/common';
+import { resolveUserProfileId } from '../../utils/resolveUserProfileId';
 
-// Mock dependencies
 jest.mock('../../services/BookmarkService');
 jest.mock('../../utils/ResponseHandler');
 jest.mock('../../utils/MessageHandler');
+jest.mock('../../utils/resolveUserProfileId');
+
+const flushPromises = (): Promise<void> =>
+   new Promise<void>((resolve) => setImmediate(resolve));
 
 describe('BookmarkController', () => {
    let bookmarkController: BookmarkController;
@@ -23,8 +27,14 @@ describe('BookmarkController', () => {
    let mockRes: any;
    let mockBookmarkService: jest.Mocked<BookmarkService>;
 
+   const userProfileId = 'profile-123';
+
    beforeEach(() => {
-      mockPrisma = {} as PrismaClient;
+      mockPrisma = {
+         userProfile: {
+            findUnique: jest.fn(),
+         },
+      } as unknown as PrismaClient;
       mockReq = {
          params: {},
          query: {},
@@ -40,27 +50,26 @@ describe('BookmarkController', () => {
 
       mockReq.next = jest.fn();
       jest.clearAllMocks();
+      (resolveUserProfileId as jest.Mock).mockResolvedValue(userProfileId);
 
       bookmarkController = new BookmarkController(mockPrisma);
       mockBookmarkService = (bookmarkController as any).bookmarkService;
    });
 
    describe('createBookmark', () => {
-      it('should create bookmark for authenticated user', async () => {
-         mockReq.body = {
-            audiobookId: 'audiobook-123',
-            title: 'Important Scene',
-            position: 1200
-         };
+      it('should create chapter bookmark for authenticated user', async () => {
+         mockReq.body = { chapterId: 'chapter-123' };
 
-         const mockBookmark = { id: 'bookmark-1', title: 'Important Scene', userId: 'user-123' };
+         const mockBookmark = { id: 'bookmark-1', chapterId: 'chapter-123', userProfileId };
          mockBookmarkService.createBookmark.mockResolvedValue(mockBookmark as any);
          (MessageHandler.getSuccessMessage as jest.Mock).mockReturnValue('Bookmark created');
 
          await bookmarkController.createBookmark(mockReq, mockRes, mockReq.next);
+         await flushPromises();
 
+         expect(resolveUserProfileId).toHaveBeenCalledWith(mockPrisma, mockReq);
          expect(mockBookmarkService.createBookmark).toHaveBeenCalledWith(
-            'user-123',
+            userProfileId,
             mockReq.body
          );
          expect(ResponseHandler.success).toHaveBeenCalledWith(
@@ -77,13 +86,13 @@ describe('BookmarkController', () => {
          mockReq.query = { page: '1', limit: '20' };
 
          const mockBookmarks = [
-            { id: 'bookmark-1', title: 'Bookmark 1' },
-            { id: 'bookmark-2', title: 'Bookmark 2' },
+            { id: 'bookmark-1', chapterId: 'chapter-1' },
+            { id: 'bookmark-2', chapterId: 'chapter-2' },
          ];
 
          mockBookmarkService.getBookmarks.mockResolvedValue({
             bookmarks: mockBookmarks as any,
-            totalCount: 2
+            totalCount: 2,
          });
          (ResponseHandler.calculatePagination as jest.Mock).mockReturnValue({
             currentPage: 1,
@@ -96,9 +105,10 @@ describe('BookmarkController', () => {
          (MessageHandler.getSuccessMessage as jest.Mock).mockReturnValue('Bookmarks retrieved');
 
          await bookmarkController.getBookmarks(mockReq, mockRes, mockReq.next);
+         await flushPromises();
 
          expect(mockBookmarkService.getBookmarks).toHaveBeenCalledWith(
-            'user-123',
+            userProfileId,
             expect.objectContaining({
                page: 1,
                limit: 20,
@@ -112,48 +122,25 @@ describe('BookmarkController', () => {
       it('should filter bookmarks by audiobookId and chapterId', async () => {
          mockReq.query = {
             audiobookId: 'audiobook-123',
-            chapterId: 'chapter-456'
+            chapterId: 'chapter-456',
          };
 
          mockBookmarkService.getBookmarks.mockResolvedValue({
             bookmarks: [],
-            totalCount: 0
+            totalCount: 0,
          });
          (ResponseHandler.calculatePagination as jest.Mock).mockReturnValue({});
          (MessageHandler.getSuccessMessage as jest.Mock).mockReturnValue('Retrieved');
 
          await bookmarkController.getBookmarks(mockReq, mockRes, mockReq.next);
+         await flushPromises();
 
          expect(mockBookmarkService.getBookmarks).toHaveBeenCalledWith(
-            'user-123',
+            userProfileId,
             expect.objectContaining({
                audiobookId: 'audiobook-123',
                chapterId: 'chapter-456',
             })
-         );
-      });
-   });
-
-   describe('updateBookmark', () => {
-      it('should update bookmark', async () => {
-         mockReq.params.id = 'bookmark-123';
-         mockReq.body = { title: 'Updated Title' };
-
-         const mockBookmark = { id: 'bookmark-123', title: 'Updated Title' };
-         mockBookmarkService.updateBookmark.mockResolvedValue(mockBookmark as any);
-         (MessageHandler.getSuccessMessage as jest.Mock).mockReturnValue('Bookmark updated');
-
-         await bookmarkController.updateBookmark(mockReq, mockRes, mockReq.next);
-
-         expect(mockBookmarkService.updateBookmark).toHaveBeenCalledWith(
-            'user-123',
-            'bookmark-123',
-            mockReq.body
-         );
-         expect(ResponseHandler.success).toHaveBeenCalledWith(
-            mockRes,
-            mockBookmark,
-            'Bookmark updated'
          );
       });
    });
@@ -164,8 +151,9 @@ describe('BookmarkController', () => {
          mockBookmarkService.deleteBookmark.mockResolvedValue(undefined);
 
          await bookmarkController.deleteBookmark(mockReq, mockRes, mockReq.next);
+         await flushPromises();
 
-         expect(mockBookmarkService.deleteBookmark).toHaveBeenCalledWith('user-123', 'bookmark-123');
+         expect(mockBookmarkService.deleteBookmark).toHaveBeenCalledWith(userProfileId, 'bookmark-123');
          expect(ResponseHandler.noContent).toHaveBeenCalledWith(mockRes);
       });
    });
@@ -175,7 +163,7 @@ describe('BookmarkController', () => {
          mockReq.body = {
             audiobookId: 'audiobook-123',
             title: 'My Note',
-            content: 'Note content'
+            content: 'Note content',
          };
 
          const mockNote = { id: 'note-1', title: 'My Note' };
@@ -211,4 +199,3 @@ describe('BookmarkController', () => {
       });
    });
 });
-

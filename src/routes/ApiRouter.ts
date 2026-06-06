@@ -12,14 +12,18 @@ import { createBookmarkRoutes } from './bookmarkRoutes';
 import { createOfflineDownloadRoutes } from './offlineDownloadRoutes';
 import { createHealthRoutes } from './healthRoutes';
 import { createGenreRoutes } from './genreRoutes';
+import { createMoodRoutes } from './moodRoutes';
 import { createStreamingRoutes } from './streamingRoutes';
 import { createUserProfileRoutes } from './userProfileRoutes';
 import { createUserAudioBookRoutes } from './userAudioBookRoutes';
 import { createTagRoutes } from './tagRoutes';
 import { createAuthorRoutes } from './authorRoutes';
-import { createSubscriptionPlanRoutes } from './subscriptionPlanRoutes';
-import { createUserSubscriptionRoutes } from './userSubscriptionRoutes';
 import { createOrganizationRoutes } from './organizationRoutes';
+import { createCommentRoutes } from './commentRoutes';
+import { createReviewRoutes } from './reviewRoutes';
+import { createFavoriteRoutes } from './favoriteRoutes';
+import { createPlaylistRoutes } from './playlistRoutes';
+import { createListeningHistoryRoutes } from './listeningHistoryRoutes';
 
 export class ApiRouter {
   private static instance: ApiRouter;
@@ -78,14 +82,18 @@ export class ApiRouter {
     v1Router.use('/', createBookmarkRoutes(this.prisma));
     v1Router.use('/', createOfflineDownloadRoutes(this.prisma));
     v1Router.use('/genres', createGenreRoutes(this.prisma));
+    v1Router.use('/moods', createMoodRoutes(this.prisma));
     v1Router.use('/tags', createTagRoutes(this.prisma));
     v1Router.use('/authors', createAuthorRoutes(this.prisma));
     v1Router.use('/stream', createStreamingRoutes(this.prisma));
     v1Router.use('/', createUserProfileRoutes(this.prisma));
     v1Router.use('/user-audiobooks', createUserAudioBookRoutes(this.prisma));
-    v1Router.use('/subscription-plans', createSubscriptionPlanRoutes(this.prisma));
-    v1Router.use('/subscriptions', createUserSubscriptionRoutes(this.prisma));
     v1Router.use('/organizations', createOrganizationRoutes(this.prisma));
+    v1Router.use('/comments', createCommentRoutes(this.prisma));
+    v1Router.use('/reviews', createReviewRoutes(this.prisma));
+    v1Router.use('/favorites', createFavoriteRoutes(this.prisma));
+    v1Router.use('/playlists', createPlaylistRoutes(this.prisma));
+    v1Router.use('/listening-history', createListeningHistoryRoutes(this.prisma));
 
     // Mount v1 routes
     this.router.use('/v1', v1Router);

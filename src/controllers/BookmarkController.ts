@@ -8,18 +8,19 @@ import { BookmarkService } from '../services/BookmarkService';
 import { ResponseHandler } from '../utils/ResponseHandler';
 import {
    CreateBookmarkRequest,
-   UpdateBookmarkRequest,
    CreateNoteRequest,
    UpdateNoteRequest,
-   BookmarkNoteQueryParams
+   BookmarkNoteQueryParams,
+   BookmarkQueryParams,
 } from '../models/BookmarkNoteDto';
 import { ErrorHandler } from '../middleware/ErrorHandler';
 import { MessageHandler } from '../utils/MessageHandler';
+import { resolveUserProfileId } from '../utils/resolveUserProfileId';
 
 export class BookmarkController {
    private bookmarkService: BookmarkService;
 
-   constructor(prisma: PrismaClient) {
+   constructor(private prisma: PrismaClient) {
       this.bookmarkService = new BookmarkService(prisma);
    }
 
@@ -27,8 +28,8 @@ export class BookmarkController {
     * @swagger
     * /api/v1/bookmarks:
     *   post:
-    *     summary: Create a new bookmark
-    *     description: Create a new bookmark for an audiobook or chapter
+    *     summary: Create a chapter bookmark
+    *     description: Save a chapter as a bookmark for the authenticated user
     *     tags: [Bookmarks]
     *     requestBody:
     *       required: true
@@ -38,18 +39,9 @@ export class BookmarkController {
     *             $ref: '#/components/schemas/CreateBookmarkRequest'
     *           examples:
     *             example1:
-    *               summary: Create bookmark
-    *               value:
-    *                 audiobookId: "123e4567-e89b-12d3-a456-426614174000"
-    *                 title: "Important Scene"
-    *                 description: "The protagonist meets the antagonist"
-    *                 position: 1200
-    *             example2:
-    *               summary: Create chapter bookmark
+    *               summary: Bookmark a chapter
     *               value:
     *                 chapterId: "chapter-123"
-    *                 title: "Key Moment"
-    *                 position: 300
     *     responses:
     *       201:
     *         description: Bookmark created successfully
@@ -66,14 +58,16 @@ export class BookmarkController {
     *         $ref: '#/components/responses/ValidationError'
     *       404:
     *         $ref: '#/components/responses/NotFound'
+    *       409:
+    *         description: Chapter already bookmarked
     *       500:
     *         $ref: '#/components/responses/InternalServerError'
     */
    createBookmark = ErrorHandler.asyncHandler(async (req: Request, res: Response): Promise<void> => {
+      const userProfileId = await resolveUserProfileId(this.prisma, req);
       const bookmarkData: CreateBookmarkRequest = req.body;
-      const userId = (req as any).user.id; // Assuming user is attached by auth middleware
 
-      const bookmark = await this.bookmarkService.createBookmark(userId, bookmarkData);
+      const bookmark = await this.bookmarkService.createBookmark(userProfileId, bookmarkData);
 
       ResponseHandler.success(res, bookmark, MessageHandler.getSuccessMessage('bookmarks.created'), 201);
    });
@@ -98,16 +92,11 @@ export class BookmarkController {
     *         schema:
     *           type: string
     *         description: Filter by chapter ID
-    *       - name: search
-    *         in: query
-    *         schema:
-    *           type: string
-    *         description: Search in title and description
     *       - name: sortBy
     *         in: query
     *         schema:
     *           type: string
-    *           enum: [createdAt, updatedAt, position, title]
+    *           enum: [createdAt, updatedAt]
     *           default: createdAt
     *         description: Field to sort by
     *       - name: sortOrder
@@ -124,17 +113,18 @@ export class BookmarkController {
     *         $ref: '#/components/responses/InternalServerError'
     */
    getBookmarks = ErrorHandler.asyncHandler(async (req: Request, res: Response): Promise<void> => {
-      const queryParams: BookmarkNoteQueryParams = {
+      const userProfileId = await resolveUserProfileId(this.prisma, req);
+      const sortByParam = req.query['sortBy'] as string | undefined;
+      const queryParams: BookmarkQueryParams = {
          audiobookId: req.query['audiobookId'] as string,
          chapterId: req.query['chapterId'] as string,
          page: req.query['page'] ? parseInt(req.query['page'] as string, 10) : 1,
          limit: req.query['limit'] ? parseInt(req.query['limit'] as string, 10) : 20,
-         sortBy: req.query['sortBy'] as string || 'createdAt',
+         sortBy: sortByParam === 'updatedAt' ? 'updatedAt' : 'createdAt',
          sortOrder: (req.query['sortOrder'] as 'asc' | 'desc') || 'desc',
-         search: req.query['search'] as string,
       };
 
-      const { bookmarks, totalCount } = await this.bookmarkService.getBookmarks((req as any).user.id, queryParams);
+      const { bookmarks, totalCount } = await this.bookmarkService.getBookmarks(userProfileId, queryParams);
 
       const pagination = ResponseHandler.calculatePagination(
          queryParams.page!,
@@ -178,67 +168,11 @@ export class BookmarkController {
     */
    getBookmarkById = ErrorHandler.asyncHandler(async (req: Request, res: Response): Promise<void> => {
       const { id } = req.params;
-      const userId = (req as any).user.id; // Assuming user is attached by auth middleware
+      const userProfileId = await resolveUserProfileId(this.prisma, req);
 
-      const bookmark = await this.bookmarkService.getBookmarkById(userId, id as string);
+      const bookmark = await this.bookmarkService.getBookmarkById(userProfileId, id as string);
 
       ResponseHandler.success(res, bookmark, MessageHandler.getSuccessMessage('bookmarks.retrieved_by_id'));
-   });
-
-   /**
-    * @swagger
-    * /api/v1/bookmarks/{id}:
-    *   put:
-    *     summary: Update a bookmark
-    *     description: Update an existing bookmark with the provided information
-    *     tags: [Bookmarks]
-    *     parameters:
-    *       - name: id
-    *         in: path
-    *         required: true
-    *         schema:
-    *           type: string
-    *         description: Bookmark ID
-    *     requestBody:
-    *       required: true
-    *       content:
-    *         application/json:
-    *           schema:
-    *             $ref: '#/components/schemas/UpdateBookmarkRequest'
-    *           examples:
-    *             example1:
-    *               summary: Update bookmark
-    *               value:
-    *                 title: "Updated Important Scene"
-    *                 description: "Updated description"
-    *                 position: 1300
-    *     responses:
-    *       200:
-    *         description: Bookmark updated successfully
-    *         content:
-    *           application/json:
-    *             schema:
-    *               allOf:
-    *                 - $ref: '#/components/schemas/ApiResponse'
-    *                 - type: object
-    *                   properties:
-    *                     data:
-    *                       $ref: '#/components/schemas/Bookmark'
-    *       400:
-    *         $ref: '#/components/responses/ValidationError'
-    *       404:
-    *         $ref: '#/components/responses/NotFound'
-    *       500:
-    *         $ref: '#/components/responses/InternalServerError'
-    */
-   updateBookmark = ErrorHandler.asyncHandler(async (req: Request, res: Response): Promise<void> => {
-      const { id } = req.params;
-      const updateData: UpdateBookmarkRequest = req.body;
-      const userId = (req as any).user.id; // Assuming user is attached by auth middleware
-
-      const bookmark = await this.bookmarkService.updateBookmark(userId, id as string, updateData);
-
-      ResponseHandler.success(res, bookmark, MessageHandler.getSuccessMessage('bookmarks.updated'));
    });
 
    /**
@@ -265,9 +199,9 @@ export class BookmarkController {
     */
    deleteBookmark = ErrorHandler.asyncHandler(async (req: Request, res: Response): Promise<void> => {
       const { id } = req.params;
-      const userId = (req as any).user.id; // Assuming user is attached by auth middleware
+      const userProfileId = await resolveUserProfileId(this.prisma, req);
 
-      await this.bookmarkService.deleteBookmark(userId, id as string);
+      await this.bookmarkService.deleteBookmark(userProfileId, id as string);
 
       ResponseHandler.noContent(res);
    });
@@ -377,7 +311,7 @@ export class BookmarkController {
          chapterId: req.query['chapterId'] as string,
          page: req.query['page'] ? parseInt(req.query['page'] as string, 10) : 1,
          limit: req.query['limit'] ? parseInt(req.query['limit'] as string, 10) : 20,
-         sortBy: req.query['sortBy'] as string || 'createdAt',
+         sortBy: (req.query['sortBy'] as BookmarkNoteQueryParams['sortBy']) || 'createdAt',
          sortOrder: (req.query['sortOrder'] as 'asc' | 'desc') || 'desc',
          search: req.query['search'] as string,
       };

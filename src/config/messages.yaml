@@ -34,6 +34,12 @@ success:
     updated: "Tag updated successfully"
     deleted: "Tag deleted successfully"
 
+  moods:
+    retrieved: "Moods retrieved successfully"
+    created: "Mood created successfully"
+    updated: "Mood updated successfully"
+    deleted: "Mood deleted successfully"
+
   authors:
     retrieved: "Authors retrieved successfully"
     created: "Author created successfully"
@@ -47,23 +53,6 @@ success:
     updated: "User-audiobook relationship updated successfully"
     deleted: "User-audiobook relationship deleted successfully"
 
-  subscription_plans:
-    retrieved: "Subscription plans retrieved successfully"
-    retrieved_by_id: "Subscription plan retrieved successfully"
-    created: "Subscription plan created successfully"
-    updated: "Subscription plan updated successfully"
-    deleted: "Subscription plan deleted successfully"
-    deactivated: "Subscription plan deactivated successfully"
-
-  user_subscriptions:
-    retrieved: "Subscriptions retrieved successfully"
-    retrieved_by_id: "Subscription retrieved successfully"
-    created: "Subscription created successfully"
-    updated: "Subscription updated successfully"
-    deleted: "Subscription deleted successfully"
-    canceled: "Subscription canceled successfully"
-    renewed: "Subscription renewed successfully"
-
   organizations:
     retrieved: "Organizations retrieved successfully"
     retrieved_by_id: "Organization retrieved successfully"
@@ -75,6 +64,60 @@ success:
     member_updated: "Member role updated successfully"
     member_removed: "Member removed from organization successfully"
     audiobooks_retrieved: "Organization audiobooks retrieved successfully"
+    all_retrieved: "All organizations retrieved successfully"
+
+  comments:
+    retrieved: "Comments retrieved successfully"
+    retrieved_by_id: "Comment retrieved successfully"
+    created: "Comment created successfully"
+    updated: "Comment updated successfully"
+    deleted: "Comment deleted successfully"
+
+  reviews:
+    retrieved: "Reviews retrieved successfully"
+    retrieved_by_id: "Review retrieved successfully"
+    created: "Review created successfully"
+    updated: "Review updated successfully"
+    deleted: "Review deleted successfully"
+
+  favorites:
+    retrieved: "Favorites retrieved successfully"
+    retrieved_by_id: "Favorite retrieved successfully"
+    created: "Favorite created successfully"
+    deleted: "Favorite deleted successfully"
+
+  listening_history:
+    retrieved: "Listening history retrieved successfully"
+
+  bookmarks:
+    retrieved: "Bookmarks retrieved successfully"
+    retrieved_by_id: "Bookmark retrieved successfully"
+    created: "Bookmark created successfully"
+    deleted: "Bookmark deleted successfully"
+
+  bookmarks_notes:
+    retrieved: "Bookmarks and notes retrieved successfully"
+    stats_retrieved: "Bookmark and note statistics retrieved successfully"
+
+  notes:
+    retrieved: "Notes retrieved successfully"
+    retrieved_by_id: "Note retrieved successfully"
+    created: "Note created successfully"
+    updated: "Note updated successfully"
+    deleted: "Note deleted successfully"
+
+  playlists:
+    retrieved: "Playlists retrieved successfully"
+    retrieved_by_id: "Playlist retrieved successfully"
+    created: "Playlist created successfully"
+    updated: "Playlist updated successfully"
+    deleted: "Playlist deleted successfully"
+
+  playlist_items:
+    retrieved: "Playlist items retrieved successfully"
+    created: "Playlist item created successfully"
+    updated: "Playlist item updated successfully"
+    deleted: "Playlist item deleted successfully"
 
   auth:
     signup_success: "User account created successfully"
@@ -120,6 +163,31 @@ errors:
     tag_name_empty: "Tag name cannot be empty"
     tag_name_too_long: "Tag name must be less than {maxLength} characters"
     tag_name_invalid: "Tag name must be a valid string"
+    mood_name_required: "Mood name is required"
+    mood_name_empty: "Mood name cannot be empty"
+    mood_name_too_long: "Mood name must be less than {maxLength} characters"
+    mood_name_invalid: "Mood name must be a valid string"
+    mood_hexcode_required: "Mood hexcode is required"
+    mood_hexcode_empty: "Mood hexcode cannot be empty"
+    mood_hexcode_invalid: "Mood hexcode must be a valid string"
+    mood_description_invalid: "Mood description must be a valid string"
+    mood_description_too_long: "Mood description must be less than {maxLength} characters"
+    mood_icon_required: "Mood icon is required"
+    mood_icon_empty: "Mood icon cannot be empty"
+    mood_icon_too_long: "Mood icon must be less than {maxLength} characters"
+    mood_icon_invalid: "Mood icon must be a valid string"
+    mood_description_icon_required: "Mood description icon is required"
+    mood_description_icon_empty: "Mood description icon cannot be empty"
+    mood_description_icon_too_long: "Mood description icon must be less than {maxLength} characters"
+    mood_description_icon_invalid: "Mood description icon must be a valid string"
+    mood_attributes_invalid: "Mood attributes must be an array"
+    mood_attribute_invalid: "Each mood attribute must be a valid object"
+    mood_attribute_icon_required: "Mood attribute icon is required"
+    mood_attribute_icon_empty: "Mood attribute icon cannot be empty"
+    mood_attribute_icon_too_long: "Mood attribute icon must be less than {maxLength} characters"
+    mood_attribute_description_required: "Mood attribute description is required"
+    mood_attribute_description_empty: "Mood attribute description cannot be empty"
+    mood_attribute_description_too_long: "Mood attribute description must be less than {maxLength} characters"
     author_first_name_required: "First name is required"
     author_first_name_invalid: "First name must be a valid string"
     author_first_name_too_long: "First name must be less than 100 characters"
@@ -143,9 +211,22 @@ errors:
     audiobook_id_required: "Audiobook ID is required"
     user_profile_id_required: "User profile ID is required"
     organization_id_required: "Organization ID is required"
-    user_audiobook_type_invalid: "User-audiobook type must be one of: OWNED, UPLOADED, PURCHASED"
+    user_audiobook_type_invalid: "User-audiobook type must be one of: OWNED, PURCHASED"
+    user_audiobook_type_not_settable: "User-audiobook type is assigned by the server and cannot be set in the request body"
     no_update_fields: "At least one field must be provided for update"
     min_subscription_tier_invalid: "minSubscriptionTier must be a non-negative integer or null"
+    comment_content_required: "Comment content is required"
+    comment_parent_invalid: "Parent comment ID must be a valid string"
+    comment_meta_invalid: "Comment meta must be an object with only a position field"
+    comment_meta_chapter_forbidden: "Comment meta must not contain chapterId"
+    comment_meta_position_invalid: "Comment meta position must be a non-negative number"
+    review_rating_invalid: "Review rating must be an integer between 1 and 5"
+    chapter_id_required: "Chapter ID is required"
+    bookmark_audiobook_id_forbidden: "audiobookId is not allowed when creating a bookmark"
+    playlist_name_required: "Playlist name is required"
+    playlist_name_too_long: "Playlist name must be less than 200 characters"
+    playlist_item_position_invalid: "Playlist item position must be a positive integer"
+    organization_ids_invalid: "organizationIds must be an array of valid organization ID strings"
 
     # User authentication validation
     email_required: "Email is required"
@@ -154,6 +235,13 @@ errors:
     username_length: "Username must be between 3 and 30 characters"
     first_name_required: "First name is required"
     last_name_required: "Last name is required"
+    gender_invalid: "Gender must be one of: MALE, FEMALE, NON_BINARY, OTHER, PREFER_NOT_TO_SAY"
+    location_invalid: "location must be null or an object with latitude and longitude"
+    location_resolve_failed: "Could not resolve a location from the provided coordinates"
+    coordinates_required_together: "location must include both latitude and longitude"
+    latitude_invalid: "latitude must be a number between -90 and 90"
+    longitude_invalid: "longitude must be a number between -180 and 180"
+    age_invalid: "Age must be a whole number between 1 and 150"
     password_required: "Password is required"
     password_min_length: "Password must be at least 8 characters long"
     password_max_length: "Password must be less than 128 characters"
@@ -223,29 +311,55 @@ errors:
     not_found: "Tag not found"
     fetch_failed: "Failed to fetch tags"
 
-  subscription_plans:
-    not_found: "Subscription plan not found"
-    name_exists: "Subscription plan with this name already exists"
-    price_invalid: "Subscription plan price must be a non-negative number"
-    tier_invalid: "Subscription plan tier must be a non-negative integer"
-    inactive: "Subscription plan is inactive"
-    fetch_failed: "Failed to fetch subscription plans"
-    create_failed: "Failed to create subscription plan"
-    update_failed: "Failed to update subscription plan"
-    delete_failed: "Failed to delete subscription plan"
+  moods:
+    not_found: "Mood not found"
+    fetch_failed: "Failed to fetch moods"
+    create_failed: "Failed to create mood"
+    update_failed: "Failed to update mood"
+    delete_failed: "Failed to delete mood"
+    name_exists: "Mood name already exists"
+    invalid_hexcode: "Hexcode must be a valid color in #RGB or #RRGGBB format"
 
-  user_subscriptions:
-    not_found: "User subscription not found"
-    already_subscribed: "User already has an active subscription"
-    already_canceled: "Subscription has already been canceled"
-    lifetime_no_renew: "Lifetime subscriptions cannot be renewed"
-    cannot_renew_canceled: "Cannot renew a canceled subscription"
-    fetch_failed: "Failed to fetch user subscriptions"
-    create_failed: "Failed to create user subscription"
-    update_failed: "Failed to update user subscription"
-    cancel_failed: "Failed to cancel user subscription"
-    renew_failed: "Failed to renew user subscription"
-    delete_failed: "Failed to delete user subscription"
+  comments:
+    not_found: "Comment not found"
+    parent_not_found: "Parent comment not found"
+    parent_audiobook_mismatch: "Parent comment belongs to a different audiobook"
+    access_denied: "You can only modify your own comments"
+
+  reviews:
+    not_found: "Review not found"
+    already_exists: "You have already reviewed this audiobook"
+    access_denied: "You can only modify your own reviews"
+
+  favorites:
+    not_found: "Favorite not found"
+    already_exists: "This audiobook is already in your favorites"
+    access_denied: "You can only access your own favorites"
+
+  bookmarks:
+    not_found: "Bookmark not found"
+    already_exists: "This chapter is already bookmarked"
+    chapter_not_found: "Chapter not found"
+    fetch_failed: "Failed to fetch bookmarks"
+    create_failed: "Failed to create bookmark"
+    delete_failed: "Failed to delete bookmark"
+
+  playlists:
+    not_found: "Playlist not found"
+    access_denied: "You do not have access to this playlist"
+
+  playlist_items:
+    not_found: "Playlist item not found"
+    already_exists: "This audiobook is already in the playlist"
+
+  authors:
+    not_found: "Author not found"
+    fetch_failed: "Failed to fetch authors"
+    create_failed: "Failed to create author"
+    update_failed: "Failed to update author"
+    delete_failed: "Failed to delete author"
+    email_exists: "An author with this email already exists"
+    organization_not_found: "One or more organizations were not found"
 
   organizations:
     not_found: "Organization not found"

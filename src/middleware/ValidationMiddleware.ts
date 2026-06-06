@@ -58,7 +58,39 @@ export class ValidationMiddleware {
    * Validate audiobook filter parameters
    */
   static validateAudioBookFilters(req: Request, res: Response, next: NextFunction): void {
-    const { genre, language, author, narrator, isActive, isPublic, search } = req.query;
+    const { genre, language, author, narrator, isActive, isPublic, search, moodId, moodIds } = req.query;
+
+    const cuidRegex = /^c[a-z0-9]{24}$/;
+    const moodIdValues: string[] = [];
+
+    if (moodId !== undefined) {
+      if (typeof moodId !== 'string' || !cuidRegex.test(moodId)) {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.id_format'));
+        return;
+      }
+      moodIdValues.push(moodId);
+    }
+
+    if (moodIds !== undefined) {
+      const rawMoodIds = Array.isArray(moodIds)
+        ? moodIds
+        : typeof moodIds === 'string'
+          ? moodIds.split(',').map((id: string) => id.trim()).filter((id: string) => id.length > 0)
+          : [];
+
+      for (const id of rawMoodIds) {
+        if (typeof id !== 'string' || !cuidRegex.test(id)) {
+          ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.id_format'));
+          return;
+        }
+        moodIdValues.push(id);
+      }
+    }
+
+    if (moodIdValues.length > 0) {
+      req.query['moodIds'] = moodIdValues.join(',');
+      delete req.query['moodId'];
+    }
 
     // Validate boolean parameters
     if (isActive !== undefined) {
@@ -102,6 +134,26 @@ export class ValidationMiddleware {
     // CUID format validation (used by Prisma)
     const cuidRegex = /^c[a-z0-9]{24}$/;
     if (!cuidRegex.test(id!) && !cuidRegex.test(audiobookId!)) {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.id_format'));
+      return;
+    }
+
+    next();
+  }
+
+  /**
+   * Validate userProfileId path parameter (CUID)
+   */
+  static validateUserProfileIdParam(req: Request, res: Response, next: NextFunction): void {
+    const { userProfileId } = req.params;
+
+    if (!userProfileId || typeof userProfileId !== 'string') {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.user_profile_id_required'));
+      return;
+    }
+
+    const cuidRegex = /^c[a-z0-9]{24}$/;
+    if (!cuidRegex.test(userProfileId)) {
       ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.id_format'));
       return;
     }
@@ -330,10 +382,28 @@ export class ValidationMiddleware {
    * Validate user profile update request
    */
   static validateUserProfileUpdate(req: Request, res: Response, next: NextFunction): void {
-    const { username, firstName, lastName, avatar, preferences } = req.body;
+    const {
+      username,
+      firstName,
+      lastName,
+      avatar,
+      gender,
+      location,
+      age,
+      preferences,
+    } = req.body;
 
     // Ensure only expected fields are present
-    const allowedFields = ['username', 'firstName', 'lastName', 'avatar', 'preferences'];
+    const allowedFields = [
+      'username',
+      'firstName',
+      'lastName',
+      'avatar',
+      'gender',
+      'location',
+      'age',
+      'preferences',
+    ];
     const extraFields = Object.keys(req.body).filter(k => !allowedFields.includes(k));
     if (extraFields.length > 0) {
       ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.unexpected_fields'));
@@ -376,6 +446,63 @@ export class ValidationMiddleware {
       req.body.lastName = lastName.trim();
     }
 
+    // Validate gender if provided (null clears the field)
+    if (gender !== undefined) {
+      if (gender !== null && typeof gender !== 'string') {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.gender_invalid'));
+        return;
+      }
+      const validGenders = ['MALE', 'FEMALE', 'NON_BINARY', 'OTHER', 'PREFER_NOT_TO_SAY'];
+      if (gender !== null && !validGenders.includes(gender)) {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.gender_invalid'));
+        return;
+      }
+    }
+
+    // Validate location coordinates (resolved to a location string in controller); null clears the field
+    if (location !== undefined) {
+      if (location === null) {
+        // pass through — clears stored location
+      } else if (typeof location === 'object' && !Array.isArray(location)) {
+        const { latitude, longitude } = location as { latitude?: unknown; longitude?: unknown };
+        const hasLatitude = latitude !== undefined && latitude !== null && latitude !== '';
+        const hasLongitude = longitude !== undefined && longitude !== null && longitude !== '';
+
+        if (hasLatitude !== hasLongitude) {
+          ResponseHandler.validationError(
+            res,
+            MessageHandler.getErrorMessage('validation.coordinates_required_together')
+          );
+          return;
+        }
+
+        const parsedLatitude = ValidationMiddleware.parseCoordinate(latitude);
+        if (parsedLatitude === null || parsedLatitude < -90 || parsedLatitude > 90) {
+          ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.latitude_invalid'));
+          return;
+        }
+
+        const parsedLongitude = ValidationMiddleware.parseCoordinate(longitude);
+        if (parsedLongitude === null || parsedLongitude < -180 || parsedLongitude > 180) {
+          ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.longitude_invalid'));
+          return;
+        }
+
+        req.body.location = { latitude: parsedLatitude, longitude: parsedLongitude };
+      } else {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.location_invalid'));
+        return;
+      }
+    }
+
+    // Validate age if provided (null clears the field)
+    if (age !== undefined) {
+      if (age !== null && (!Number.isInteger(age) || age < 1 || age > 150)) {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.age_invalid'));
+        return;
+      }
+    }
+
     // Validate avatar URL if provided
     if (avatar !== undefined) {
       if (typeof avatar !== 'string' || avatar.length > 500) {
@@ -400,12 +527,32 @@ export class ValidationMiddleware {
     }
 
     // Must have at least one updatable field
-    if ([username, firstName, lastName, avatar, preferences].every(v => v === undefined)) {
+    if (
+      [username, firstName, lastName, avatar, gender, location, age, preferences].every(
+        v => v === undefined
+      )
+    ) {
       ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.no_update_fields'));
       return;
     }
 
     next();
+  }
+
+  /** Parses latitude/longitude sent as string or number; returns null when invalid. */
+  private static parseCoordinate(value: unknown): number | null {
+    if (typeof value === 'number') {
+      return Number.isFinite(value) ? value : null;
+    }
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (trimmed.length === 0) {
+        return null;
+      }
+      const parsed = Number(trimmed);
+      return Number.isFinite(parsed) ? parsed : null;
+    }
+    return null;
   }
 
   /**
@@ -446,6 +593,11 @@ export class ValidationMiddleware {
   static validateUserAudioBookCreation(req: Request, res: Response, next: NextFunction): void {
     const { userProfileId, audiobookId, type } = req.body;
 
+    if (type !== undefined) {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.user_audiobook_type_not_settable'));
+      return;
+    }
+
     // Validate required fields
     if (!userProfileId || typeof userProfileId !== 'string') {
       ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.user_profile_id_required'));
@@ -470,35 +622,6 @@ export class ValidationMiddleware {
       return;
     }
 
-    // Validate type if provided
-    if (type !== undefined) {
-      if (!['OWNED', 'UPLOADED', 'PURCHASED'].includes(type)) {
-        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.user_audiobook_type_invalid'));
-        return;
-      }
-    }
-
-    next();
-  }
-
-  /**
-   * Validate UserAudioBook update request
-   */
-  static validateUserAudioBookUpdate(req: Request, res: Response, next: NextFunction): void {
-    const { type } = req.body;
-
-    // Type is optional for update, but if provided must be valid
-    if (type !== undefined) {
-      if (!['OWNED', 'UPLOADED', 'PURCHASED'].includes(type)) {
-        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.user_audiobook_type_invalid'));
-        return;
-      }
-    } else {
-      // Must have at least one field to update
-      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.no_update_fields'));
-      return;
-    }
-
     next();
   }
 
@@ -508,7 +631,7 @@ export class ValidationMiddleware {
   static validateUserAudioBookType(req: Request, res: Response, next: NextFunction): void {
     const { type } = req.params;
 
-    if (!type || !['OWNED', 'UPLOADED', 'PURCHASED'].includes(type)) {
+    if (!type || !['OWNED', 'PURCHASED'].includes(type)) {
       ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.user_audiobook_type_invalid'));
       return;
     }
@@ -584,6 +707,278 @@ export class ValidationMiddleware {
     }
 
     next();
+  }
+
+  /**
+   * Validate mood creation request
+   */
+  static validateCreateMood(req: Request, res: Response, next: NextFunction): void {
+    const { name, description, descriptionIcon, hexcode, icon, attributes } = req.body;
+
+    if (!name || typeof name !== 'string') {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.mood_name_required'));
+      return;
+    }
+
+    const trimmedName = name.trim();
+    if (trimmedName.length === 0) {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.mood_name_empty'));
+      return;
+    }
+
+    const maxNameLength = 100;
+    if (trimmedName.length > maxNameLength) {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.mood_name_too_long', { maxLength: maxNameLength }));
+      return;
+    }
+
+    if (!hexcode || typeof hexcode !== 'string') {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.mood_hexcode_required'));
+      return;
+    }
+
+    const trimmedHexcode = hexcode.trim();
+    if (trimmedHexcode.length === 0) {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.mood_hexcode_empty'));
+      return;
+    }
+
+    if (!icon || typeof icon !== 'string') {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.mood_icon_required'));
+      return;
+    }
+
+    const trimmedIcon = icon.trim();
+    if (trimmedIcon.length === 0) {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.mood_icon_empty'));
+      return;
+    }
+
+    const maxIconLength = 100;
+    if (trimmedIcon.length > maxIconLength) {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.mood_icon_too_long', { maxLength: maxIconLength }));
+      return;
+    }
+
+    if (!descriptionIcon || typeof descriptionIcon !== 'string') {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.mood_description_icon_required'));
+      return;
+    }
+
+    const trimmedDescriptionIcon = descriptionIcon.trim();
+    if (trimmedDescriptionIcon.length === 0) {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.mood_description_icon_empty'));
+      return;
+    }
+
+    if (trimmedDescriptionIcon.length > maxIconLength) {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.mood_description_icon_too_long', { maxLength: maxIconLength }));
+      return;
+    }
+
+    if (description !== undefined && description !== null && typeof description !== 'string') {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.mood_description_invalid'));
+      return;
+    }
+
+    if (typeof description === 'string') {
+      const trimmedDescription = description.trim();
+      if (trimmedDescription.length > 500) {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.mood_description_too_long', { maxLength: 500 }));
+        return;
+      }
+      req.body.description = trimmedDescription.length > 0 ? trimmedDescription : null;
+    }
+
+    if (attributes !== undefined && !ValidationMiddleware.validateMoodAttributes(req, res, attributes)) {
+      return;
+    }
+
+    req.body.name = trimmedName;
+    req.body.hexcode = trimmedHexcode;
+    req.body.icon = trimmedIcon;
+    req.body.descriptionIcon = trimmedDescriptionIcon;
+
+    next();
+  }
+
+  /**
+   * Validate mood update request
+   */
+  static validateUpdateMood(req: Request, res: Response, next: NextFunction): void {
+    const { name, description, descriptionIcon, hexcode, icon, attributes } = req.body;
+
+    if (
+      name === undefined &&
+      description === undefined &&
+      descriptionIcon === undefined &&
+      hexcode === undefined &&
+      icon === undefined &&
+      attributes === undefined
+    ) {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.no_update_fields'));
+      return;
+    }
+
+    if (name !== undefined) {
+      if (typeof name !== 'string') {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.mood_name_invalid'));
+        return;
+      }
+
+      const trimmedName = name.trim();
+      if (trimmedName.length === 0) {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.mood_name_empty'));
+        return;
+      }
+
+      const maxNameLength = 100;
+      if (trimmedName.length > maxNameLength) {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.mood_name_too_long', { maxLength: maxNameLength }));
+        return;
+      }
+
+      req.body.name = trimmedName;
+    }
+
+    if (description !== undefined) {
+      if (description !== null && typeof description !== 'string') {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.mood_description_invalid'));
+        return;
+      }
+
+      if (typeof description === 'string') {
+        const trimmedDescription = description.trim();
+        if (trimmedDescription.length > 500) {
+          ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.mood_description_too_long', { maxLength: 500 }));
+          return;
+        }
+        req.body.description = trimmedDescription.length > 0 ? trimmedDescription : null;
+      }
+    }
+
+    if (descriptionIcon !== undefined) {
+      if (typeof descriptionIcon !== 'string') {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.mood_description_icon_invalid'));
+        return;
+      }
+
+      const trimmedDescriptionIcon = descriptionIcon.trim();
+      if (trimmedDescriptionIcon.length === 0) {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.mood_description_icon_empty'));
+        return;
+      }
+
+      const maxIconLength = 100;
+      if (trimmedDescriptionIcon.length > maxIconLength) {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.mood_description_icon_too_long', { maxLength: maxIconLength }));
+        return;
+      }
+
+      req.body.descriptionIcon = trimmedDescriptionIcon;
+    }
+
+    if (hexcode !== undefined) {
+      if (typeof hexcode !== 'string') {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.mood_hexcode_invalid'));
+        return;
+      }
+
+      const trimmedHexcode = hexcode.trim();
+      if (trimmedHexcode.length === 0) {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.mood_hexcode_empty'));
+        return;
+      }
+
+      req.body.hexcode = trimmedHexcode;
+    }
+
+    if (icon !== undefined) {
+      if (typeof icon !== 'string') {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.mood_icon_invalid'));
+        return;
+      }
+
+      const trimmedIcon = icon.trim();
+      if (trimmedIcon.length === 0) {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.mood_icon_empty'));
+        return;
+      }
+
+      const maxIconLength = 100;
+      if (trimmedIcon.length > maxIconLength) {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.mood_icon_too_long', { maxLength: maxIconLength }));
+        return;
+      }
+
+      req.body.icon = trimmedIcon;
+    }
+
+    if (attributes !== undefined && !ValidationMiddleware.validateMoodAttributes(req, res, attributes)) {
+      return;
+    }
+
+    next();
+  }
+
+  private static validateMoodAttributes(req: Request, res: Response, attributes: unknown): boolean {
+    if (!Array.isArray(attributes)) {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.mood_attributes_invalid'));
+      return false;
+    }
+
+    const maxIconLength = 100;
+    const maxDescriptionLength = 500;
+    const sanitizedAttributes: Array<{ icon: string; description: string }> = [];
+
+    for (const attribute of attributes) {
+      if (!attribute || typeof attribute !== 'object') {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.mood_attribute_invalid'));
+        return false;
+      }
+
+      const { icon, description } = attribute as { icon?: unknown; description?: unknown };
+
+      if (!icon || typeof icon !== 'string') {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.mood_attribute_icon_required'));
+        return false;
+      }
+
+      const trimmedIcon = icon.trim();
+      if (trimmedIcon.length === 0) {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.mood_attribute_icon_empty'));
+        return false;
+      }
+
+      if (trimmedIcon.length > maxIconLength) {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.mood_attribute_icon_too_long', { maxLength: maxIconLength }));
+        return false;
+      }
+
+      if (!description || typeof description !== 'string') {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.mood_attribute_description_required'));
+        return false;
+      }
+
+      const trimmedDescription = description.trim();
+      if (trimmedDescription.length === 0) {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.mood_attribute_description_empty'));
+        return false;
+      }
+
+      if (trimmedDescription.length > maxDescriptionLength) {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.mood_attribute_description_too_long', { maxLength: maxDescriptionLength }));
+        return false;
+      }
+
+      sanitizedAttributes.push({
+        icon: trimmedIcon,
+        description: trimmedDescription
+      });
+    }
+
+    req.body.attributes = sanitizedAttributes;
+    return true;
   }
 
   /**
@@ -793,11 +1188,249 @@ export class ValidationMiddleware {
     }
 
     // Must have at least one field to update
-    if ([firstName, lastName, email, address, contact].every(v => v === undefined)) {
+    if ([firstName, lastName, email, address, contact, req.body.organizationIds].every(v => v === undefined)) {
       ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.no_update_fields'));
       return;
     }
 
+    next();
+  }
+
+  private static validateCommentMetaField(
+    res: Response,
+    meta: unknown,
+    required: boolean
+  ): boolean {
+    if (meta === undefined || meta === null) {
+      if (required) {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.comment_meta_invalid'));
+        return false;
+      }
+      return true;
+    }
+    if (typeof meta !== 'object' || Array.isArray(meta)) {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.comment_meta_invalid'));
+      return false;
+    }
+    const obj = meta as Record<string, unknown>;
+    const keys = Object.keys(obj);
+    if (keys.length !== 1 || !keys.includes('position')) {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.comment_meta_invalid'));
+      return false;
+    }
+    if ('chapterId' in obj) {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.comment_meta_chapter_forbidden'));
+      return false;
+    }
+    if (typeof obj['position'] !== 'number' || !Number.isFinite(obj['position']) || obj['position'] < 0) {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.comment_meta_position_invalid'));
+      return false;
+    }
+    return true;
+  }
+
+  static validateCreateComment(req: Request, res: Response, next: NextFunction): void {
+    const { audiobookId, content, meta } = req.body;
+
+    if (!audiobookId || typeof audiobookId !== 'string' || audiobookId.trim().length === 0) {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.audiobook_id_required'));
+      return;
+    }
+
+    if (!content || typeof content !== 'string' || content.trim().length === 0) {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.comment_content_required'));
+      return;
+    }
+
+    if (req.body.parentId !== undefined && req.body.parentId !== null) {
+      if (typeof req.body.parentId !== 'string' || req.body.parentId.trim().length === 0) {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.comment_parent_invalid'));
+        return;
+      }
+    }
+
+    if (!ValidationMiddleware.validateCommentMetaField(res, meta, false)) {
+      return;
+    }
+
+    req.body.content = content.trim();
+    next();
+  }
+
+  static validateUpdateComment(req: Request, res: Response, next: NextFunction): void {
+    const { content, meta } = req.body;
+
+    if (content === undefined && meta === undefined) {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.no_update_fields'));
+      return;
+    }
+
+    if (content !== undefined) {
+      if (typeof content !== 'string' || content.trim().length === 0) {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.comment_content_required'));
+        return;
+      }
+      req.body.content = content.trim();
+    }
+
+    if (meta !== undefined && !ValidationMiddleware.validateCommentMetaField(res, meta, meta !== null)) {
+      return;
+    }
+
+    next();
+  }
+
+  static validateCreateReview(req: Request, res: Response, next: NextFunction): void {
+    const { audiobookId, rating } = req.body;
+
+    if (!audiobookId || typeof audiobookId !== 'string' || audiobookId.trim().length === 0) {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.audiobook_id_required'));
+      return;
+    }
+
+    if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.review_rating_invalid'));
+      return;
+    }
+
+    next();
+  }
+
+  static validateUpdateReview(req: Request, res: Response, next: NextFunction): void {
+    const { rating } = req.body;
+
+    if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.review_rating_invalid'));
+      return;
+    }
+
+    next();
+  }
+
+  static validateCreateBookmark(req: Request, res: Response, next: NextFunction): void {
+    const { chapterId, audiobookId } = req.body;
+
+    if (audiobookId !== undefined) {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.bookmark_audiobook_id_forbidden'));
+      return;
+    }
+
+    if (!chapterId || typeof chapterId !== 'string' || chapterId.trim().length === 0) {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.chapter_id_required'));
+      return;
+    }
+
+    req.body.chapterId = chapterId.trim();
+    next();
+  }
+
+  static validateCreateFavorite(req: Request, res: Response, next: NextFunction): void {
+    const { audiobookId } = req.body;
+
+    if (!audiobookId || typeof audiobookId !== 'string' || audiobookId.trim().length === 0) {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.audiobook_id_required'));
+      return;
+    }
+
+    next();
+  }
+
+  static validateCreatePlaylist(req: Request, res: Response, next: NextFunction): void {
+    const { name } = req.body;
+
+    if (!name || typeof name !== 'string' || name.trim().length === 0) {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.playlist_name_required'));
+      return;
+    }
+
+    if (name.trim().length > 200) {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.playlist_name_too_long'));
+      return;
+    }
+
+    req.body.name = name.trim();
+    next();
+  }
+
+  static validateUpdatePlaylist(req: Request, res: Response, next: NextFunction): void {
+    const { name, description, isPublic } = req.body;
+
+    if (name === undefined && description === undefined && isPublic === undefined) {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.no_update_fields'));
+      return;
+    }
+
+    if (name !== undefined) {
+      if (typeof name !== 'string' || name.trim().length === 0) {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.playlist_name_required'));
+        return;
+      }
+      if (name.trim().length > 200) {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.playlist_name_too_long'));
+        return;
+      }
+      req.body.name = name.trim();
+    }
+
+    if (isPublic !== undefined && typeof isPublic !== 'boolean') {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.is_public_boolean'));
+      return;
+    }
+
+    next();
+  }
+
+  static validateCreatePlaylistItem(req: Request, res: Response, next: NextFunction): void {
+    const { audiobookId, position } = req.body;
+
+    if (!audiobookId || typeof audiobookId !== 'string' || audiobookId.trim().length === 0) {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.audiobook_id_required'));
+      return;
+    }
+
+    if (position !== undefined && (!Number.isInteger(position) || position < 1)) {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.playlist_item_position_invalid'));
+      return;
+    }
+
+    next();
+  }
+
+  static validateUpdatePlaylistItem(req: Request, res: Response, next: NextFunction): void {
+    const { position } = req.body;
+
+    if (!Number.isInteger(position) || position < 1) {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.playlist_item_position_invalid'));
+      return;
+    }
+
+    next();
+  }
+
+  private static validateOrganizationIds(
+    res: Response,
+    organizationIds: unknown
+  ): organizationIds is string[] {
+    if (organizationIds === undefined) {
+      return true;
+    }
+    if (!Array.isArray(organizationIds)) {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.organization_ids_invalid'));
+      return false;
+    }
+    for (const id of organizationIds) {
+      if (typeof id !== 'string' || id.trim().length === 0) {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.organization_ids_invalid'));
+        return false;
+      }
+    }
+    return true;
+  }
+
+  static validateAuthorOrganizationIds(req: Request, res: Response, next: NextFunction): void {
+    if (!ValidationMiddleware.validateOrganizationIds(res, req.body.organizationIds)) {
+      return;
+    }
     next();
   }
 }

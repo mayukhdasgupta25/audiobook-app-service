@@ -2,86 +2,91 @@
  * Bookmark Service
  * Handles bookmark and note management functionality
  */
-import { PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
 import {
-   BookmarkData,
    BookmarkWithRelations,
    CreateBookmarkRequest,
-   UpdateBookmarkRequest,
    NoteData,
    NoteWithRelations,
    CreateNoteRequest,
    UpdateNoteRequest,
    BookmarkNoteQueryParams,
    BookmarkNoteResponse,
-   BookmarkNoteStats
+   BookmarkNoteStats,
+   BookmarkQueryParams,
+   bookmarkChapterInclude,
+   toBookmarkDto,
 } from '../models/BookmarkNoteDto';
 import { ApiError } from '../types/ApiError';
+import { MessageHandler } from '../utils/MessageHandler';
+import { HttpStatusCode, ErrorType } from '../types/common';
+
+const BOOKMARK_SORT_FIELDS: BookmarkQueryParams['sortBy'][] = ['createdAt', 'updatedAt'];
 
 export class BookmarkService {
    constructor(private prisma: PrismaClient) { }
 
    /**
-    * Create a new bookmark
+    * Create a chapter bookmark for the authenticated user
     */
-   async createBookmark(userProfileId: string, bookmarkData: CreateBookmarkRequest): Promise<BookmarkData> {
+   async createBookmark(userProfileId: string, bookmarkData: CreateBookmarkRequest): Promise<BookmarkWithRelations> {
+      const chapter = await this.prisma.chapter.findUnique({
+         where: { id: bookmarkData.chapterId },
+      });
+      if (!chapter) {
+         throw new ApiError(
+            MessageHandler.getErrorMessage('bookmarks.chapter_not_found'),
+            HttpStatusCode.NOT_FOUND,
+            ErrorType.NOT_FOUND
+         );
+      }
+
+      const existing = await this.prisma.bookmark.findUnique({
+         where: {
+            userProfileId_chapterId: {
+               userProfileId,
+               chapterId: bookmarkData.chapterId,
+            },
+         },
+      });
+      if (existing) {
+         throw new ApiError(
+            MessageHandler.getErrorMessage('bookmarks.already_exists'),
+            HttpStatusCode.CONFLICT,
+            ErrorType.CONFLICT
+         );
+      }
+
       try {
-         // Validate that either audiobookId or chapterId is provided
-         if (!bookmarkData.audiobookId && !bookmarkData.chapterId) {
-            throw new ApiError('Either audiobookId or chapterId must be provided', 400);
-         }
-
-         // Validate audiobook exists if provided
-         if (bookmarkData.audiobookId) {
-            const audiobook = await this.prisma.audioBook.findUnique({
-               where: { id: bookmarkData.audiobookId },
-            });
-            if (!audiobook) {
-               throw new ApiError('Audiobook not found', 404);
-            }
-         }
-
-         // Validate chapter exists if provided
-         if (bookmarkData.chapterId) {
-            const chapter = await this.prisma.chapter.findUnique({
-               where: { id: bookmarkData.chapterId },
-            });
-            if (!chapter) {
-               throw new ApiError('Chapter not found', 404);
-            }
-         }
-
          const bookmark = await this.prisma.bookmark.create({
             data: {
                userProfileId,
-               ...bookmarkData,
+               chapterId: bookmarkData.chapterId,
             },
+            include: bookmarkChapterInclude,
          });
 
-         return {
-            id: bookmark.id,
-            userProfileId: bookmark.userProfileId,
-            audiobookId: bookmark.audiobookId || undefined,
-            chapterId: bookmark.chapterId || undefined,
-            title: bookmark.title || undefined,
-            description: bookmark.description || undefined,
-            position: bookmark.position,
-            timestamp: bookmark.timestamp,
-            createdAt: bookmark.createdAt,
-            updatedAt: bookmark.updatedAt
-         } as BookmarkData;
+         return toBookmarkDto(bookmark);
       } catch (error) {
-         if (error instanceof ApiError) {
-            throw error;
+         if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+            throw new ApiError(
+               MessageHandler.getErrorMessage('bookmarks.already_exists'),
+               HttpStatusCode.CONFLICT,
+               ErrorType.CONFLICT
+            );
          }
-         throw new ApiError('Failed to create bookmark', 500);
+         throw new ApiError(
+            MessageHandler.getErrorMessage('bookmarks.create_failed'),
+            HttpStatusCode.INTERNAL_SERVER_ERROR,
+            ErrorType.INTERNAL_ERROR
+         );
       }
    }
 
    /**
     * Get bookmarks for a user
     */
-   async getBookmarks(userProfileId: string, queryParams?: BookmarkNoteQueryParams): Promise<{
+   async getBookmarks(userProfileId: string, queryParams?: BookmarkQueryParams): Promise<{
       bookmarks: BookmarkWithRelations[];
       totalCount: number;
    }> {
@@ -93,45 +98,25 @@ export class BookmarkService {
             limit = 20,
             sortBy = 'createdAt',
             sortOrder = 'desc',
-            search
          } = queryParams || {};
 
          const skip = (page - 1) * limit;
-         const whereClause: any = { userProfileId };
+         const whereClause: Prisma.BookmarkWhereInput = { userProfileId };
 
          if (audiobookId) {
-            whereClause.audiobookId = audiobookId;
+            whereClause.chapter = { audiobookId };
          }
          if (chapterId) {
             whereClause.chapterId = chapterId;
          }
-         if (search) {
-            whereClause.OR = [
-               { title: { contains: search, mode: 'insensitive' } },
-               { description: { contains: search, mode: 'insensitive' } },
-            ];
-         }
+
+         const orderField = BOOKMARK_SORT_FIELDS.includes(sortBy) ? sortBy : 'createdAt';
 
          const [bookmarks, totalCount] = await Promise.all([
             this.prisma.bookmark.findMany({
                where: whereClause,
-               include: {
-                  audiobook: {
-                     select: {
-                        id: true,
-                        title: true,
-                        author: true,
-                     },
-                  },
-                  chapter: {
-                     select: {
-                        id: true,
-                        title: true,
-                        chapterNumber: true,
-                     },
-                  },
-               },
-               orderBy: { [sortBy]: sortOrder },
+               include: bookmarkChapterInclude,
+               orderBy: { [orderField]: sortOrder },
                skip,
                take: limit,
             }),
@@ -141,22 +126,15 @@ export class BookmarkService {
          ]);
 
          return {
-            bookmarks: bookmarks.map(bookmark => ({
-               id: bookmark.id,
-               userProfileId: bookmark.userProfileId,
-               audiobookId: bookmark.audiobookId || undefined,
-               chapterId: bookmark.chapterId || undefined,
-               title: bookmark.title || undefined,
-               description: bookmark.description || undefined,
-               position: bookmark.position,
-               timestamp: bookmark.timestamp,
-               createdAt: bookmark.createdAt,
-               updatedAt: bookmark.updatedAt
-            } as BookmarkWithRelations)),
-            totalCount
+            bookmarks: bookmarks.map(toBookmarkDto),
+            totalCount,
          };
       } catch (_error) {
-         throw new ApiError('Failed to retrieve bookmarks', 500);
+         throw new ApiError(
+            MessageHandler.getErrorMessage('bookmarks.fetch_failed'),
+            HttpStatusCode.INTERNAL_SERVER_ERROR,
+            ErrorType.INTERNAL_ERROR
+         );
       }
    }
 
@@ -170,86 +148,27 @@ export class BookmarkService {
                id: bookmarkId,
                userProfileId,
             },
-            include: {
-               audiobook: {
-                  select: {
-                     id: true,
-                     title: true,
-                     author: true,
-                  },
-               },
-               chapter: {
-                  select: {
-                     id: true,
-                     title: true,
-                     chapterNumber: true,
-                  },
-               },
-            },
+            include: bookmarkChapterInclude,
          });
 
          if (!bookmark) {
-            throw new ApiError('Bookmark not found', 404);
+            throw new ApiError(
+               MessageHandler.getErrorMessage('bookmarks.not_found'),
+               HttpStatusCode.NOT_FOUND,
+               ErrorType.NOT_FOUND
+            );
          }
 
-         return {
-            id: bookmark.id,
-            userProfileId: bookmark.userProfileId,
-            audiobookId: bookmark.audiobookId || undefined,
-            chapterId: bookmark.chapterId || undefined,
-            title: bookmark.title || undefined,
-            description: bookmark.description || undefined,
-            position: bookmark.position,
-            timestamp: bookmark.timestamp,
-            createdAt: bookmark.createdAt,
-            updatedAt: bookmark.updatedAt
-         } as BookmarkData;
+         return toBookmarkDto(bookmark);
       } catch (error) {
          if (error instanceof ApiError) {
             throw error;
          }
-         throw new ApiError('Failed to retrieve bookmark', 500);
-      }
-   }
-
-   /**
-    * Update a bookmark
-    */
-   async updateBookmark(userProfileId: string, bookmarkId: string, updateData: UpdateBookmarkRequest): Promise<BookmarkData> {
-      try {
-         const existingBookmark = await this.prisma.bookmark.findFirst({
-            where: {
-               id: bookmarkId,
-               userProfileId,
-            },
-         });
-
-         if (!existingBookmark) {
-            throw new ApiError('Bookmark not found', 404);
-         }
-
-         const bookmark = await this.prisma.bookmark.update({
-            where: { id: bookmarkId },
-            data: updateData,
-         });
-
-         return {
-            id: bookmark.id,
-            userProfileId: bookmark.userProfileId,
-            audiobookId: bookmark.audiobookId || undefined,
-            chapterId: bookmark.chapterId || undefined,
-            title: bookmark.title || undefined,
-            description: bookmark.description || undefined,
-            position: bookmark.position,
-            timestamp: bookmark.timestamp,
-            createdAt: bookmark.createdAt,
-            updatedAt: bookmark.updatedAt
-         } as BookmarkData;
-      } catch (error) {
-         if (error instanceof ApiError) {
-            throw error;
-         }
-         throw new ApiError('Failed to update bookmark', 500);
+         throw new ApiError(
+            MessageHandler.getErrorMessage('bookmarks.fetch_failed'),
+            HttpStatusCode.INTERNAL_SERVER_ERROR,
+            ErrorType.INTERNAL_ERROR
+         );
       }
    }
 
@@ -266,7 +185,11 @@ export class BookmarkService {
          });
 
          if (!bookmark) {
-            throw new ApiError('Bookmark not found', 404);
+            throw new ApiError(
+               MessageHandler.getErrorMessage('bookmarks.not_found'),
+               HttpStatusCode.NOT_FOUND,
+               ErrorType.NOT_FOUND
+            );
          }
 
          await this.prisma.bookmark.delete({
@@ -276,7 +199,11 @@ export class BookmarkService {
          if (error instanceof ApiError) {
             throw error;
          }
-         throw new ApiError('Failed to delete bookmark', 500);
+         throw new ApiError(
+            MessageHandler.getErrorMessage('bookmarks.delete_failed'),
+            HttpStatusCode.INTERNAL_SERVER_ERROR,
+            ErrorType.INTERNAL_ERROR
+         );
       }
    }
 
@@ -285,12 +212,10 @@ export class BookmarkService {
     */
    async createNote(userProfileId: string, noteData: CreateNoteRequest): Promise<NoteData> {
       try {
-         // Validate that either audiobookId or chapterId is provided
          if (!noteData.audiobookId && !noteData.chapterId) {
             throw new ApiError('Either audiobookId or chapterId must be provided', 400);
          }
 
-         // Validate audiobook exists if provided
          if (noteData.audiobookId) {
             const audiobook = await this.prisma.audioBook.findUnique({
                where: { id: noteData.audiobookId },
@@ -300,7 +225,6 @@ export class BookmarkService {
             }
          }
 
-         // Validate chapter exists if provided
          if (noteData.chapterId) {
             const chapter = await this.prisma.chapter.findUnique({
                where: { id: noteData.chapterId },
@@ -327,7 +251,7 @@ export class BookmarkService {
             position: note.position || undefined,
             timestamp: note.timestamp,
             createdAt: note.createdAt,
-            updatedAt: note.updatedAt
+            updatedAt: note.updatedAt,
          } as NoteData;
       } catch (error) {
          if (error instanceof ApiError) {
@@ -352,11 +276,11 @@ export class BookmarkService {
             limit = 20,
             sortBy = 'createdAt',
             sortOrder = 'desc',
-            search
+            search,
          } = queryParams || {};
 
          const skip = (page - 1) * limit;
-         const whereClause: any = { userProfileId };
+         const whereClause: Prisma.NoteWhereInput = { userProfileId };
 
          if (audiobookId) {
             whereClause.audiobookId = audiobookId;
@@ -410,9 +334,9 @@ export class BookmarkService {
                position: note.position || undefined,
                timestamp: note.timestamp,
                createdAt: note.createdAt,
-               updatedAt: note.updatedAt
+               updatedAt: note.updatedAt,
             } as NoteWithRelations)),
-            totalCount
+            totalCount,
          };
       } catch (_error) {
          throw new ApiError('Failed to retrieve notes', 500);
@@ -461,8 +385,8 @@ export class BookmarkService {
             position: note.position || undefined,
             timestamp: note.timestamp,
             createdAt: note.createdAt,
-            updatedAt: note.updatedAt
-         } as NoteData;
+            updatedAt: note.updatedAt,
+         } as NoteWithRelations;
       } catch (error) {
          if (error instanceof ApiError) {
             throw error;
@@ -502,7 +426,7 @@ export class BookmarkService {
             position: note.position || undefined,
             timestamp: note.timestamp,
             createdAt: note.createdAt,
-            updatedAt: note.updatedAt
+            updatedAt: note.updatedAt,
          } as NoteData;
       } catch (error) {
          if (error instanceof ApiError) {
@@ -544,8 +468,17 @@ export class BookmarkService {
     */
    async getBookmarksAndNotes(userProfileId: string, queryParams?: BookmarkNoteQueryParams): Promise<BookmarkNoteResponse> {
       try {
+         const bookmarkParams: BookmarkQueryParams = {
+            sortBy: queryParams?.sortBy === 'updatedAt' ? 'updatedAt' : 'createdAt',
+         };
+         if (queryParams?.audiobookId) bookmarkParams.audiobookId = queryParams.audiobookId;
+         if (queryParams?.chapterId) bookmarkParams.chapterId = queryParams.chapterId;
+         if (queryParams?.page !== undefined) bookmarkParams.page = queryParams.page;
+         if (queryParams?.limit !== undefined) bookmarkParams.limit = queryParams.limit;
+         if (queryParams?.sortOrder) bookmarkParams.sortOrder = queryParams.sortOrder;
+
          const [bookmarksResult, notesResult] = await Promise.all([
-            this.getBookmarks(userProfileId, queryParams),
+            this.getBookmarks(userProfileId, bookmarkParams),
             this.getNotes(userProfileId, queryParams),
          ]);
 
@@ -555,7 +488,10 @@ export class BookmarkService {
             totalBookmarks: bookmarksResult.totalCount,
             totalNotes: notesResult.totalCount,
          };
-      } catch (_error) {
+      } catch (error) {
+         if (error instanceof ApiError) {
+            throw error;
+         }
          throw new ApiError('Failed to retrieve bookmarks and notes', 500);
       }
    }
@@ -565,17 +501,20 @@ export class BookmarkService {
     */
    async getBookmarkNoteStats(userProfileId: string): Promise<BookmarkNoteStats> {
       try {
-         const [totalBookmarks, totalNotes, bookmarksByAudiobook, notesByAudiobook] = await Promise.all([
+         const [totalBookmarks, totalNotes, bookmarkRows, notesByAudiobook] = await Promise.all([
             this.prisma.bookmark.count({
                where: { userProfileId },
             }),
             this.prisma.note.count({
                where: { userProfileId },
             }),
-            this.prisma.bookmark.groupBy({
-               by: ['audiobookId'],
+            this.prisma.bookmark.findMany({
                where: { userProfileId },
-               _count: { audiobookId: true },
+               select: {
+                  chapter: {
+                     select: { audiobookId: true },
+                  },
+               },
             }),
             this.prisma.note.groupBy({
                by: ['audiobookId'],
@@ -584,12 +523,20 @@ export class BookmarkService {
             }),
          ]);
 
-         // Get audiobook titles for the grouped results
+         const bookmarkCountByAudiobook = new Map<string, number>();
+         for (const row of bookmarkRows) {
+            const audiobookId = row.chapter.audiobookId;
+            bookmarkCountByAudiobook.set(
+               audiobookId,
+               (bookmarkCountByAudiobook.get(audiobookId) ?? 0) + 1
+            );
+         }
+
          const audiobookIds = [
             ...new Set([
-               ...bookmarksByAudiobook.map(b => b.audiobookId).filter((id): id is string => Boolean(id)),
+               ...bookmarkCountByAudiobook.keys(),
                ...notesByAudiobook.map(n => n.audiobookId).filter((id): id is string => Boolean(id)),
-            ])
+            ]),
          ];
 
          const audiobooks = await this.prisma.audioBook.findMany({
@@ -597,15 +544,15 @@ export class BookmarkService {
             select: { id: true, title: true },
          });
 
-         const audiobookMap = new Map(audiobooks.map((ab: { id: string; title: string }) => [ab.id, ab.title]));
+         const audiobookMap = new Map(audiobooks.map(ab => [ab.id, ab.title]));
 
          return {
             totalBookmarks,
             totalNotes,
-            bookmarksByAudiobook: bookmarksByAudiobook.map(b => ({
-               audiobookId: b.audiobookId || '',
-               audiobookTitle: audiobookMap.get(b.audiobookId || '') || 'Unknown',
-               count: b._count.audiobookId,
+            bookmarksByAudiobook: [...bookmarkCountByAudiobook.entries()].map(([audiobookId, count]) => ({
+               audiobookId,
+               audiobookTitle: audiobookMap.get(audiobookId) || 'Unknown',
+               count,
             })),
             notesByAudiobook: notesByAudiobook.map(n => ({
                audiobookId: n.audiobookId || '',
