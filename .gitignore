@@ -2,18 +2,8 @@
 # ENVIRONMENT VARIABLES & SECRETS
 # ===========================================
 # Never commit actual .env files with secrets
-.env
-.env.local
-.env.*.local
-.env.development
-.env.production
-.env.staging
-.env.test
-.env.backup
-
-# But DO commit template files (without actual secrets)
-# .env.example
-# .env.template
+.env*
+!.env*.example
 
 # ===========================================
 # NODE.JS & NPM

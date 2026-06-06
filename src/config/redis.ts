@@ -3,33 +3,17 @@
  * Handles Redis connection and configuration for Bull queues
  */
 import Redis from 'ioredis';
+import { config } from './env';
 import { redisLogger } from './logger';
-
-export interface RedisConfig {
-   host: string;
-   port: number;
-   password?: string | undefined;
-   db?: number;
-   lazyConnect?: boolean;
-}
 
 export class RedisConnection {
    private static instance: RedisConnection;
    private redis: Redis;
 
-   private constructor(config: RedisConfig) {
-      const redisOptions: any = {
-         host: config.host,
-         port: config.port,
-         db: config.db || 0,
-         lazyConnect: config.lazyConnect || true,
-      };
-
-      if (config.password) {
-         redisOptions.password = config.password;
-      }
-
-      this.redis = new Redis(redisOptions);
+   private constructor(redisUrl: string) {
+      this.redis = new Redis(redisUrl, {
+         lazyConnect: true,
+      });
 
       this.setupEventHandlers();
    }
@@ -37,17 +21,9 @@ export class RedisConnection {
    /**
     * Get Redis connection instance
     */
-   public static getInstance(config?: RedisConfig): RedisConnection {
+   public static getInstance(): RedisConnection {
       if (!RedisConnection.instance) {
-         const defaultConfig: RedisConfig = {
-            host: process.env['REDIS_HOST'] || 'localhost',
-            port: parseInt(process.env['REDIS_PORT'] || '6379'),
-            password: process.env['REDIS_PASSWORD'] || undefined,
-            db: parseInt(process.env['REDIS_DB'] || '0'),
-            lazyConnect: process.env['REDIS_LAZY_CONNECT'] === 'true',
-         };
-
-         RedisConnection.instance = new RedisConnection(config || defaultConfig);
+         RedisConnection.instance = new RedisConnection(config.REDIS_URL);
       }
 
       return RedisConnection.instance;
@@ -138,23 +114,23 @@ export class RedisConnection {
       try {
          const info = await this.redis.info('memory');
          const lines = info.split('\r\n');
-         const memoryInfo: any = {};
+         const memoryInfo: Record<string, string> = {};
 
          lines.forEach(line => {
             if (line.includes(':')) {
                const [key, value] = line.split(':');
                if (key) {
-                  memoryInfo[key] = value;
+                  memoryInfo[key] = value ?? '';
                }
             }
          });
 
          return {
-            usedMemory: memoryInfo.used_memory || '0',
-            usedMemoryHuman: memoryInfo.used_memory_human || '0B',
-            usedMemoryRss: memoryInfo.used_memory_rss || '0',
-            usedMemoryPeak: memoryInfo.used_memory_peak || '0',
-            usedMemoryPeakHuman: memoryInfo.used_memory_peak_human || '0B',
+            usedMemory: memoryInfo['used_memory'] || '0',
+            usedMemoryHuman: memoryInfo['used_memory_human'] || '0B',
+            usedMemoryRss: memoryInfo['used_memory_rss'] || '0',
+            usedMemoryPeak: memoryInfo['used_memory_peak'] || '0',
+            usedMemoryPeakHuman: memoryInfo['used_memory_peak_human'] || '0B',
          };
       } catch (error) {
          redisLogger.error({ err: error }, 'Failed to get Redis memory usage');
@@ -209,43 +185,9 @@ export class RedisConnection {
  */
 export class RedisConfigHelper {
    /**
-    * Get Redis configuration from environment variables
+    * Get Redis URL from application config
     */
-   public static getConfigFromEnv(): RedisConfig {
-      return {
-         host: process.env['REDIS_HOST'] || 'localhost',
-         port: parseInt(process.env['REDIS_PORT'] || '6379'),
-         password: process.env['REDIS_PASSWORD'] || undefined,
-         db: parseInt(process.env['REDIS_DB'] || '0'),
-         lazyConnect: process.env['REDIS_LAZY_CONNECT'] === 'true',
-      };
-   }
-
-   /**
-    * Validate Redis configuration
-    */
-   public static validateConfig(config: RedisConfig): boolean {
-      if (!config.host || !config.port) {
-         return false;
-      }
-
-      if (config.port < 1 || config.port > 65535) {
-         return false;
-      }
-
-      if (config.db && (config.db < 0 || config.db > 15)) {
-         return false;
-      }
-
-      return true;
-   }
-
-   /**
-    * Get Redis URL from configuration
-    */
-   public static getRedisUrl(config: RedisConfig): string {
-      const auth = config.password ? `:${config.password}@` : '';
-      const db = config.db ? `/${config.db}` : '';
-      return `redis://${auth}${config.host}:${config.port}${db}`;
+   public static getRedisUrl(): string {
+      return config.REDIS_URL;
    }
 }
