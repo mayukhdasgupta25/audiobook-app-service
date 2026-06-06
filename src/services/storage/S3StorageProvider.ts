@@ -103,7 +103,7 @@ export class S3StorageProvider implements StorageProvider {
    /**
     * Get a public URL for a file
     */
-   async getFileUrl(filePath: string, expiresIn: number = 3600): Promise<string> {
+   async getFileUrl(filePath: string, expiresIn: number = config.AWS_SIGNED_URL_EXPIRES_IN): Promise<string> {
       try {
          const params: any = {
             Bucket: this.bucket,

@@ -10,6 +10,7 @@ import {
 import { ApiError } from '../types/ApiError';
 import { MessageHandler } from '../utils/MessageHandler';
 import { HttpStatusCode, ErrorType } from '../types/common';
+import { fileUrlService } from './FileUrlService';
 
 const audiobookSelect = {
    id: true,
@@ -69,7 +70,19 @@ export class ListeningHistoryService {
       ]);
 
       return {
-         listeningHistory: rows.map(toListeningHistoryWithAudiobookDto),
+         listeningHistory: await Promise.all(
+            rows.map(async row => {
+               const dto = toListeningHistoryWithAudiobookDto(row);
+               const resolvedCover = await fileUrlService.resolveNestedAudiobookCoverImage(dto.audiobook);
+               return {
+                  ...dto,
+                  audiobook: {
+                     ...dto.audiobook,
+                     ...resolvedCover,
+                  },
+               };
+            })
+         ),
          totalCount,
       };
    }

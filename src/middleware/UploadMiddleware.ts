@@ -275,7 +275,8 @@ export const uploadMultipleImages = imageUpload.array('images', 5);
 // Middleware for multiple audio uploads
 export const uploadMultipleAudio = audioUpload.array('audio', 3);
 
-// Utility function to get file URL
+// Development-only: convert multer disk path to /uploads/ URL.
+// Non-development cover uploads must use FileUrlService.processUploadedCoverFile().
 export const getFileUrl = (filePath: string): string => {
    // In development, serve files from src/uploads
    if (config.NODE_ENV === 'development') {

@@ -8,16 +8,19 @@ import { AudioBookController } from '../../controllers/AudioBookController';
 import { AudioBookService } from '../../services/AudioBookService';
 import { ResponseHandler } from '../../utils/ResponseHandler';
 import { MessageHandler } from '../../utils/MessageHandler';
+import { fileUrlService } from '../../services/FileUrlService';
 import { ApiError } from '../../types/ApiError';
 import { HttpStatusCode } from '../../types/common';
 
 // Mock dependencies
 jest.mock('../../services/AudioBookService');
+jest.mock('../../services/FileUrlService', () => ({
+   fileUrlService: {
+      processUploadedCoverFile: jest.fn(async (path: string) => `https://example.com${path}`),
+   },
+}));
 jest.mock('../../utils/ResponseHandler');
 jest.mock('../../utils/MessageHandler');
-jest.mock('../../middleware/UploadMiddleware', () => ({
-   getFileUrl: jest.fn((path: string) => `https://example.com${path}`)
-}));
 
 // The controller is wrapped in `ErrorHandler.asyncHandler` which fires its
 // inner async function but returns void synchronously. To make sure all of
@@ -237,6 +240,11 @@ describe('AudioBookController', () => {
             }),
             'profile-1'
          );
+         expect(fileUrlService.processUploadedCoverFile).toHaveBeenCalledWith(
+            '/uploads/covers/cover.jpg',
+            'uploads/images/audiobooks',
+            'image/jpeg'
+         );
          expect(ResponseHandler.success).toHaveBeenCalledWith(
             mockRes,
             mockBook,
@@ -277,6 +285,11 @@ describe('AudioBookController', () => {
                coverImage: 'https://example.com/uploads/covers/cover.jpg',
             }),
             'profile-1'
+         );
+         expect(fileUrlService.processUploadedCoverFile).toHaveBeenCalledWith(
+            '/uploads/covers/cover.jpg',
+            'uploads/images/audiobooks',
+            'image/jpeg'
          );
       });
 
