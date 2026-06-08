@@ -57,8 +57,8 @@ export class ApiRouter {
    * Setup all API routes
    */
   private setupRoutes(): void {
-    // Health check endpoint
-    this.router.use('/', createHealthRoutes());
+    // Health check endpoint (service-specific prefix)
+    this.router.use('/app', createHealthRoutes());
 
     // API versioning
     this.setupV1Routes();

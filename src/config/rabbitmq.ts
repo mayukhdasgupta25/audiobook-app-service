@@ -413,6 +413,13 @@ export class RabbitMQConnection {
    }
 
    /**
+    * Check if connected
+    */
+   public isConnected(): boolean {
+      return this.connection !== null && this.channel !== null;
+   }
+
+   /**
     * Close connection gracefully
     */
    public async close(): Promise<void> {

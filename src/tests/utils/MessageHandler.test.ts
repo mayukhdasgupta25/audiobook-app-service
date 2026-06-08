@@ -238,7 +238,7 @@ errors:
 
       it('should retrieve nested API information', () => {
          const info = MessageHandler.getApiInfo('info.endpoints.health');
-         expect(info).toBe('/api/health');
+         expect(info).toBe('/api/app/health');
       });
 
       it('should return undefined for non-existent key', () => {
