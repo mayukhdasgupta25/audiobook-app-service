@@ -226,7 +226,7 @@ export class MessageHandler {
                version: '1.0.0',
                status_running: 'running',
                endpoints: {
-                  health: '/api/health',
+                  health: '/api/app/health',
                   audiobooks: '/api/v1/audiobooks',
                   docs: '/api/docs'
                }

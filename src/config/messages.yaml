@@ -406,7 +406,7 @@ api:
     version: "1.0.0"
     status_running: "running"
     endpoints:
-      health: "/api/health"
+      health: "/api/app/health"
       docs: "/api-docs"
 
 # Validation Rules
