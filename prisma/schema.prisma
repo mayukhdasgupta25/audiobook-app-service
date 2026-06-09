@@ -163,9 +163,9 @@ model Genre {
 // Author model for storing author information
 model Author {
   id        String  @id @default(cuid())
+  userId    String  @unique
   firstName String
   lastName  String
-  email     String? @unique
   address   String?
   contact   String?
 

@@ -198,6 +198,8 @@ errors:
     author_address_too_long: "Address must be less than 500 characters"
     author_contact_invalid: "Contact must be a valid string"
     author_contact_too_long: "Contact must be less than 50 characters"
+    author_user_id_required: "User ID is required"
+    author_user_id_too_long: "User ID must be less than 255 characters"
     email_too_long: "Email must be less than 255 characters"
 
     # AudioBook specific validation
@@ -358,7 +360,7 @@ errors:
     create_failed: "Failed to create author"
     update_failed: "Failed to update author"
     delete_failed: "Failed to delete author"
-    email_exists: "An author with this email already exists"
+    user_id_exists: "An author with this user ID already exists"
     organization_not_found: "One or more organizations were not found"
 
   organizations:

@@ -12,9 +12,9 @@ export interface OrganizationSummary {
 
 export interface AuthorDto {
    id: string;
+   userId: string;
    firstName: string;
    lastName: string;
-   email?: string | null;
    address?: string | null;
    contact?: string | null;
    organizations?: OrganizationSummary[];
@@ -23,9 +23,9 @@ export interface AuthorDto {
 }
 
 export interface CreateAuthorDto {
+   userId: string;
    firstName: string;
    lastName: string;
-   email?: string;
    address?: string;
    contact?: string;
    organizationIds?: string[];
@@ -34,7 +34,6 @@ export interface CreateAuthorDto {
 export interface UpdateAuthorDto {
    firstName?: string;
    lastName?: string;
-   email?: string;
    address?: string;
    contact?: string;
    organizationIds?: string[];
@@ -72,9 +71,9 @@ export { authorInclude };
 export function toAuthorDto(author: PrismaAuthor | AuthorWithOrganizations): AuthorDto {
    const dto: AuthorDto = {
       id: author.id,
+      userId: author.userId,
       firstName: author.firstName,
       lastName: author.lastName,
-      email: author.email ?? null,
       address: author.address ?? null,
       contact: author.contact ?? null,
       createdAt: author.createdAt,

@@ -97,19 +97,19 @@ export class AuthorController {
     *           schema:
     *             type: object
     *             required:
+    *               - userId
     *               - firstName
     *               - lastName
     *             properties:
+    *               userId:
+    *                 type: string
+    *                 example: "auth-user-uuid"
     *               firstName:
     *                 type: string
     *                 example: "John"
     *               lastName:
     *                 type: string
     *                 example: "Doe"
-    *               email:
-    *                 type: string
-    *                 format: email
-    *                 example: "john.doe@example.com"
     *               address:
     *                 type: string
     *                 example: "123 Main St, City, Country"
@@ -129,7 +129,7 @@ export class AuthorController {
     *       401:
     *         $ref: '#/components/responses/Unauthorized'
     *       409:
-    *         description: Author with this email already exists
+    *         description: Author with this user ID already exists
     *       500:
     *         $ref: '#/components/responses/InternalServerError'
     */
@@ -167,10 +167,6 @@ export class AuthorController {
     *               lastName:
     *                 type: string
     *                 example: "Smith"
-    *               email:
-    *                 type: string
-    *                 format: email
-    *                 example: "jane.smith@example.com"
     *               address:
     *                 type: string
     *                 example: "456 Oak Ave, City, Country"
@@ -192,7 +188,7 @@ export class AuthorController {
     *       404:
     *         $ref: '#/components/responses/NotFound'
     *       409:
-    *         description: Author with this email already exists
+    *         description: Author with this user ID already exists
     *       500:
     *         $ref: '#/components/responses/InternalServerError'
     */

@@ -985,7 +985,23 @@ export class ValidationMiddleware {
    * Validate author creation request
    */
   static validateCreateAuthor(req: Request, res: Response, next: NextFunction): void {
-    const { firstName, lastName, email, address, contact } = req.body;
+    const { userId, firstName, lastName, address, contact } = req.body;
+
+    if (!userId || typeof userId !== 'string') {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.author_user_id_required'));
+      return;
+    }
+
+    const trimmedUserId = userId.trim();
+    if (trimmedUserId.length === 0) {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.author_user_id_required'));
+      return;
+    }
+
+    if (trimmedUserId.length > 255) {
+      ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.author_user_id_too_long'));
+      return;
+    }
 
     // Validate required fields
     if (!firstName || typeof firstName !== 'string') {
@@ -1020,29 +1036,10 @@ export class ValidationMiddleware {
       return;
     }
 
-    // Validate email format if provided
-    if (email !== undefined && email !== null && email !== '') {
-      if (typeof email !== 'string') {
-        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.email_format'));
-        return;
-      }
-
-      const trimmedEmail = email.trim();
-      if (trimmedEmail.length > 0) {
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(trimmedEmail)) {
-          ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.email_format'));
-          return;
-        }
-
-        if (trimmedEmail.length > 255) {
-          ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.email_too_long'));
-          return;
-        }
-      }
-    }
-
-    // Validate address length if provided
+    // Sanitize and set trimmed values
+    req.body.userId = trimmedUserId;
+    req.body.firstName = trimmedFirstName;
+    req.body.lastName = trimmedLastName;
     if (address !== undefined && address !== null && address !== '') {
       if (typeof address !== 'string') {
         ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.author_address_invalid'));
@@ -1070,12 +1067,7 @@ export class ValidationMiddleware {
       }
     }
 
-    // Sanitize and set trimmed values
-    req.body.firstName = trimmedFirstName;
-    req.body.lastName = trimmedLastName;
-    if (email !== undefined && email !== null && email !== '') {
-      req.body.email = email.trim();
-    }
+    // Validate address length if provided
     if (address !== undefined && address !== null && address !== '') {
       req.body.address = address.trim();
     }
@@ -1090,7 +1082,7 @@ export class ValidationMiddleware {
    * Validate author update request
    */
   static validateUpdateAuthor(req: Request, res: Response, next: NextFunction): void {
-    const { firstName, lastName, email, address, contact } = req.body;
+    const { firstName, lastName, address, contact } = req.body;
 
     // All fields are optional for update, but if provided must be valid
 
@@ -1134,29 +1126,6 @@ export class ValidationMiddleware {
       req.body.lastName = trimmed;
     }
 
-    if (email !== undefined && email !== null && email !== '') {
-      if (typeof email !== 'string') {
-        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.email_format'));
-        return;
-      }
-
-      const trimmedEmail = email.trim();
-      if (trimmedEmail.length > 0) {
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(trimmedEmail)) {
-          ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.email_format'));
-          return;
-        }
-
-        if (trimmedEmail.length > 255) {
-          ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.email_too_long'));
-          return;
-        }
-      }
-
-      req.body.email = trimmedEmail;
-    }
-
     if (address !== undefined && address !== null && address !== '') {
       if (typeof address !== 'string') {
         ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.author_address_invalid'));
@@ -1188,7 +1157,7 @@ export class ValidationMiddleware {
     }
 
     // Must have at least one field to update
-    if ([firstName, lastName, email, address, contact, req.body.organizationIds].every(v => v === undefined)) {
+    if ([firstName, lastName, address, contact, req.body.organizationIds].every(v => v === undefined)) {
       ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.no_update_fields'));
       return;
     }
