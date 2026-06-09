@@ -10,6 +10,7 @@ import {
    authorInclude,
    toAuthorDto,
 } from '../models/AuthorDto';
+import { AuthorCreationMessage } from '../types/author-events';
 import { ApiError } from '../types/ApiError';
 import { MessageHandler } from '../utils/MessageHandler';
 import { HttpStatusCode, ErrorType } from '../types/common';
@@ -107,8 +108,58 @@ export class AuthorService {
       }
    }
 
+   async createAuthorFromEvent(message: AuthorCreationMessage): Promise<AuthorDto | null> {
+      if (!message.userId || typeof message.userId !== 'string') {
+         throw new Error('Invalid message: userId is required and must be a string');
+      }
+
+      if (!message.firstName || typeof message.firstName !== 'string') {
+         throw new Error('Invalid message: firstName is required and must be a string');
+      }
+
+      if (!message.lastName || typeof message.lastName !== 'string') {
+         throw new Error('Invalid message: lastName is required and must be a string');
+      }
+
+      if (!message.address || typeof message.address !== 'string') {
+         throw new Error('Invalid message: address is required and must be a string');
+      }
+
+      const existingAuthor = await this.prisma.author.findUnique({
+         where: { userId: message.userId },
+      });
+
+      if (existingAuthor) {
+         console.log(`Author already exists for userId: ${message.userId}, skipping creation`);
+         return toAuthorDto(existingAuthor);
+      }
+
+      const author = await this.prisma.author.create({
+         data: {
+            userId: message.userId,
+            firstName: message.firstName.trim(),
+            lastName: message.lastName.trim(),
+            address: message.address.trim(),
+            contact:
+               message.contact !== undefined && message.contact.trim().length > 0
+                  ? message.contact.trim()
+                  : null,
+         },
+      });
+
+      return toAuthorDto(author);
+   }
+
    async createAuthor(createAuthorDto: CreateAuthorDto): Promise<AuthorDto> {
       try {
+         if (!createAuthorDto.userId || createAuthorDto.userId.trim().length === 0) {
+            throw new ApiError(
+               MessageHandler.getErrorMessage('validation.author_user_id_required'),
+               HttpStatusCode.BAD_REQUEST,
+               ErrorType.VALIDATION_ERROR
+            );
+         }
+
          if (!createAuthorDto.firstName || createAuthorDto.firstName.trim().length === 0) {
             throw new ApiError(
                MessageHandler.getErrorMessage('validation.author_first_name_required'),
@@ -125,31 +176,29 @@ export class AuthorService {
             );
          }
 
+         const trimmedUserId = createAuthorDto.userId.trim();
          const trimmedFirstName = createAuthorDto.firstName.trim();
          const trimmedLastName = createAuthorDto.lastName.trim();
-         const trimmedEmail = createAuthorDto.email?.trim();
          const trimmedAddress = createAuthorDto.address?.trim();
          const trimmedContact = createAuthorDto.contact?.trim();
 
-         if (trimmedEmail && trimmedEmail.length > 0) {
-            const existingAuthor = await this.prisma.author.findUnique({
-               where: { email: trimmedEmail },
-            });
+         const existingAuthor = await this.prisma.author.findUnique({
+            where: { userId: trimmedUserId },
+         });
 
-            if (existingAuthor) {
-               throw new ApiError(
-                  MessageHandler.getErrorMessage('authors.email_exists'),
-                  HttpStatusCode.CONFLICT,
-                  ErrorType.CONFLICT
-               );
-            }
+         if (existingAuthor) {
+            throw new ApiError(
+               MessageHandler.getErrorMessage('authors.user_id_exists'),
+               HttpStatusCode.CONFLICT,
+               ErrorType.CONFLICT
+            );
          }
 
          const author = await this.prisma.author.create({
             data: {
+               userId: trimmedUserId,
                firstName: trimmedFirstName,
                lastName: trimmedLastName,
-               email: trimmedEmail && trimmedEmail.length > 0 ? trimmedEmail : null,
                address: trimmedAddress && trimmedAddress.length > 0 ? trimmedAddress : null,
                contact: trimmedContact && trimmedContact.length > 0 ? trimmedContact : null,
             },
@@ -166,7 +215,7 @@ export class AuthorService {
 
          if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
             throw new ApiError(
-               MessageHandler.getErrorMessage('authors.email_exists'),
+               MessageHandler.getErrorMessage('authors.user_id_exists'),
                HttpStatusCode.CONFLICT,
                ErrorType.CONFLICT
             );
@@ -218,28 +267,6 @@ export class AuthorService {
             updateData.lastName = trimmed;
          }
 
-         if (updateAuthorDto.email !== undefined) {
-            const trimmed = updateAuthorDto.email.trim();
-            if (trimmed.length > 0) {
-               if (trimmed !== existingAuthor.email) {
-                  const emailExists = await this.prisma.author.findUnique({
-                     where: { email: trimmed },
-                  });
-
-                  if (emailExists) {
-                     throw new ApiError(
-                        MessageHandler.getErrorMessage('authors.email_exists'),
-                        HttpStatusCode.CONFLICT,
-                        ErrorType.CONFLICT
-                     );
-                  }
-               }
-               updateData.email = trimmed;
-            } else {
-               updateData.email = null;
-            }
-         }
-
          if (updateAuthorDto.address !== undefined) {
             const trimmed = updateAuthorDto.address.trim();
             updateData.address = trimmed.length > 0 ? trimmed : null;
@@ -275,14 +302,6 @@ export class AuthorService {
       } catch (error) {
          if (error instanceof ApiError) {
             throw error;
-         }
-
-         if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
-            throw new ApiError(
-               MessageHandler.getErrorMessage('authors.email_exists'),
-               HttpStatusCode.CONFLICT,
-               ErrorType.CONFLICT
-            );
          }
 
          throw new ApiError(

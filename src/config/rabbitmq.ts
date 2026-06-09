@@ -190,6 +190,9 @@ export class RabbitMQConnection {
       // Setup chapters exchange and queue for chapter deletion events
       await this.setupChaptersExchangeAndQueue(queuePrefix);
 
+      // Setup authors exchange and queue for author creation events
+      await this.setupAuthorsExchangeAndQueue(queuePrefix);
+
       rabbitmqLogger.info('RabbitMQ exchanges and queues setup completed');
    }
 
@@ -251,6 +254,33 @@ export class RabbitMQConnection {
       await this.channel.bindQueue(`${queuePrefix}.chapters.deleted`, 'chapters', 'chapter.deleted');
 
       rabbitmqLogger.info('Chapters exchange and queue setup completed');
+   }
+
+   /**
+    * Setup authors exchange and queue for author creation events
+    */
+   private async setupAuthorsExchangeAndQueue(queuePrefix: string): Promise<void> {
+      if (!this.channel) {
+         throw new Error('Channel not available');
+      }
+
+      await this.channel.assertExchange('authors', 'topic', {
+         durable: true,
+         autoDelete: false
+      });
+
+      await this.channel.assertQueue(`${queuePrefix}.authors.created`, {
+         durable: true,
+         exclusive: false,
+         autoDelete: false,
+         arguments: {
+            'x-message-ttl': 3600000
+         }
+      });
+
+      await this.channel.bindQueue(`${queuePrefix}.authors.created`, 'authors', 'author.created');
+
+      rabbitmqLogger.info('Authors exchange and queue setup completed');
    }
 
    /**
@@ -503,6 +533,67 @@ export class RabbitMQConnection {
          rabbitmqLogger.info({ queueName }, 'Stopped consuming user creation messages from queue');
       } catch (error: any) {
          rabbitmqLogger.error({ err: error }, 'Error stopping user creation message consumer');
+      }
+   }
+
+   /**
+    * Consume author creation messages
+    */
+   public async consumeAuthorCreationMessages(
+      onMessage: (message: any) => Promise<void>
+   ): Promise<void> {
+      if (!this.channel) {
+         throw new Error('Channel not available');
+      }
+
+      const queuePrefix = config.RABBITMQ_QUEUE_PREFIX;
+      const queueName = `${queuePrefix}.authors.created`;
+
+      try {
+         await this.channel.consume(queueName, async (msg) => {
+            if (!msg) {
+               return;
+            }
+
+            try {
+               const messageContent = JSON.parse(msg.content.toString());
+               rabbitmqLogger.info({ messageContent }, 'Received author creation message');
+
+               await onMessage(messageContent);
+
+               this.channel!.ack(msg);
+               rabbitmqLogger.info({ userId: messageContent.userId }, 'Processed author creation message');
+            } catch (error: any) {
+               rabbitmqLogger.error({ err: error }, 'Error processing author creation message');
+               this.channel!.ack(msg);
+            }
+         }, {
+            noAck: false
+         });
+
+         rabbitmqLogger.info({ queueName }, 'Started consuming author creation messages from queue');
+      } catch (error: any) {
+         rabbitmqLogger.error({ err: error }, 'Error setting up author creation message consumer');
+         throw error;
+      }
+   }
+
+   /**
+    * Stop consuming author creation messages
+    */
+   public async stopConsumingAuthorCreationMessages(): Promise<void> {
+      if (!this.channel) {
+         return;
+      }
+
+      const queuePrefix = config.RABBITMQ_QUEUE_PREFIX;
+      const queueName = `${queuePrefix}.authors.created`;
+
+      try {
+         await this.channel.cancel(queueName);
+         rabbitmqLogger.info({ queueName }, 'Stopped consuming author creation messages from queue');
+      } catch (error: any) {
+         rabbitmqLogger.error({ err: error }, 'Error stopping author creation message consumer');
       }
    }
 }

@@ -71,14 +71,15 @@ export function createAuthorRoutes(prisma: PrismaClient): Router {
     *           schema:
     *             type: object
     *             required:
+    *               - userId
     *               - firstName
     *               - lastName
     *             properties:
+    *               userId:
+    *                 type: string
     *               firstName:
     *                 type: string
     *               lastName:
-    *                 type: string
-    *               email:
     *                 type: string
     *               address:
     *                 type: string
@@ -97,7 +98,7 @@ export function createAuthorRoutes(prisma: PrismaClient): Router {
     *       401:
     *         $ref: '#/components/responses/Unauthorized'
     *       409:
-    *         description: Author with this email already exists
+    *         description: Author with this user ID already exists
     *       500:
     *         $ref: '#/components/responses/InternalServerError'
     */
@@ -133,8 +134,6 @@ export function createAuthorRoutes(prisma: PrismaClient): Router {
     *                 type: string
     *               lastName:
     *                 type: string
-    *               email:
-    *                 type: string
     *               address:
     *                 type: string
     *               contact:
@@ -154,7 +153,7 @@ export function createAuthorRoutes(prisma: PrismaClient): Router {
     *       404:
     *         $ref: '#/components/responses/NotFound'
     *       409:
-    *         description: Author with this email already exists
+    *         description: Author with this user ID already exists
     *       500:
     *         $ref: '#/components/responses/InternalServerError'
     */
