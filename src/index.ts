@@ -18,6 +18,7 @@ import { RabbitMQFactory } from './config/rabbitmq';
 import { TranscodingWorkerFactory } from './workers/TranscodingWorker';
 import { UserConsumerWorkerFactory } from './workers/UserConsumerWorker';
 import { AuthorConsumerWorkerFactory } from './workers/AuthorConsumerWorker';
+import { prisma } from './lib/prisma';
 
 const app = express();
 
@@ -64,7 +65,6 @@ queueManager.createCleanupQueue();
       logger.info('RabbitMQ initialized successfully');
 
       // Start transcoding worker
-      const prisma = require('./lib/prisma').prisma;
       await TranscodingWorkerFactory.startWorker(prisma);
 
       // Start user consumer worker
