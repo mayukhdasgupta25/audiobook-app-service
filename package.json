@@ -1,9 +1,9 @@
 {
-  "name": "backend",
+  "name": "app-service",
   "version": "1.0.0",
-  "description": "",
+  "description": "App service for Srota backend",
   "license": "ISC",
-  "author": "",
+  "author": "Srota",
   "type": "commonjs",
   "main": "dist/index.js",
   "scripts": {
