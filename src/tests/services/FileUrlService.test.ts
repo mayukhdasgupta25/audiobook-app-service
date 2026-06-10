@@ -98,4 +98,66 @@ describe('FileUrlService', () => {
          expect(result.coverImage).toBe('https://signed.example/object');
       });
    });
+
+   describe('resolveUserMedia', () => {
+      it('resolves avatar on user profile DTOs', async () => {
+         const result = await fileUrlService.resolveUserMedia({
+            avatar: 'uploads/images/users/avatar-1.jpg',
+         });
+
+         expect(result.avatar).toBe('https://signed.example/object');
+      });
+   });
+
+   describe('resolveAuthorMedia', () => {
+      it('resolves profileImage on author DTOs', async () => {
+         const result = await fileUrlService.resolveAuthorMedia({
+            id: 'author-1',
+            userId: 'user-1',
+            firstName: 'Jane',
+            lastName: 'Doe',
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            profileImage: 'uploads/images/authors/image-1.jpg',
+         });
+
+         expect(result.profileImage).toBe('https://signed.example/object');
+      });
+   });
+
+   describe('resolveOrganizationMedia', () => {
+      it('resolves image on organization DTOs', async () => {
+         const result = await fileUrlService.resolveOrganizationMedia({
+            id: 'org-1',
+            name: 'Acme',
+            slug: 'acme',
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            image: 'uploads/images/organizations/image-1.jpg',
+         });
+
+         expect(result.image).toBe('https://signed.example/object');
+      });
+   });
+
+   describe('processUploadedImageFile', () => {
+      it('uploads to S3 with custom key directory in non-development', async () => {
+         const mockUploadFile = jest.fn().mockResolvedValue('uploads/images/authors/image-1.jpg');
+         jest.spyOn(StorageFactory, 'getStorageProvider').mockReturnValue({
+            uploadFile: mockUploadFile,
+            getFileUrl: mockGetFileUrl,
+         } as never);
+
+         jest.spyOn(require('fs'), 'readFileSync').mockReturnValue(Buffer.from('data'));
+
+         const result = await service.processUploadedImageFile(
+            '/tmp/image.jpg',
+            'uploads/images/authors',
+            'image/jpeg'
+         );
+
+         expect(mockUploadFile).toHaveBeenCalled();
+         expect(result).toMatch(/^uploads\/images\/authors\/image-/);
+      });
+   });
 });

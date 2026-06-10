@@ -6,11 +6,18 @@
  */
 import { OrganizationService } from '../../services/OrganizationService';
 import { ApiError } from '../../types/ApiError';
-import { OrganizationRole } from '@prisma/client';
+import { OrganizationRole, OrganizationTeamSize } from '@prisma/client';
 
 jest.mock('../../utils/MessageHandler', () => ({
    MessageHandler: {
       getErrorMessage: (key: string) => key,
+   },
+}));
+
+jest.mock('../../services/FileUrlService', () => ({
+   fileUrlService: {
+      resolveOrganizationMedia: jest.fn(async (dto: unknown) => dto),
+      resolveOrganizationMediaList: jest.fn(async (dtos: unknown[]) => dtos),
    },
 }));
 
@@ -36,6 +43,10 @@ const buildMockPrisma = () => {
       },
       userProfile: {
          findUnique: jest.fn(),
+      },
+      genre: {
+         findUnique: jest.fn(),
+         findFirst: jest.fn(),
       },
       $transaction: jest.fn(async (cb: any) => cb(prisma)),
    };
@@ -73,7 +84,15 @@ describe('OrganizationService', () => {
          expect(result.id).toBe('org-1');
          expect(result.slug).toBe('acme');
          expect(mockPrisma.organization.create).toHaveBeenCalledWith({
-            data: { name: 'Acme', slug: 'acme', description: null },
+            data: {
+               name: 'Acme',
+               slug: 'acme',
+               description: null,
+               image: null,
+               preferredGenre: null,
+               websiteUrl: null,
+               teamSize: null,
+            },
          });
          expect(mockPrisma.organizationMember.create).toHaveBeenCalledWith({
             data: {
@@ -117,9 +136,11 @@ describe('OrganizationService', () => {
             updatedAt: new Date(),
          });
          await service.createOrganization({ name: 'My Cool Org!' });
-         expect(mockPrisma.organization.create).toHaveBeenCalledWith({
-            data: expect.objectContaining({ slug: 'my-cool-org' }),
-         });
+         expect(mockPrisma.organization.create).toHaveBeenCalledWith(
+            expect.objectContaining({
+               data: expect.objectContaining({ slug: 'my-cool-org' }),
+            })
+         );
       });
 
       it('does not add a creator membership when none is provided', async () => {
@@ -134,6 +155,99 @@ describe('OrganizationService', () => {
          });
          await service.createOrganization({ name: 'NoOwner' });
          expect(mockPrisma.organizationMember.create).not.toHaveBeenCalled();
+      });
+
+      it('persists image when provided', async () => {
+         mockPrisma.organization.findUnique.mockResolvedValue(null);
+         mockPrisma.organization.create.mockResolvedValue({
+            id: 'org-1',
+            name: 'Acme',
+            slug: 'acme',
+            description: null,
+            image: 'uploads/images/organizations/image-1.jpg',
+            createdAt: new Date(),
+            updatedAt: new Date(),
+         });
+
+         const result = await service.createOrganization({
+            name: 'Acme',
+            image: 'uploads/images/organizations/image-1.jpg',
+         });
+
+         expect(mockPrisma.organization.create).toHaveBeenCalledWith({
+            data: expect.objectContaining({
+               image: 'uploads/images/organizations/image-1.jpg',
+            }),
+         });
+         expect(result.image).toBe('uploads/images/organizations/image-1.jpg');
+      });
+
+      it('persists preferred genre, website URL, and team size when provided', async () => {
+         mockPrisma.organization.findUnique.mockResolvedValue(null);
+         mockPrisma.genre.findFirst.mockResolvedValue({ name: 'Fiction' });
+         mockPrisma.organization.create.mockResolvedValue({
+            id: 'org-1',
+            name: 'Acme',
+            slug: 'acme',
+            description: null,
+            image: null,
+            preferredGenre: 'Fiction',
+            websiteUrl: 'https://acme.example.com',
+            teamSize: OrganizationTeamSize.SIZE_11_50,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+         });
+
+         const result = await service.createOrganization({
+            name: 'Acme',
+            preferredGenre: 'Fiction',
+            websiteUrl: 'https://acme.example.com',
+            teamSize: '11-50',
+         });
+
+         expect(mockPrisma.genre.findFirst).toHaveBeenCalledWith({
+            where: { name: { equals: 'Fiction', mode: 'insensitive' } },
+            select: { name: true },
+         });
+         expect(mockPrisma.organization.create).toHaveBeenCalledWith({
+            data: expect.objectContaining({
+               preferredGenre: 'Fiction',
+               websiteUrl: 'https://acme.example.com',
+               teamSize: OrganizationTeamSize.SIZE_11_50,
+            }),
+         });
+         expect(result.teamSize).toBe('11-50');
+         expect(result.preferredGenre).toBe('Fiction');
+      });
+
+      it('rejects unknown preferred genre on create', async () => {
+         mockPrisma.organization.findUnique.mockResolvedValue(null);
+         mockPrisma.genre.findFirst.mockResolvedValue(null);
+
+         await expect(
+            service.createOrganization({
+               name: 'Acme',
+               preferredGenre: 'Unknown Genre',
+            })
+         ).rejects.toBeInstanceOf(ApiError);
+      });
+
+      it('rejects invalid website URL on create', async () => {
+         await expect(
+            service.createOrganization({
+               name: 'Acme',
+               websiteUrl: 'not-a-url',
+            })
+         ).rejects.toBeInstanceOf(ApiError);
+      });
+
+      it('rejects invalid team size on create', async () => {
+         await expect(
+            service.createOrganization({
+               name: 'Acme',
+               teamSize: 'invalid' as '1-10',
+            })
+         ).rejects.toBeInstanceOf(ApiError);
       });
    });
 
@@ -177,6 +291,90 @@ describe('OrganizationService', () => {
             where: { id: 'o' },
             data: expect.objectContaining({ name: 'NewName' }),
          });
+      });
+
+      it('updates image when provided', async () => {
+         mockPrisma.organization.findUnique.mockResolvedValue({ id: 'o' });
+         mockPrisma.organization.update.mockResolvedValue({
+            id: 'o',
+            name: 'Acme',
+            slug: 'acme',
+            description: null,
+            image: 'uploads/images/organizations/image-2.jpg',
+            createdAt: new Date(),
+            updatedAt: new Date(),
+         });
+
+         const result = await service.updateOrganization('o', {
+            image: 'uploads/images/organizations/image-2.jpg',
+         });
+
+         expect(mockPrisma.organization.update).toHaveBeenCalledWith({
+            where: { id: 'o' },
+            data: { image: 'uploads/images/organizations/image-2.jpg' },
+         });
+         expect(result.image).toBe('uploads/images/organizations/image-2.jpg');
+      });
+
+      it('resolves preferred genre by name on update', async () => {
+         mockPrisma.organization.findUnique.mockResolvedValue({ id: 'o' });
+         mockPrisma.genre.findFirst.mockResolvedValue({ name: 'Fiction' });
+         mockPrisma.organization.update.mockResolvedValue({
+            id: 'o',
+            name: 'Acme',
+            slug: 'acme',
+            description: null,
+            image: null,
+            preferredGenre: 'Fiction',
+            websiteUrl: null,
+            teamSize: null,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+         });
+
+         await service.updateOrganization('o', { preferredGenre: 'Fiction' });
+
+         expect(mockPrisma.organization.update).toHaveBeenCalledWith({
+            where: { id: 'o' },
+            data: { preferredGenre: 'Fiction' },
+         });
+      });
+
+      it('updates profile fields and allows clearing them', async () => {
+         mockPrisma.organization.findUnique.mockResolvedValue({ id: 'o' });
+         mockPrisma.organization.update.mockResolvedValue({
+            id: 'o',
+            name: 'Acme',
+            slug: 'acme',
+            description: null,
+            image: null,
+            preferredGenre: null,
+            websiteUrl: null,
+            teamSize: null,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+         });
+
+         await service.updateOrganization('o', {
+            preferredGenre: null,
+            websiteUrl: null,
+            teamSize: null,
+         });
+
+         expect(mockPrisma.organization.update).toHaveBeenCalledWith({
+            where: { id: 'o' },
+            data: {
+               preferredGenre: null,
+               websiteUrl: null,
+               teamSize: null,
+            },
+         });
+      });
+
+      it('rejects invalid team size on update', async () => {
+         await expect(
+            service.updateOrganization('o', { teamSize: 'huge' as '1-10' })
+         ).rejects.toBeInstanceOf(ApiError);
       });
 
       it('throws when no fields are provided', async () => {

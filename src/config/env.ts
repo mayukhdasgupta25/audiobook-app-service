@@ -154,6 +154,9 @@ export const config = {
    DEV_UPLOAD_DIR: nodeEnv === 'development' ? './src/uploads' : './uploads',
    DEV_AUDIOBOOK_IMAGE_DIR: nodeEnv === 'development' ? './src/uploads/images/audiobooks' : './uploads/images/audiobooks',
    DEV_CHAPTER_IMAGE_DIR: nodeEnv === 'development' ? './src/uploads/images/chapters' : './uploads/images/chapters',
+   DEV_AUTHOR_IMAGE_DIR: nodeEnv === 'development' ? './src/uploads/images/authors' : './uploads/images/authors',
+   DEV_USER_AVATAR_DIR: nodeEnv === 'development' ? './src/uploads/images/users' : './uploads/images/users',
+   DEV_ORGANIZATION_IMAGE_DIR: nodeEnv === 'development' ? './src/uploads/images/organizations' : './uploads/images/organizations',
    DEV_AUDIO_DIR: nodeEnv === 'development' ? './src/uploads/audio' : './uploads/audio',
 
    TRANSCODING_BITRATES: parseTranscodingBitrates(requireEnv('TRANSCODING_BITRATES')),

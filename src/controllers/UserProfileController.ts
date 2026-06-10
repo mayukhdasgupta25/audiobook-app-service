@@ -6,6 +6,7 @@ import { MessageHandler } from '../utils/MessageHandler';
 import { UserProfileService } from '../services/UserProfileService';
 import { LocationResolverService } from '../services/LocationResolverService';
 import { UpdateUserProfileDto } from '../models/UserDto';
+import { fileUrlService } from '../services/FileUrlService';
 
 export class UserProfileController {
    private userProfileService: UserProfileService;
@@ -58,6 +59,21 @@ export class UserProfileController {
     *     requestBody:
     *       required: true
     *       content:
+    *         multipart/form-data:
+    *           schema:
+    *             type: object
+    *             properties:
+    *               username:
+    *                 type: string
+    *               firstName:
+    *                 type: string
+    *               lastName:
+    *                 type: string
+    *               avatar:
+    *                 type: string
+    *                 format: binary
+    *               preferences:
+    *                 type: object
     *         application/json:
     *           schema:
     *             $ref: '#/components/schemas/UpdateUserProfileRequest'
@@ -98,6 +114,16 @@ export class UserProfileController {
       const userId = (req as any).user.id;
       const { location, ...profileFields } = req.body as UpdateUserProfileDto;
       const updateData: Parameters<UserProfileService['updateUserProfile']>[1] = { ...profileFields };
+
+      const avatarFile = (req as Request & { avatarFile?: Express.Multer.File }).avatarFile;
+      if (avatarFile) {
+         updateData.avatar = await fileUrlService.processUploadedImageFile(
+            avatarFile.path,
+            'uploads/images/users',
+            avatarFile.mimetype,
+            'avatar',
+         );
+      }
 
       if (location !== undefined) {
          if (location === null) {

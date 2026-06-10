@@ -8,4 +8,5 @@ export interface AuthorCreationMessage {
    lastName: string;
    address: string;
    contact?: string;
+   profileImage?: string;
 }

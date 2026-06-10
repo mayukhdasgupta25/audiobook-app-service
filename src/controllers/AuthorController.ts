@@ -9,6 +9,28 @@ import { ResponseHandler } from '../utils/ResponseHandler';
 import { ErrorHandler } from '../middleware/ErrorHandler';
 import { MessageHandler } from '../utils/MessageHandler';
 import { CreateAuthorDto, UpdateAuthorDto } from '../models/AuthorDto';
+import { fileUrlService } from '../services/FileUrlService';
+
+function parseFormDataStringArray(value: unknown): string[] | undefined {
+   if (value === undefined || value === null || value === '') {
+      return undefined;
+   }
+   if (Array.isArray(value)) {
+      return value as string[];
+   }
+   if (typeof value === 'string') {
+      try {
+         const parsed = JSON.parse(value);
+         if (Array.isArray(parsed)) {
+            return parsed;
+         }
+         return value.split(',').map((id) => id.trim()).filter((id) => id.length > 0);
+      } catch {
+         return value.split(',').map((id) => id.trim()).filter((id) => id.length > 0);
+      }
+   }
+   return undefined;
+}
 
 export class AuthorController {
    private authorService: AuthorService;
@@ -93,7 +115,7 @@ export class AuthorController {
     *     requestBody:
     *       required: true
     *       content:
-    *         application/json:
+    *         multipart/form-data:
     *           schema:
     *             type: object
     *             required:
@@ -116,6 +138,10 @@ export class AuthorController {
     *               contact:
     *                 type: string
     *                 example: "+1234567890"
+    *               profileImage:
+    *                 type: string
+    *                 format: binary
+    *                 description: Optional profile image (max 50MB)
     *               organizationIds:
     *                 type: array
     *                 items:
@@ -134,7 +160,22 @@ export class AuthorController {
     *         $ref: '#/components/responses/InternalServerError'
     */
    createAuthor = ErrorHandler.asyncHandler(async (req: Request, res: Response): Promise<void> => {
-      const createAuthorDto: CreateAuthorDto = req.body;
+      const uploadedProfileImage = (req as any).profileImageFile as Express.Multer.File | undefined;
+
+      const profileImage = uploadedProfileImage
+         ? await fileUrlService.processUploadedImageFile(
+            uploadedProfileImage.path,
+            'uploads/images/authors',
+            uploadedProfileImage.mimetype || 'image/jpeg'
+         )
+         : undefined;
+
+      const createAuthorDto: CreateAuthorDto = {
+         ...req.body,
+         profileImage,
+         organizationIds: parseFormDataStringArray(req.body.organizationIds),
+      };
+
       const author = await this.authorService.createAuthor(createAuthorDto);
       ResponseHandler.success(res, author, MessageHandler.getSuccessMessage('authors.created'), 201);
    });
@@ -157,7 +198,7 @@ export class AuthorController {
     *     requestBody:
     *       required: true
     *       content:
-    *         application/json:
+    *         multipart/form-data:
     *           schema:
     *             type: object
     *             properties:
@@ -173,6 +214,10 @@ export class AuthorController {
     *               contact:
     *                 type: string
     *                 example: "+0987654321"
+    *               profileImage:
+    *                 type: string
+    *                 format: binary
+    *                 description: Optional profile image (max 50MB)
     *               organizationIds:
     *                 type: array
     *                 items:
@@ -194,7 +239,21 @@ export class AuthorController {
     */
    updateAuthor = ErrorHandler.asyncHandler(async (req: Request, res: Response): Promise<void> => {
       const { id } = req.params as { id: string };
-      const updateAuthorDto: UpdateAuthorDto = req.body;
+      const uploadedProfileImage = (req as any).profileImageFile as Express.Multer.File | undefined;
+
+      const updateAuthorDto: UpdateAuthorDto = {
+         ...req.body,
+         organizationIds: parseFormDataStringArray(req.body.organizationIds),
+      };
+
+      if (uploadedProfileImage) {
+         updateAuthorDto.profileImage = await fileUrlService.processUploadedImageFile(
+            uploadedProfileImage.path,
+            'uploads/images/authors',
+            uploadedProfileImage.mimetype || 'image/jpeg'
+         );
+      }
+
       const author = await this.authorService.updateAuthor(id, updateAuthorDto);
       ResponseHandler.success(res, author, MessageHandler.getSuccessMessage('authors.updated'));
    });

@@ -615,6 +615,7 @@ const options: swaggerJsdoc.Options = {
                   email: { type: 'string', nullable: true },
                   address: { type: 'string', nullable: true },
                   contact: { type: 'string', nullable: true },
+                  profileImage: { type: 'string', nullable: true, description: 'URL to profile picture' },
                   organizations: {
                      type: 'array',
                      items: {
@@ -626,6 +627,30 @@ const options: swaggerJsdoc.Options = {
                         }
                      }
                   },
+                  createdAt: { type: 'string', format: 'date-time' },
+                  updatedAt: { type: 'string', format: 'date-time' }
+               }
+            },
+            Organization: {
+               type: 'object',
+               properties: {
+                  id: { type: 'string' },
+                  name: { type: 'string' },
+                  slug: { type: 'string' },
+                  description: { type: 'string', nullable: true },
+                  image: { type: 'string', nullable: true, description: 'URL to organization image' },
+                  preferredGenre: {
+                     type: 'string',
+                     nullable: true,
+                     description: 'Preferred genre name'
+                  },
+                  websiteUrl: { type: 'string', nullable: true, format: 'uri' },
+                  teamSize: {
+                     type: 'string',
+                     nullable: true,
+                     enum: ['1-10', '11-50', '51-200', '200+']
+                  },
+                  memberCount: { type: 'integer', nullable: true },
                   createdAt: { type: 'string', format: 'date-time' },
                   updatedAt: { type: 'string', format: 'date-time' }
                }
