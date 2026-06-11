@@ -11,6 +11,7 @@ import { MessageHandler } from '../../utils/MessageHandler';
 import { fileUrlService } from '../../services/FileUrlService';
 import { ApiError } from '../../types/ApiError';
 import { HttpStatusCode } from '../../types/common';
+import { AuthRole } from '../../constants/authRoles';
 
 // Mock dependencies
 jest.mock('../../services/AudioBookService');
@@ -51,7 +52,7 @@ describe('AudioBookController', () => {
          file: undefined,
          originalUrl: '/api/v1/audiobooks',
          // Default the test user to a global ADMIN for flows that branch on role.
-         user: { id: 'auth-user-1', role: 'ADMIN' },
+         user: { id: 'auth-user-1', role: AuthRole.ADMIN },
       } as any;
       mockRes = {
          status: jest.fn().mockReturnThis(),
