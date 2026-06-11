@@ -3,15 +3,8 @@
  * Provides role-based access control for protected routes
  */
 import { Response, NextFunction } from 'express';
+import { AuthRoleGroups, normalizeAuthRole } from '../constants/authRoles';
 import { AuthenticatedRequest } from '../types/auth';
-
-/**
- * Normalize role string for comparison (case-insensitive)
- */
-function normalizeRole(role: string | undefined): string {
-   if (!role) return '';
-   return role.trim().toLowerCase();
-}
 
 /**
  * Check if user has one of the allowed roles
@@ -30,8 +23,8 @@ export function requireRole(allowedRoles: string[]) {
       }
 
       // Normalize roles for comparison
-      const userRole = normalizeRole(req.user.role);
-      const normalizedAllowedRoles = allowedRoles.map(role => normalizeRole(role));
+      const userRole = normalizeAuthRole(req.user.role);
+      const normalizedAllowedRoles = allowedRoles.map(role => normalizeAuthRole(role));
 
       // Check if user role is in allowed roles
       if (!normalizedAllowedRoles.includes(userRole)) {
@@ -52,7 +45,7 @@ export function requireRole(allowedRoles: string[]) {
  * Convenience middleware for admin-only routes
  */
 export function requireAdmin() {
-   return requireRole(['ADMIN']);
+   return requireRole([...AuthRoleGroups.ADMIN_ONLY]);
 }
 
 /**
@@ -60,6 +53,5 @@ export function requireAdmin() {
  * Convenience middleware for routes accessible to both users and admins
  */
 export function requireUserOrAdmin() {
-   return requireRole(['USER', 'ADMIN']);
+   return requireRole([...AuthRoleGroups.USER_ADMIN_AUTHOR]);
 }
-

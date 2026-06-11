@@ -13,6 +13,7 @@ import { MessageHandler } from '../utils/MessageHandler';
 import { fileUrlService } from '../services/FileUrlService';
 import { OrganizationService } from '../services/OrganizationService';
 import { AuthenticatedRequest } from '../types/auth';
+import { isGlobalAdminRole } from '../constants/authRoles';
 
 export class AudioBookController {
   private audioBookService: AudioBookService;
@@ -298,8 +299,7 @@ export class AudioBookController {
 
     // Non-admin users may only create audiobooks as staff (OWNER or ADMIN)
     // of the target organization. Global admins bypass this check.
-    const role = (authReq.user?.role || '').trim().toLowerCase();
-    if (role !== 'admin') {
+    if (!isGlobalAdminRole(authReq.user?.role)) {
       const allowed = creatorProfile
         ? await this.organizationService.isAdmin(organizationId, creatorProfile.id)
         : false;

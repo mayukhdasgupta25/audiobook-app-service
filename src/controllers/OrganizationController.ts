@@ -13,6 +13,7 @@ import { AudioBookService } from '../services/AudioBookService';
 import { ResponseHandler } from '../utils/ResponseHandler';
 import { ErrorHandler } from '../middleware/ErrorHandler';
 import { MessageHandler } from '../utils/MessageHandler';
+import { isGlobalAdminRole } from '../constants/authRoles';
 import { ApiError } from '../types/ApiError';
 import { AuthenticatedRequest } from '../types/auth';
 import { AudioBookQueryParams } from '../models/AudioBookDto';
@@ -80,7 +81,7 @@ function parseProfileFieldsFromBody(
  */
 function isGlobalAdmin(req: Request): boolean {
    const authReq = req as AuthenticatedRequest;
-   return (authReq.user?.role || '').trim().toLowerCase() === 'admin';
+   return isGlobalAdminRole(authReq.user?.role);
 }
 
 export class OrganizationController {

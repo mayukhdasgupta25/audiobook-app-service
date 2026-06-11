@@ -9,6 +9,7 @@ import convertJwkToPem from 'jwk-to-pem';
 import axios from 'axios';
 import { config } from '../config/env';
 import { JWKSResponse, JWK, JWTHeader, AuthenticatedRequest } from '../types/auth';
+import { AuthRole } from '../constants/authRoles';
 
 /**
  * Authentication middleware to verify JWT tokens
@@ -161,7 +162,7 @@ export async function authenticateJWT(
          (req as AuthenticatedRequest).user = {
             id: userId,
             email: email,
-            role: role || 'User' // Default to 'User' if role not found
+            role: role || AuthRole.USER
          };
 
          next();
