@@ -8,6 +8,7 @@ import { ChapterController } from '../controllers/ChapterController';
 import { BackgroundJobService } from '../services/BackgroundJobService';
 import { ValidationMiddleware } from '../middleware/ValidationMiddleware';
 import { UploadMiddleware } from '../middleware/UploadMiddleware';
+import { requireAdminOrAuthor } from '../middleware/RoleMiddleware';
 
 export function createChapterRoutes(prisma: PrismaClient): Router {
    const router = Router();
@@ -41,6 +42,7 @@ export function createChapterRoutes(prisma: PrismaClient): Router {
    // Create new chapter
    router.post(
       '/chapters',
+      requireAdminOrAuthor(),
       UploadMiddleware.handleImageAndAudioUpload,
       ValidationMiddleware.validateChapterCreation,
       chapterController.createChapter

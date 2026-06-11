@@ -23,6 +23,7 @@ import {
 import { ApiError } from '../types/ApiError';
 import { MessageHandler } from '../utils/MessageHandler';
 import { fileUrlService } from './FileUrlService';
+import { isGlobalAdminRole, isGlobalAuthorRole } from '../constants/authRoles';
 
 // Roles that may administer (rename / delete / manage members) an org.
 const ADMIN_ROLES: OrganizationRole[] = [
@@ -572,6 +573,85 @@ export class OrganizationService {
    async isAdmin(organizationId: string, userProfileId: string): Promise<boolean> {
       const role = await this.getMemberRole(organizationId, userProfileId);
       return role !== null && ADMIN_ROLES.includes(role);
+   }
+
+   /**
+    * Check whether the auth user has an Author profile linked to the organization.
+    */
+   async isAuthorLinkedToOrganization(authUserId: string, organizationId: string): Promise<boolean> {
+      const author = await this.prisma.author.findUnique({
+         where: { userId: authUserId },
+         select: { id: true },
+      });
+
+      if (!author) {
+         return false;
+      }
+
+      const link = await this.prisma.authorOrganization.findUnique({
+         where: {
+            authorId_organizationId: {
+               authorId: author.id,
+               organizationId,
+            },
+         },
+         select: { id: true },
+      });
+
+      return link !== null;
+   }
+
+   /**
+    * Whether the caller may create an audiobook in the target organization.
+    */
+   async canCreateAudiobook(
+      authUserId: string | undefined,
+      userProfileId: string | undefined,
+      organizationId: string,
+      jwtRole: string | undefined,
+   ): Promise<boolean> {
+      if (isGlobalAdminRole(jwtRole)) {
+         return true;
+      }
+
+      if (userProfileId && (await this.isAdmin(organizationId, userProfileId))) {
+         return true;
+      }
+
+      if (authUserId && isGlobalAuthorRole(jwtRole)) {
+         return this.isAuthorLinkedToOrganization(authUserId, organizationId);
+      }
+
+      return false;
+   }
+
+   /**
+    * Whether the caller may create a chapter for the target audiobook.
+    * Resolves the audiobook's organization and delegates to canCreateAudiobook.
+    */
+   async canCreateChapter(
+      authUserId: string | undefined,
+      userProfileId: string | undefined,
+      audiobookId: string,
+      jwtRole: string | undefined,
+   ): Promise<{ allowed: boolean; organizationId?: string }> {
+      const audiobook = await this.prisma.audioBook.findUnique({
+         where: { id: audiobookId },
+         select: { organizationId: true },
+      });
+
+      if (!audiobook) {
+         return { allowed: false };
+      }
+
+      const allowed = await this.canCreateAudiobook(
+         authUserId,
+         userProfileId,
+         audiobook.organizationId,
+         jwtRole,
+      );
+
+      return { allowed, organizationId: audiobook.organizationId };
    }
 
    /**

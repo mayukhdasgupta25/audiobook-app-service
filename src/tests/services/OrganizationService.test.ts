@@ -48,6 +48,15 @@ const buildMockPrisma = () => {
          findUnique: jest.fn(),
          findFirst: jest.fn(),
       },
+      author: {
+         findUnique: jest.fn(),
+      },
+      authorOrganization: {
+         findUnique: jest.fn(),
+      },
+      audioBook: {
+         findUnique: jest.fn(),
+      },
       $transaction: jest.fn(async (cb: any) => cb(prisma)),
    };
    return prisma;
@@ -567,6 +576,80 @@ describe('OrganizationService', () => {
             'o1',
             'o2',
          ]);
+      });
+
+      it('isAuthorLinkedToOrganization returns true when author is linked to org', async () => {
+         mockPrisma.author.findUnique.mockResolvedValue({ id: 'author-1' });
+         mockPrisma.authorOrganization.findUnique.mockResolvedValue({ id: 'link-1' });
+
+         expect(await service.isAuthorLinkedToOrganization('auth-user-1', 'org-1')).toBe(true);
+      });
+
+      it('isAuthorLinkedToOrganization returns false when author profile is missing', async () => {
+         mockPrisma.author.findUnique.mockResolvedValue(null);
+
+         expect(await service.isAuthorLinkedToOrganization('auth-user-1', 'org-1')).toBe(false);
+         expect(mockPrisma.authorOrganization.findUnique).not.toHaveBeenCalled();
+      });
+
+      it('canCreateAudiobook allows global admin without org membership', async () => {
+         expect(
+            await service.canCreateAudiobook('auth-user-1', undefined, 'org-1', 'ADMIN'),
+         ).toBe(true);
+      });
+
+      it('canCreateAudiobook allows author linked to target organization', async () => {
+         mockPrisma.author.findUnique.mockResolvedValue({ id: 'author-1' });
+         mockPrisma.authorOrganization.findUnique.mockResolvedValue({ id: 'link-1' });
+
+         expect(
+            await service.canCreateAudiobook('auth-user-1', 'profile-1', 'org-1', 'AUTHOR'),
+         ).toBe(true);
+      });
+
+      it('canCreateAudiobook denies author not linked to target organization', async () => {
+         mockPrisma.author.findUnique.mockResolvedValue({ id: 'author-1' });
+         mockPrisma.authorOrganization.findUnique.mockResolvedValue(null);
+
+         expect(
+            await service.canCreateAudiobook('auth-user-1', 'profile-1', 'org-1', 'AUTHOR'),
+         ).toBe(false);
+      });
+
+      it('canCreateChapter allows global admin when audiobook exists', async () => {
+         mockPrisma.audioBook.findUnique.mockResolvedValue({ organizationId: 'org-1' });
+
+         expect(
+            await service.canCreateChapter('auth-user-1', undefined, 'audiobook-1', 'ADMIN'),
+         ).toEqual({ allowed: true, organizationId: 'org-1' });
+      });
+
+      it('canCreateChapter allows author linked to audiobook organization', async () => {
+         mockPrisma.audioBook.findUnique.mockResolvedValue({ organizationId: 'org-1' });
+         mockPrisma.author.findUnique.mockResolvedValue({ id: 'author-1' });
+         mockPrisma.authorOrganization.findUnique.mockResolvedValue({ id: 'link-1' });
+
+         expect(
+            await service.canCreateChapter('auth-user-1', 'profile-1', 'audiobook-1', 'AUTHOR'),
+         ).toEqual({ allowed: true, organizationId: 'org-1' });
+      });
+
+      it('canCreateChapter denies author not linked to audiobook organization', async () => {
+         mockPrisma.audioBook.findUnique.mockResolvedValue({ organizationId: 'org-1' });
+         mockPrisma.author.findUnique.mockResolvedValue({ id: 'author-1' });
+         mockPrisma.authorOrganization.findUnique.mockResolvedValue(null);
+
+         expect(
+            await service.canCreateChapter('auth-user-1', 'profile-1', 'audiobook-1', 'AUTHOR'),
+         ).toEqual({ allowed: false, organizationId: 'org-1' });
+      });
+
+      it('canCreateChapter returns not-allowed when audiobook is unknown', async () => {
+         mockPrisma.audioBook.findUnique.mockResolvedValue(null);
+
+         expect(
+            await service.canCreateChapter('auth-user-1', 'profile-1', 'missing-audiobook', 'AUTHOR'),
+         ).toEqual({ allowed: false });
       });
    });
 });

@@ -1,6 +1,7 @@
 import {
    AuthRole,
    isGlobalAdminRole,
+   isGlobalAuthorRole,
    normalizeAuthRole,
 } from '../../constants/authRoles';
 
@@ -22,6 +23,18 @@ describe('authRoles', () => {
       test('returns false for USER and AUTHOR', () => {
          expect(isGlobalAdminRole(AuthRole.USER)).toBe(false);
          expect(isGlobalAdminRole(AuthRole.AUTHOR)).toBe(false);
+      });
+   });
+
+   describe('isGlobalAuthorRole', () => {
+      test('returns true for AUTHOR and author', () => {
+         expect(isGlobalAuthorRole(AuthRole.AUTHOR)).toBe(true);
+         expect(isGlobalAuthorRole('author')).toBe(true);
+      });
+
+      test('returns false for USER and ADMIN', () => {
+         expect(isGlobalAuthorRole(AuthRole.USER)).toBe(false);
+         expect(isGlobalAuthorRole(AuthRole.ADMIN)).toBe(false);
       });
    });
 });

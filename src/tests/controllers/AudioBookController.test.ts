@@ -36,6 +36,7 @@ describe('AudioBookController', () => {
    let mockReq: any;
    let mockRes: any;
    let mockAudioBookService: jest.Mocked<AudioBookService>;
+   let mockOrganizationService: { canCreateAudiobook: jest.Mock };
 
    beforeEach(() => {
       mockPrisma = {
@@ -65,6 +66,8 @@ describe('AudioBookController', () => {
 
       audioBookController = new AudioBookController(mockPrisma);
       mockAudioBookService = (audioBookController as any).audioBookService;
+      mockOrganizationService = (audioBookController as any).organizationService;
+      mockOrganizationService.canCreateAudiobook = jest.fn().mockResolvedValue(true);
       mockAudioBookService.getSubscriptionAccessForAudiobook = jest
          .fn()
          .mockResolvedValue({ canAccess: true }) as any;
@@ -303,6 +306,50 @@ describe('AudioBookController', () => {
          await flushPromises();
 
          expect(ResponseHandler.validationError).toHaveBeenCalledWith(mockRes, 'Org required');
+         expect(mockAudioBookService.createAudioBook).not.toHaveBeenCalled();
+      });
+
+      it('should create audiobook for author linked to organization', async () => {
+         mockReq.user = { id: 'auth-author-1', role: AuthRole.AUTHOR };
+         mockOrganizationService.canCreateAudiobook.mockResolvedValue(true);
+         mockReq.body = {
+            title: 'Author Book',
+            author: 'Author Name',
+            organizationId: 'org-1',
+         };
+         (mockReq as any).coverImageFile = mockCoverImageFile;
+
+         const mockBook = { id: 'book-author', title: 'Author Book' };
+         mockAudioBookService.createAudioBook.mockResolvedValue(mockBook as any);
+         (MessageHandler.getSuccessMessage as jest.Mock).mockReturnValue('Created');
+
+         await audioBookController.createAudioBook(mockReq, mockRes, mockReq.next);
+         await flushPromises();
+
+         expect(mockOrganizationService.canCreateAudiobook).toHaveBeenCalledWith(
+            'auth-author-1',
+            'profile-1',
+            'org-1',
+            AuthRole.AUTHOR,
+         );
+         expect(mockAudioBookService.createAudioBook).toHaveBeenCalled();
+      });
+
+      it('should return forbidden when author is not linked to organization', async () => {
+         mockReq.user = { id: 'auth-author-1', role: AuthRole.AUTHOR };
+         mockOrganizationService.canCreateAudiobook.mockResolvedValue(false);
+         mockReq.body = {
+            title: 'Author Book',
+            author: 'Author Name',
+            organizationId: 'org-1',
+         };
+         (mockReq as any).coverImageFile = mockCoverImageFile;
+         (MessageHandler.getErrorMessage as jest.Mock).mockReturnValue('Org admin required');
+
+         await audioBookController.createAudioBook(mockReq, mockRes, mockReq.next);
+         await flushPromises();
+
+         expect(ResponseHandler.forbidden).toHaveBeenCalledWith(mockRes, 'Org admin required');
          expect(mockAudioBookService.createAudioBook).not.toHaveBeenCalled();
       });
    });
