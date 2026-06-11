@@ -626,6 +626,35 @@ export class OrganizationService {
    }
 
    /**
+    * Whether the caller may create a chapter for the target audiobook.
+    * Resolves the audiobook's organization and delegates to canCreateAudiobook.
+    */
+   async canCreateChapter(
+      authUserId: string | undefined,
+      userProfileId: string | undefined,
+      audiobookId: string,
+      jwtRole: string | undefined,
+   ): Promise<{ allowed: boolean; organizationId?: string }> {
+      const audiobook = await this.prisma.audioBook.findUnique({
+         where: { id: audiobookId },
+         select: { organizationId: true },
+      });
+
+      if (!audiobook) {
+         return { allowed: false };
+      }
+
+      const allowed = await this.canCreateAudiobook(
+         authUserId,
+         userProfileId,
+         audiobook.organizationId,
+         jwtRole,
+      );
+
+      return { allowed, organizationId: audiobook.organizationId };
+   }
+
+   /**
     * Get all organization IDs a user is a member of. Used by other services
     * (e.g. AudioBookService) to scope queries.
     */

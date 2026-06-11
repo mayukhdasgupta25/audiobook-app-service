@@ -6,6 +6,7 @@ import { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { ChapterService } from '../services/ChapterService';
 import { BackgroundJobService } from '../services/BackgroundJobService';
+import { OrganizationService } from '../services/OrganizationService';
 import { ResponseHandler } from '../utils/ResponseHandler';
 import { ChapterQueryParams } from '../models/ChapterDto';
 import { ErrorHandler } from '../middleware/ErrorHandler';
@@ -16,11 +17,13 @@ import { AuthenticatedRequest } from '../types/auth';
 
 export class ChapterController {
    private chapterService: ChapterService;
+   private organizationService: OrganizationService;
    private prisma: PrismaClient;
 
    constructor(prisma: PrismaClient, backgroundJobService?: BackgroundJobService) {
       this.prisma = prisma;
       this.chapterService = new ChapterService(prisma, backgroundJobService);
+      this.organizationService = new OrganizationService(prisma);
    }
 
    /** Map JWT auth user id to local UserProfile.id */
@@ -263,6 +266,35 @@ export class ChapterController {
       // Parse scheduledAt if provided (can be ISO string or Date)
       if (req.body.scheduledAt) {
          chapterData.scheduledAt = new Date(req.body.scheduledAt);
+      }
+
+      const authReq = req as AuthenticatedRequest;
+      const externalUserId = authReq.user?.id;
+      const creatorProfile = externalUserId
+         ? await this.prisma.userProfile.findUnique({
+            where: { userId: externalUserId },
+            select: { id: true },
+         })
+         : null;
+
+      const { allowed, organizationId } = await this.organizationService.canCreateChapter(
+         externalUserId,
+         creatorProfile?.id,
+         chapterData.audiobookId,
+         authReq.user?.role,
+      );
+
+      if (!organizationId) {
+         ResponseHandler.notFound(res, MessageHandler.getErrorMessage('not_found.audiobook'));
+         return;
+      }
+
+      if (!allowed) {
+         ResponseHandler.forbidden(
+            res,
+            MessageHandler.getErrorMessage('organizations.admin_required'),
+         );
+         return;
       }
 
       const chapter = await this.chapterService.createChapter(chapterData, uploadedFile, uploadedCoverImage);
