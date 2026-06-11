@@ -384,6 +384,9 @@ errors:
     access_denied: "You do not have access to this organization"
     admin_required: "Organization admin access required"
     owner_required: "Organization owner access required"
+    preferred_genre_not_found: "Preferred genre not found"
+    website_url_invalid: "Website URL must be a valid http or https URL"
+    team_size_invalid: "Team size must be one of: 1-10, 11-50, 51-200, 200+"
 
   internal:
     default: "Internal server error"

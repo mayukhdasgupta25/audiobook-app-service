@@ -5,6 +5,12 @@
 
 import { UserProfileService } from '../../services/UserProfileService';
 
+jest.mock('../../services/FileUrlService', () => ({
+   fileUrlService: {
+      resolveForClient: jest.fn(async (value?: string | null) => value ?? undefined),
+   },
+}));
+
 // Mock Prisma client
 const mockPrisma = {
    userProfile: {
@@ -36,6 +42,11 @@ describe('UserProfileService', () => {
             firstName: 'Test',
             lastName: 'User',
             avatar: 'avatar.jpg',
+            address: '456 Oak Ave',
+            contact: '+1-555-0200',
+            gender: null,
+            location: null,
+            age: null,
             preferences: { theme: 'dark' },
             createdAt: new Date(),
             updatedAt: new Date(),
@@ -55,6 +66,8 @@ describe('UserProfileService', () => {
                firstName: true,
                lastName: true,
                avatar: true,
+               address: true,
+               contact: true,
                gender: true,
                location: true,
                age: true,
@@ -98,7 +111,16 @@ describe('UserProfileService', () => {
          const updatedProfile = {
             id: 'profile-1',
             userId,
-            ...updateData,
+            username: 'updated-username',
+            firstName: 'Updated',
+            lastName: 'Name',
+            avatar: null,
+            address: null,
+            contact: null,
+            gender: null,
+            location: null,
+            age: null,
+            preferences: { theme: 'dark', language: 'fr' },
             updatedAt: new Date(),
          };
 
@@ -117,6 +139,8 @@ describe('UserProfileService', () => {
                firstName: true,
                lastName: true,
                avatar: true,
+               address: true,
+               contact: true,
                gender: true,
                location: true,
                age: true,
@@ -138,7 +162,13 @@ describe('UserProfileService', () => {
             username: 'testuser',
             firstName: 'Test',
             lastName: 'User',
-            ...updateData,
+            avatar: 'new-avatar.jpg',
+            address: null,
+            contact: null,
+            gender: null,
+            location: null,
+            age: null,
+            preferences: null,
             updatedAt: new Date(),
          };
 

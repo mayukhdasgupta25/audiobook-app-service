@@ -6,6 +6,7 @@ import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { AuthorController } from '../controllers/AuthorController';
 import { ValidationMiddleware } from '../middleware/ValidationMiddleware';
+import { UploadMiddleware } from '../middleware/UploadMiddleware';
 
 export function createAuthorRoutes(prisma: PrismaClient): Router {
    const router = Router();
@@ -104,6 +105,7 @@ export function createAuthorRoutes(prisma: PrismaClient): Router {
     */
    router.post(
       '/',
+      UploadMiddleware.handleOptionalProfileImageUpload,
       ValidationMiddleware.validateCreateAuthor,
       ValidationMiddleware.validateAuthorOrganizationIds,
       authorController.createAuthor
@@ -160,6 +162,7 @@ export function createAuthorRoutes(prisma: PrismaClient): Router {
    router.put(
       '/:id',
       ValidationMiddleware.validateId,
+      UploadMiddleware.handleOptionalProfileImageUpload,
       ValidationMiddleware.validateUpdateAuthor,
       ValidationMiddleware.validateAuthorOrganizationIds,
       authorController.updateAuthor

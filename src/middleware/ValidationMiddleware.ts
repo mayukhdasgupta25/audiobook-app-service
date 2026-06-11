@@ -503,14 +503,15 @@ export class ValidationMiddleware {
       }
     }
 
-    // Validate avatar URL if provided
-    if (avatar !== undefined) {
+    const hasAvatarUpload = Boolean((req as any).avatarFile);
+
+    // Validate avatar URL if provided (skip when multipart file is uploaded)
+    if (avatar !== undefined && !hasAvatarUpload) {
       if (typeof avatar !== 'string' || avatar.length > 500) {
         ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.avatar_url'));
         return;
       }
       try {
-        // Basic URL validation
         new URL(avatar);
       } catch {
         ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.avatar_url'));
@@ -526,11 +527,11 @@ export class ValidationMiddleware {
       }
     }
 
-    // Must have at least one updatable field
+    // Must have at least one updatable field (including optional avatar file upload)
     if (
       [username, firstName, lastName, avatar, gender, location, age, preferences].every(
         v => v === undefined
-      )
+      ) && !hasAvatarUpload
     ) {
       ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.no_update_fields'));
       return;
@@ -1156,8 +1157,9 @@ export class ValidationMiddleware {
       req.body.contact = trimmedContact;
     }
 
-    // Must have at least one field to update
-    if ([firstName, lastName, address, contact, req.body.organizationIds].every(v => v === undefined)) {
+    // Must have at least one field to update (including optional profile image upload)
+    const hasProfileImageUpload = Boolean((req as any).profileImageFile);
+    if ([firstName, lastName, address, contact, req.body.organizationIds].every(v => v === undefined) && !hasProfileImageUpload) {
       ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.no_update_fields'));
       return;
     }

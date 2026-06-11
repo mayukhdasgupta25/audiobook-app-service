@@ -17,6 +17,7 @@ export interface AuthorDto {
    lastName: string;
    address?: string | null;
    contact?: string | null;
+   profileImage?: string | null;
    organizations?: OrganizationSummary[];
    createdAt: Date;
    updatedAt: Date;
@@ -28,6 +29,7 @@ export interface CreateAuthorDto {
    lastName: string;
    address?: string;
    contact?: string;
+   profileImage?: string;
    organizationIds?: string[];
 }
 
@@ -36,6 +38,7 @@ export interface UpdateAuthorDto {
    lastName?: string;
    address?: string;
    contact?: string;
+   profileImage?: string;
    organizationIds?: string[];
 }
 
@@ -76,6 +79,7 @@ export function toAuthorDto(author: PrismaAuthor | AuthorWithOrganizations): Aut
       lastName: author.lastName,
       address: author.address ?? null,
       contact: author.contact ?? null,
+      profileImage: author.profileImage ?? null,
       createdAt: author.createdAt,
       updatedAt: author.updatedAt,
    };

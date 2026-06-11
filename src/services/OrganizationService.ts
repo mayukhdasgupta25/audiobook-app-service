@@ -9,17 +9,20 @@
  * An audiobook always belongs to a single organization, and a user can
  * only see audiobooks of organizations they are a member of.
  */
-import { Prisma, PrismaClient, OrganizationRole } from '@prisma/client';
+import { OrganizationTeamSize, Prisma, PrismaClient, OrganizationRole } from '@prisma/client';
 import {
    OrganizationDto,
    OrganizationMemberDto,
+   OrganizationTeamSizeType,
    CreateOrganizationDto,
    UpdateOrganizationDto,
+   parseTeamSizeFromApi,
    toOrganizationDto,
    toOrganizationMemberDto,
 } from '../models/OrganizationDto';
 import { ApiError } from '../types/ApiError';
 import { MessageHandler } from '../utils/MessageHandler';
+import { fileUrlService } from './FileUrlService';
 
 // Roles that may administer (rename / delete / manage members) an org.
 const ADMIN_ROLES: OrganizationRole[] = [
@@ -62,6 +65,10 @@ export class OrganizationService {
          );
       }
 
+      const preferredGenreName = this.normalizePreferredGenreName(data.preferredGenre);
+      const websiteUrl = this.normalizeWebsiteUrl(data.websiteUrl);
+      const teamSize = this.normalizeTeamSize(data.teamSize);
+
       try {
          const organization = await this.prisma.$transaction(async (tx) => {
             const existing = await tx.organization.findUnique({
@@ -73,11 +80,19 @@ export class OrganizationService {
                );
             }
 
+            const preferredGenre = preferredGenreName
+               ? await this.resolvePreferredGenreName(tx, preferredGenreName)
+               : null;
+
             const created = await tx.organization.create({
                data: {
                   name,
                   slug,
                   description: data.description?.trim() || null,
+                  image: data.image ?? null,
+                  preferredGenre,
+                  websiteUrl,
+                  teamSize,
                },
             });
 
@@ -94,7 +109,7 @@ export class OrganizationService {
             return created;
          });
 
-         return toOrganizationDto(organization);
+         return fileUrlService.resolveOrganizationMedia(toOrganizationDto(organization));
       } catch (error) {
          if (error instanceof ApiError) {
             throw error;
@@ -134,8 +149,9 @@ export class OrganizationService {
             this.prisma.organization.count(),
          ]);
 
+         const dtos = organizations.map(toOrganizationDto);
          return {
-            organizations: organizations.map(toOrganizationDto),
+            organizations: await fileUrlService.resolveOrganizationMediaList(dtos),
             totalCount,
          };
       } catch (_error) {
@@ -155,7 +171,16 @@ export class OrganizationService {
             include: { organization: true },
             orderBy: { joinedAt: 'desc' },
          });
-         return memberships.map(toOrganizationMemberDto);
+         const memberDtos = memberships.map(toOrganizationMemberDto);
+         return Promise.all(
+            memberDtos.map(async (member) => {
+               if (!member.organization) {
+                  return member;
+               }
+               const organization = await fileUrlService.resolveOrganizationMedia(member.organization);
+               return { ...member, organization };
+            })
+         );
       } catch (_error) {
          throw ApiError.internalError(
             MessageHandler.getErrorMessage('organizations.fetch_failed')
@@ -177,7 +202,7 @@ export class OrganizationService {
                MessageHandler.getErrorMessage('organizations.not_found')
             );
          }
-         return toOrganizationDto(organization);
+         return fileUrlService.resolveOrganizationMedia(toOrganizationDto(organization));
       } catch (error) {
          if (error instanceof ApiError) {
             throw error;
@@ -226,6 +251,25 @@ export class OrganizationService {
          updates.description = data.description.trim() || null;
       }
 
+      if (data.image !== undefined) {
+         updates.image = data.image;
+      }
+
+      if (data.preferredGenre !== undefined) {
+         const preferredGenreName = this.normalizePreferredGenreName(data.preferredGenre);
+         updates.preferredGenre = preferredGenreName
+            ? await this.resolvePreferredGenreName(this.prisma, preferredGenreName)
+            : null;
+      }
+
+      if (data.websiteUrl !== undefined) {
+         updates.websiteUrl = this.normalizeWebsiteUrl(data.websiteUrl);
+      }
+
+      if (data.teamSize !== undefined) {
+         updates.teamSize = this.normalizeTeamSize(data.teamSize);
+      }
+
       if (Object.keys(updates).length === 0) {
          throw ApiError.validationError(
             MessageHandler.getErrorMessage('validation.no_update_fields')
@@ -247,7 +291,7 @@ export class OrganizationService {
             data: updates,
          });
 
-         return toOrganizationDto(updated);
+         return fileUrlService.resolveOrganizationMedia(toOrganizationDto(updated));
       } catch (error) {
          if (error instanceof ApiError) {
             throw error;
@@ -334,7 +378,11 @@ export class OrganizationService {
             include: { organization: true },
          });
 
-         return toOrganizationMemberDto(member);
+         const dto = toOrganizationMemberDto(member);
+         if (dto.organization) {
+            dto.organization = await fileUrlService.resolveOrganizationMedia(dto.organization);
+         }
+         return dto;
       } catch (error) {
          if (error instanceof ApiError) {
             throw error;
@@ -425,7 +473,11 @@ export class OrganizationService {
             include: { organization: true },
          });
 
-         return toOrganizationMemberDto(updated);
+         const dto = toOrganizationMemberDto(updated);
+         if (dto.organization) {
+            dto.organization = await fileUrlService.resolveOrganizationMedia(dto.organization);
+         }
+         return dto;
       } catch (error) {
          if (error instanceof ApiError) {
             throw error;
@@ -549,4 +601,84 @@ export class OrganizationService {
          .replace(/^-+|-+$/g, '')
          .slice(0, 60);
    }
+
+   private normalizePreferredGenreName(
+      value: string | null | undefined
+   ): string | null {
+      if (value === undefined || value === null) {
+         return null;
+      }
+      const trimmed = value.trim();
+      return trimmed.length > 0 ? trimmed : null;
+   }
+
+   private async resolvePreferredGenreName(
+      client: PrismaClient | Prisma.TransactionClient,
+      genreName: string
+   ): Promise<string> {
+      const genre = await client.genre.findFirst({
+         where: { name: { equals: genreName, mode: 'insensitive' } },
+         select: { name: true },
+      });
+
+      if (!genre) {
+         throw ApiError.notFound(
+            MessageHandler.getErrorMessage('organizations.preferred_genre_not_found')
+         );
+      }
+
+      return genre.name;
+   }
+
+   private normalizeWebsiteUrl(value: string | null | undefined): string | null {
+      if (value === undefined || value === null) {
+         return null;
+      }
+
+      const trimmed = value.trim();
+      if (trimmed.length === 0) {
+         return null;
+      }
+
+      if (trimmed.length > 500) {
+         throw ApiError.validationError(
+            MessageHandler.getErrorMessage('organizations.website_url_invalid')
+         );
+      }
+
+      try {
+         const parsed = new URL(trimmed);
+         if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+            throw new Error('invalid protocol');
+         }
+      } catch {
+         throw ApiError.validationError(
+            MessageHandler.getErrorMessage('organizations.website_url_invalid')
+         );
+      }
+
+      return trimmed;
+   }
+
+   private normalizeTeamSize(
+      value: OrganizationTeamSizeType | null | undefined
+   ): OrganizationTeamSize | null {
+      if (value === undefined || value === null) {
+         return null;
+      }
+
+      const trimmed = String(value).trim() as OrganizationTeamSizeType;
+      if (trimmed.length === 0) {
+         return null;
+      }
+
+      try {
+         return parseTeamSizeFromApi(trimmed);
+      } catch {
+         throw ApiError.validationError(
+            MessageHandler.getErrorMessage('organizations.team_size_invalid')
+         );
+      }
+   }
+
 }

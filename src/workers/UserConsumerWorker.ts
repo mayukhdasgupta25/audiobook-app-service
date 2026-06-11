@@ -75,11 +75,20 @@ export class UserConsumerWorker {
             throw new Error('Invalid message: userId is required and must be a string');
          }
 
-         // Prepare options with firstName and lastName if present
          const options: {
             firstName?: string;
             lastName?: string;
+            address?: string;
+            contact?: string;
+            avatar?: string;
          } = {};
+
+         if (message.address && typeof message.address === 'string') {
+            options.address = message.address;
+         }
+         if (message.contact && typeof message.contact === 'string') {
+            options.contact = message.contact;
+         }
 
          if (message.firstName && typeof message.firstName === 'string') {
             options.firstName = message.firstName;
@@ -87,8 +96,10 @@ export class UserConsumerWorker {
          if (message.lastName && typeof message.lastName === 'string') {
             options.lastName = message.lastName;
          }
+         if (message.avatar && typeof message.avatar === 'string') {
+            options.avatar = message.avatar;
+         }
 
-         // Create user profile with optional firstName and lastName
          const result = await this.userProfileService.createUserProfile(message.userId, options);
 
          if (result.success) {

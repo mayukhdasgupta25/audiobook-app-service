@@ -18,6 +18,8 @@ model UserProfile {
   firstName String?
   lastName  String?
   avatar    String? // URL to profile picture
+  address   String?
+  contact   String?
   gender    Gender?
   location  String?
   age       Int?
@@ -166,8 +168,9 @@ model Author {
   userId    String  @unique
   firstName String
   lastName  String
-  address   String?
-  contact   String?
+  address      String?
+  contact      String?
+  profileImage String? // URL/path to profile picture
 
   // Timestamps
   createdAt DateTime @default(now())
@@ -513,7 +516,11 @@ model Organization {
   id          String  @id @default(cuid())
   name        String
   slug        String  @unique
-  description String?
+  description    String?
+  image          String? // URL/path to organization image
+  preferredGenre String? // Preferred genre name
+  websiteUrl     String?
+  teamSize       OrganizationTeamSize?
 
   // Timestamps
   createdAt DateTime @default(now())
@@ -583,6 +590,13 @@ enum OrganizationRole {
   OWNER
   ADMIN
   MEMBER
+}
+
+enum OrganizationTeamSize {
+  SIZE_1_10     @map("1-10")
+  SIZE_11_50    @map("11-50")
+  SIZE_51_200   @map("51-200")
+  SIZE_200_PLUS @map("200+")
 }
 
 enum DownloadStatus {

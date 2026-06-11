@@ -9,7 +9,17 @@ import { config } from '../config/env';
 import { getFileUrl } from '../middleware/UploadMiddleware';
 import { StorageFactory } from './storage/StorageFactory';
 import { AudioBookDto } from '../models/AudioBookDto';
+import { AuthorDto } from '../models/AuthorDto';
+import { OrganizationDto } from '../models/OrganizationDto';
+import { UserProfileDto } from '../models/UserDto';
 import { ChapterWithRelations } from '../models/ChapterDto';
+
+export type ImageKeyDirectory =
+   | 'uploads/images/audiobooks'
+   | 'uploads/images/chapters'
+   | 'uploads/images/authors'
+   | 'uploads/images/users'
+   | 'uploads/images/organizations';
 
 export class FileUrlService {
    shouldSignUrls(): boolean {
@@ -131,12 +141,13 @@ export class FileUrlService {
    }
 
    /**
-    * Process a multer-saved cover image: dev → /uploads/ URL; non-dev → S3 key.
+    * Process a multer-saved image: dev → /uploads/ URL; non-dev → S3 key.
     */
-   async processUploadedCoverFile(
+   async processUploadedImageFile(
       localPath: string,
-      keyDirectory: 'uploads/images/audiobooks' | 'uploads/images/chapters',
-      contentType = 'image/jpeg'
+      keyDirectory: ImageKeyDirectory,
+      contentType = 'image/jpeg',
+      filenamePrefix = 'image'
    ): Promise<string> {
       if (!this.shouldSignUrls()) {
          return getFileUrl(localPath);
@@ -144,9 +155,20 @@ export class FileUrlService {
 
       const ext = path.extname(localPath) || '.jpg';
       const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
-      const s3Key = `${keyDirectory}/cover-${uniqueSuffix}${ext}`;
+      const s3Key = `${keyDirectory}/${filenamePrefix}-${uniqueSuffix}${ext}`;
 
       return this.uploadLocalFileToStorage(localPath, s3Key, contentType);
+   }
+
+   /**
+    * Process a multer-saved cover image: dev → /uploads/ URL; non-dev → S3 key.
+    */
+   async processUploadedCoverFile(
+      localPath: string,
+      keyDirectory: 'uploads/images/audiobooks' | 'uploads/images/chapters',
+      contentType = 'image/jpeg'
+   ): Promise<string> {
+      return this.processUploadedImageFile(localPath, keyDirectory, contentType, 'cover');
    }
 
    async resolveAudioBookMedia<T extends AudioBookDto>(dto: T): Promise<T> {
@@ -198,6 +220,65 @@ export class FileUrlService {
          return {};
       }
       return { coverImage };
+   }
+
+   async resolveUserMedia<T extends Pick<UserProfileDto, 'avatar'>>(dto: T): Promise<T> {
+      const avatar = await this.resolveForClient(dto.avatar);
+      return {
+         ...dto,
+         avatar,
+      };
+   }
+
+   private resolveDevAuthorProfileImage(stored: string): string {
+      const key = this.normalizeToS3Key(stored);
+      if (!key) {
+         return stored;
+      }
+
+      const relativeFromUploads = key.startsWith('uploads/') ? key.slice('uploads/'.length) : key;
+      const localFilePath = path.join(path.resolve(config.DEV_UPLOAD_DIR), relativeFromUploads);
+
+      if (fs.existsSync(localFilePath)) {
+         if (stored.startsWith('/uploads/')) {
+            return stored;
+         }
+         return `/${key}`;
+      }
+
+      const urlPath = `/${key}`;
+      return `${config.AUTH_SERVICE_URL.replace(/\/$/, '')}${urlPath}`;
+   }
+
+   async resolveAuthorMedia<T extends AuthorDto>(dto: T): Promise<T> {
+      let profileImage: string | undefined;
+
+      if (dto.profileImage) {
+         profileImage = this.shouldSignUrls()
+            ? await this.resolveForClient(dto.profileImage)
+            : this.resolveDevAuthorProfileImage(dto.profileImage);
+      }
+
+      return {
+         ...dto,
+         profileImage,
+      };
+   }
+
+   async resolveAuthorMediaList<T extends AuthorDto>(dtos: T[]): Promise<T[]> {
+      return Promise.all(dtos.map(dto => this.resolveAuthorMedia(dto)));
+   }
+
+   async resolveOrganizationMedia<T extends OrganizationDto>(dto: T): Promise<T> {
+      const image = await this.resolveForClient(dto.image);
+      return {
+         ...dto,
+         image,
+      };
+   }
+
+   async resolveOrganizationMediaList<T extends OrganizationDto>(dtos: T[]): Promise<T[]> {
+      return Promise.all(dtos.map(dto => this.resolveOrganizationMedia(dto)));
    }
 }
 

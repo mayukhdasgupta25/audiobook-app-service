@@ -14,6 +14,7 @@ import { AuthorCreationMessage } from '../types/author-events';
 import { ApiError } from '../types/ApiError';
 import { MessageHandler } from '../utils/MessageHandler';
 import { HttpStatusCode, ErrorType } from '../types/common';
+import { fileUrlService } from './FileUrlService';
 
 export class AuthorService {
    private prisma: PrismaClient;
@@ -81,7 +82,8 @@ export class AuthorService {
             orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
          });
 
-         return authors.map((author) => toAuthorDto(author));
+         const dtos = authors.map((author) => toAuthorDto(author));
+         return fileUrlService.resolveAuthorMediaList(dtos);
       } catch (_error) {
          throw new ApiError(
             MessageHandler.getErrorMessage('authors.fetch_failed'),
@@ -94,7 +96,7 @@ export class AuthorService {
    async getAuthorById(id: string): Promise<AuthorDto> {
       try {
          const author = await this.getAuthorRecord(id);
-         return toAuthorDto(author);
+         return fileUrlService.resolveAuthorMedia(toAuthorDto(author));
       } catch (error) {
          if (error instanceof ApiError) {
             throw error;
@@ -143,6 +145,10 @@ export class AuthorService {
             contact:
                message.contact !== undefined && message.contact.trim().length > 0
                   ? message.contact.trim()
+                  : null,
+            profileImage:
+               message.profileImage !== undefined && message.profileImage.trim().length > 0
+                  ? message.profileImage.trim()
                   : null,
          },
       });
@@ -201,13 +207,14 @@ export class AuthorService {
                lastName: trimmedLastName,
                address: trimmedAddress && trimmedAddress.length > 0 ? trimmedAddress : null,
                contact: trimmedContact && trimmedContact.length > 0 ? trimmedContact : null,
+               profileImage: createAuthorDto.profileImage ?? null,
             },
          });
 
          await this.syncAuthorOrganizations(author.id, createAuthorDto.organizationIds);
 
          const created = await this.getAuthorRecord(author.id);
-         return toAuthorDto(created);
+         return fileUrlService.resolveAuthorMedia(toAuthorDto(created));
       } catch (error) {
          if (error instanceof ApiError) {
             throw error;
@@ -277,6 +284,10 @@ export class AuthorService {
             updateData.contact = trimmed.length > 0 ? trimmed : null;
          }
 
+         if (updateAuthorDto.profileImage !== undefined) {
+            updateData.profileImage = updateAuthorDto.profileImage;
+         }
+
          const hasScalarUpdates = Object.keys(updateData).length > 0;
          const hasOrgUpdates = updateAuthorDto.organizationIds !== undefined;
 
@@ -298,7 +309,7 @@ export class AuthorService {
          await this.syncAuthorOrganizations(id, updateAuthorDto.organizationIds);
 
          const updated = await this.getAuthorRecord(id);
-         return toAuthorDto(updated);
+         return fileUrlService.resolveAuthorMedia(toAuthorDto(updated));
       } catch (error) {
          if (error instanceof ApiError) {
             throw error;

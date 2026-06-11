@@ -16,7 +16,63 @@ import { MessageHandler } from '../utils/MessageHandler';
 import { ApiError } from '../types/ApiError';
 import { AuthenticatedRequest } from '../types/auth';
 import { AudioBookQueryParams } from '../models/AudioBookDto';
+import {
+   CreateOrganizationDto,
+   OrganizationTeamSizeType,
+   UpdateOrganizationDto,
+} from '../models/OrganizationDto';
 import { resolveUserProfileId } from '../utils/resolveUserProfileId';
+import { fileUrlService } from '../services/FileUrlService';
+
+function parseOptionalString(value: unknown): string | undefined {
+   if (value === undefined || value === null) {
+      return undefined;
+   }
+   if (typeof value !== 'string') {
+      return undefined;
+   }
+   return value.trim();
+}
+
+function parseProfileFieldsFromBody(
+   body: Record<string, unknown>,
+   isUpdate: boolean
+): Pick<CreateOrganizationDto, 'preferredGenre' | 'websiteUrl' | 'teamSize'> {
+   const result: Pick<CreateOrganizationDto, 'preferredGenre' | 'websiteUrl' | 'teamSize'> = {};
+
+   if (body['preferredGenre'] !== undefined) {
+      const preferredGenre = parseOptionalString(body['preferredGenre']);
+      if (isUpdate) {
+         result.preferredGenre = preferredGenre && preferredGenre.length > 0
+            ? preferredGenre
+            : null;
+      } else if (preferredGenre && preferredGenre.length > 0) {
+         result.preferredGenre = preferredGenre;
+      }
+   }
+
+   if (body['websiteUrl'] !== undefined) {
+      const websiteUrl = parseOptionalString(body['websiteUrl']);
+      if (isUpdate) {
+         result.websiteUrl = websiteUrl && websiteUrl.length > 0 ? websiteUrl : null;
+      } else if (websiteUrl && websiteUrl.length > 0) {
+         result.websiteUrl = websiteUrl;
+      }
+   }
+
+   if (body['teamSize'] !== undefined) {
+      const teamSize = parseOptionalString(body['teamSize']);
+      if (isUpdate) {
+         result.teamSize = teamSize && teamSize.length > 0
+            ? (teamSize as OrganizationTeamSizeType)
+            : null;
+      } else if (teamSize && teamSize.length > 0) {
+         result.teamSize = teamSize as OrganizationTeamSizeType;
+      }
+   }
+
+   return result;
+}
 
 /**
  * Check if the authenticated user is a global admin (e.g. role from JWT
@@ -91,7 +147,7 @@ export class OrganizationController {
     *     requestBody:
     *       required: true
     *       content:
-    *         application/json:
+    *         multipart/form-data:
     *           schema:
     *             type: object
     *             required: [name]
@@ -99,6 +155,20 @@ export class OrganizationController {
     *               name: { type: string }
     *               slug: { type: string }
     *               description: { type: string }
+    *               image:
+    *                 type: string
+    *                 format: binary
+    *                 description: Optional organization image (max 50MB)
+    *               preferredGenre:
+    *                 type: string
+    *                 description: Optional preferred genre name (0 or 1 genre)
+    *               websiteUrl:
+    *                 type: string
+    *                 description: Optional organization website URL
+    *               teamSize:
+    *                 type: string
+    *                 enum: ['1-10', '11-50', '51-200', '200+']
+    *                 description: Optional team size bucket
     *     responses:
     *       201: { description: Organization created successfully }
     *       400: { $ref: '#/components/responses/ValidationError' }
@@ -107,8 +177,24 @@ export class OrganizationController {
    createOrganization = ErrorHandler.asyncHandler(
       async (req: Request, res: Response): Promise<void> => {
          const userProfileId = await resolveUserProfileId(this.prisma, req);
+         const uploadedImage = (req as any).organizationImageFile as Express.Multer.File | undefined;
+
+         const image = uploadedImage
+            ? await fileUrlService.processUploadedImageFile(
+               uploadedImage.path,
+               'uploads/images/organizations',
+               uploadedImage.mimetype || 'image/jpeg'
+            )
+            : undefined;
+
+         const createData: CreateOrganizationDto = {
+            ...req.body,
+            image,
+            ...parseProfileFieldsFromBody(req.body, false),
+         };
+
          const created = await this.organizationService.createOrganization(
-            req.body,
+            createData,
             userProfileId
          );
          ResponseHandler.success(
@@ -224,13 +310,27 @@ export class OrganizationController {
     *     requestBody:
     *       required: true
     *       content:
-    *         application/json:
+    *         multipart/form-data:
     *           schema:
     *             type: object
     *             properties:
     *               name: { type: string }
     *               slug: { type: string }
     *               description: { type: string }
+    *               image:
+    *                 type: string
+    *                 format: binary
+    *                 description: Optional organization image (max 50MB)
+    *               preferredGenre:
+    *                 type: string
+    *                 description: Optional preferred genre name; send empty to clear
+    *               websiteUrl:
+    *                 type: string
+    *                 description: Optional organization website URL; send empty to clear
+    *               teamSize:
+    *                 type: string
+    *                 enum: ['1-10', '11-50', '51-200', '200+']
+    *                 description: Optional team size bucket; send empty to clear
     *     responses:
     *       200: { description: Organization updated successfully }
     *       403: { $ref: '#/components/responses/ForbiddenError' }
@@ -240,9 +340,24 @@ export class OrganizationController {
       async (req: Request, res: Response): Promise<void> => {
          const { id } = req.params as { id: string };
          await this.assertOrgAdmin(req, id);
+
+         const uploadedImage = (req as any).organizationImageFile as Express.Multer.File | undefined;
+         const updateData: UpdateOrganizationDto = {
+            ...req.body,
+            ...parseProfileFieldsFromBody(req.body, true),
+         };
+
+         if (uploadedImage) {
+            updateData.image = await fileUrlService.processUploadedImageFile(
+               uploadedImage.path,
+               'uploads/images/organizations',
+               uploadedImage.mimetype || 'image/jpeg'
+            );
+         }
+
          const updated = await this.organizationService.updateOrganization(
             id,
-            req.body
+            updateData
          );
          ResponseHandler.success(
             res,

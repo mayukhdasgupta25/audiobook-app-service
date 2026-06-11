@@ -20,6 +20,7 @@ import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { OrganizationController } from '../controllers/OrganizationController';
 import { ValidationMiddleware } from '../middleware/ValidationMiddleware';
+import { UploadMiddleware } from '../middleware/UploadMiddleware';
 
 export function createOrganizationRoutes(prisma: PrismaClient): Router {
    const router = Router();
@@ -32,10 +33,10 @@ export function createOrganizationRoutes(prisma: PrismaClient): Router {
       ValidationMiddleware.sanitizeQueryParams,
       controller.listAllOrganizations
    );
-   router.post('/', controller.createOrganization);
+   router.post('/', UploadMiddleware.handleOptionalOrganizationImageUpload, controller.createOrganization);
 
    router.get('/:id', controller.getOrganizationById);
-   router.put('/:id', controller.updateOrganization);
+   router.put('/:id', UploadMiddleware.handleOptionalOrganizationImageUpload, controller.updateOrganization);
    router.delete('/:id', controller.deleteOrganization);
 
    router.get('/:id/members', controller.listMembers);

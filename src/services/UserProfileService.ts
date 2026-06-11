@@ -5,6 +5,7 @@
 import { Gender, PrismaClient } from '@prisma/client';
 import { UsernameGenerator } from '../utils/UsernameGenerator';
 import { UserProfileCreationResult } from '../types/user-events';
+import { fileUrlService } from './FileUrlService';
 
 export class UserProfileService {
    private prisma: PrismaClient;
@@ -23,6 +24,9 @@ export class UserProfileService {
       options?: {
          firstName?: string;
          lastName?: string;
+         address?: string;
+         contact?: string;
+         avatar?: string;
       }
    ): Promise<UserProfileCreationResult> {
       try {
@@ -42,12 +46,21 @@ export class UserProfileService {
          // Generate unique username
          const usernameResult = await this.usernameGenerator.generateUniqueUsername();
 
-         // Prepare profile data with optional firstName and lastName
+         if (options?.address !== undefined && options.address.trim().length === 0) {
+            return { success: false, error: 'Address cannot be empty when provided' };
+         }
+         if (options?.contact !== undefined && options.contact.trim().length === 0) {
+            return { success: false, error: 'Contact cannot be empty when provided' };
+         }
+
          const profileData: {
             userId: string;
             username: string;
             firstName?: string;
             lastName?: string;
+            address?: string;
+            contact?: string;
+            avatar?: string;
             preferences: {
                theme: string;
                language: string;
@@ -71,6 +84,15 @@ export class UserProfileService {
          }
          if (options?.lastName) {
             profileData.lastName = options.lastName;
+         }
+         if (options?.address) {
+            profileData.address = options.address.trim();
+         }
+         if (options?.contact) {
+            profileData.contact = options.contact.trim();
+         }
+         if (options?.avatar) {
+            profileData.avatar = options.avatar;
          }
 
          // Create user profile
@@ -114,6 +136,8 @@ export class UserProfileService {
                firstName: true,
                lastName: true,
                avatar: true,
+               address: true,
+               contact: true,
                gender: true,
                location: true,
                age: true,
@@ -123,7 +147,15 @@ export class UserProfileService {
             }
          });
 
-         return userProfile;
+         if (!userProfile) {
+            return userProfile;
+         }
+
+         const avatar = await fileUrlService.resolveForClient(userProfile.avatar);
+         return {
+            ...userProfile,
+            ...(avatar !== undefined ? { avatar } : {}),
+         };
       } catch (error: any) {
          // console.error(`Failed to get user profile for userId: ${userId}`, error);
          throw error;
@@ -138,6 +170,8 @@ export class UserProfileService {
       firstName?: string;
       lastName?: string;
       avatar?: string;
+      address?: string;
+      contact?: string;
       gender?: Gender | null;
       location?: string | null;
       age?: number | null;
@@ -154,6 +188,8 @@ export class UserProfileService {
                firstName: true,
                lastName: true,
                avatar: true,
+               address: true,
+               contact: true,
                gender: true,
                location: true,
                age: true,
@@ -162,7 +198,11 @@ export class UserProfileService {
             }
          });
 
-         return userProfile;
+         const avatar = await fileUrlService.resolveForClient(userProfile.avatar);
+         return {
+            ...userProfile,
+            ...(avatar !== undefined ? { avatar } : {}),
+         };
       } catch (error: any) {
          // console.error(`Failed to update user profile for userId: ${userId}`, error);
          throw error;

@@ -15,6 +15,8 @@ export interface UserProfileDto {
    firstName?: string | undefined;
    lastName?: string | undefined;
    avatar?: string | undefined;
+   address?: string | undefined;
+   contact?: string | undefined;
    gender?: Gender | undefined;
    location?: string | undefined;
    age?: number | undefined;
@@ -31,6 +33,8 @@ export interface CreateUserProfileDto {
    firstName?: string;
    lastName?: string;
    avatar?: string;
+   address?: string;
+   contact?: string;
    gender?: Gender;
    location?: string;
    age?: number;
@@ -72,6 +76,8 @@ export function toUserProfileDto(profile: PrismaUserProfile): UserProfileDto {
       firstName: profile.firstName || undefined,
       lastName: profile.lastName || undefined,
       avatar: profile.avatar || undefined,
+      address: profile.address || undefined,
+      contact: profile.contact || undefined,
       gender: profile.gender ?? undefined,
       location: profile.location ?? undefined,
       age: profile.age ?? undefined,
