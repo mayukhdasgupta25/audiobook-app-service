@@ -48,6 +48,12 @@ const buildMockPrisma = () => {
          findUnique: jest.fn(),
          findFirst: jest.fn(),
       },
+      author: {
+         findUnique: jest.fn(),
+      },
+      authorOrganization: {
+         findUnique: jest.fn(),
+      },
       $transaction: jest.fn(async (cb: any) => cb(prisma)),
    };
    return prisma;
@@ -567,6 +573,44 @@ describe('OrganizationService', () => {
             'o1',
             'o2',
          ]);
+      });
+
+      it('isAuthorLinkedToOrganization returns true when author is linked to org', async () => {
+         mockPrisma.author.findUnique.mockResolvedValue({ id: 'author-1' });
+         mockPrisma.authorOrganization.findUnique.mockResolvedValue({ id: 'link-1' });
+
+         expect(await service.isAuthorLinkedToOrganization('auth-user-1', 'org-1')).toBe(true);
+      });
+
+      it('isAuthorLinkedToOrganization returns false when author profile is missing', async () => {
+         mockPrisma.author.findUnique.mockResolvedValue(null);
+
+         expect(await service.isAuthorLinkedToOrganization('auth-user-1', 'org-1')).toBe(false);
+         expect(mockPrisma.authorOrganization.findUnique).not.toHaveBeenCalled();
+      });
+
+      it('canCreateAudiobook allows global admin without org membership', async () => {
+         expect(
+            await service.canCreateAudiobook('auth-user-1', undefined, 'org-1', 'ADMIN'),
+         ).toBe(true);
+      });
+
+      it('canCreateAudiobook allows author linked to target organization', async () => {
+         mockPrisma.author.findUnique.mockResolvedValue({ id: 'author-1' });
+         mockPrisma.authorOrganization.findUnique.mockResolvedValue({ id: 'link-1' });
+
+         expect(
+            await service.canCreateAudiobook('auth-user-1', 'profile-1', 'org-1', 'AUTHOR'),
+         ).toBe(true);
+      });
+
+      it('canCreateAudiobook denies author not linked to target organization', async () => {
+         mockPrisma.author.findUnique.mockResolvedValue({ id: 'author-1' });
+         mockPrisma.authorOrganization.findUnique.mockResolvedValue(null);
+
+         expect(
+            await service.canCreateAudiobook('auth-user-1', 'profile-1', 'org-1', 'AUTHOR'),
+         ).toBe(false);
       });
    });
 });

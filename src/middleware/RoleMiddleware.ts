@@ -55,3 +55,11 @@ export function requireAdmin() {
 export function requireUserOrAdmin() {
    return requireRole([...AuthRoleGroups.USER_ADMIN_AUTHOR]);
 }
+
+/**
+ * Require Admin or Author role
+ * Convenience middleware for content creation routes
+ */
+export function requireAdminOrAuthor() {
+   return requireRole([...AuthRoleGroups.ADMIN_OR_AUTHOR]);
+}

@@ -2,6 +2,7 @@ export {
    AuthRole,
    AuthRoleGroups,
    isGlobalAdminRole,
+   isGlobalAuthorRole,
    normalizeAuthRole,
 } from './authRoles';
 
