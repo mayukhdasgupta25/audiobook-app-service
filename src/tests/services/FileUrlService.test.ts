@@ -127,14 +127,16 @@ describe('FileUrlService', () => {
    });
 
    describe('resolveAuthorMedia development mode', () => {
-      const existsSyncSpy = jest.spyOn(require('fs'), 'existsSync');
+      let existsSyncSpy: jest.SpyInstance;
 
       afterEach(() => {
-         existsSyncSpy.mockReset();
+         existsSyncSpy?.mockRestore();
          jest.resetModules();
       });
 
       it('returns local /uploads path when author image exists in app-service storage', async () => {
+         jest.resetModules();
+
          jest.doMock('../../config/env', () => ({
             config: {
                NODE_ENV: 'development',
@@ -150,9 +152,10 @@ describe('FileUrlService', () => {
             getFileUrl: (filePath: string) => `/uploads${filePath.replace('./src/uploads', '')}`,
          }));
 
-         existsSyncSpy.mockReturnValue(true);
+         existsSyncSpy = jest.spyOn(require('fs'), 'existsSync').mockReturnValue(true);
 
-         const { fileUrlService: devFileUrlService } = require('../../services/FileUrlService');
+         const { FileUrlService: DevFileUrlService } = require('../../services/FileUrlService');
+         const devFileUrlService = new DevFileUrlService();
          const result = await devFileUrlService.resolveAuthorMedia({
             id: 'author-1',
             userId: 'user-1',
@@ -167,6 +170,8 @@ describe('FileUrlService', () => {
       });
 
       it('returns AUTH_SERVICE_URL path when image is stored in auth-service only', async () => {
+         jest.resetModules();
+
          jest.doMock('../../config/env', () => ({
             config: {
                NODE_ENV: 'development',
@@ -182,9 +187,10 @@ describe('FileUrlService', () => {
             getFileUrl: (filePath: string) => `/uploads${filePath.replace('./src/uploads', '')}`,
          }));
 
-         existsSyncSpy.mockReturnValue(false);
+         existsSyncSpy = jest.spyOn(require('fs'), 'existsSync').mockReturnValue(false);
 
-         const { fileUrlService: devFileUrlService } = require('../../services/FileUrlService');
+         const { FileUrlService: DevFileUrlService } = require('../../services/FileUrlService');
+         const devFileUrlService = new DevFileUrlService();
          const result = await devFileUrlService.resolveAuthorMedia({
             id: 'author-1',
             userId: 'user-1',
@@ -196,6 +202,7 @@ describe('FileUrlService', () => {
          });
 
          expect(result.profileImage).toBe('http://localhost:8080/uploads/images/authors/image-1.jpg');
+         expect(existsSyncSpy).toHaveBeenCalled();
       });
    });
 
