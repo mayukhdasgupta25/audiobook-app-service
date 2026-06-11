@@ -11,6 +11,7 @@ jest.mock('../../config/env', () => ({
       AWS_S3_ENDPOINT: '',
       AWS_SIGNED_URL_EXPIRES_IN: 3600,
       DEV_UPLOAD_DIR: './src/uploads',
+      AUTH_SERVICE_URL: 'http://localhost:8080',
    },
 }));
 
@@ -122,6 +123,86 @@ describe('FileUrlService', () => {
          });
 
          expect(result.profileImage).toBe('https://signed.example/object');
+      });
+   });
+
+   describe('resolveAuthorMedia development mode', () => {
+      let existsSyncSpy: jest.SpyInstance;
+
+      afterEach(() => {
+         existsSyncSpy?.mockRestore();
+         jest.resetModules();
+      });
+
+      it('returns local /uploads path when author image exists in app-service storage', async () => {
+         jest.resetModules();
+
+         jest.doMock('../../config/env', () => ({
+            config: {
+               NODE_ENV: 'development',
+               AWS_S3_BUCKET: 'test-bucket',
+               AWS_S3_ENDPOINT: '',
+               AWS_SIGNED_URL_EXPIRES_IN: 3600,
+               DEV_UPLOAD_DIR: './src/uploads',
+               AUTH_SERVICE_URL: 'http://localhost:8080',
+            },
+         }));
+
+         jest.doMock('../../middleware/UploadMiddleware', () => ({
+            getFileUrl: (filePath: string) => `/uploads${filePath.replace('./src/uploads', '')}`,
+         }));
+
+         existsSyncSpy = jest.spyOn(require('fs'), 'existsSync').mockReturnValue(true);
+
+         const { FileUrlService: DevFileUrlService } = require('../../services/FileUrlService');
+         const devFileUrlService = new DevFileUrlService();
+         const result = await devFileUrlService.resolveAuthorMedia({
+            id: 'author-1',
+            userId: 'user-1',
+            firstName: 'Jane',
+            lastName: 'Doe',
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            profileImage: '/uploads/images/authors/image-1.jpg',
+         });
+
+         expect(result.profileImage).toBe('/uploads/images/authors/image-1.jpg');
+      });
+
+      it('returns AUTH_SERVICE_URL path when image is stored in auth-service only', async () => {
+         jest.resetModules();
+
+         jest.doMock('../../config/env', () => ({
+            config: {
+               NODE_ENV: 'development',
+               AWS_S3_BUCKET: 'test-bucket',
+               AWS_S3_ENDPOINT: '',
+               AWS_SIGNED_URL_EXPIRES_IN: 3600,
+               DEV_UPLOAD_DIR: './src/uploads',
+               AUTH_SERVICE_URL: 'http://localhost:8080',
+            },
+         }));
+
+         jest.doMock('../../middleware/UploadMiddleware', () => ({
+            getFileUrl: (filePath: string) => `/uploads${filePath.replace('./src/uploads', '')}`,
+         }));
+
+         existsSyncSpy = jest.spyOn(require('fs'), 'existsSync').mockReturnValue(false);
+
+         const { FileUrlService: DevFileUrlService } = require('../../services/FileUrlService');
+         const devFileUrlService = new DevFileUrlService();
+         const result = await devFileUrlService.resolveAuthorMedia({
+            id: 'author-1',
+            userId: 'user-1',
+            firstName: 'Jane',
+            lastName: 'Doe',
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            profileImage: '/uploads/images/authors/image-1.jpg',
+         });
+
+         expect(result.profileImage).toBe('http://localhost:8080/uploads/images/authors/image-1.jpg');
+         expect(existsSyncSpy).toHaveBeenCalled();
       });
    });
 
