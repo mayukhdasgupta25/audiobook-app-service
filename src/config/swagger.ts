@@ -25,27 +25,33 @@ const options: swaggerJsdoc.Options = {
       },
       servers: [
          {
-            url: `http://localhost:${config.PORT}/api`,
+            url: `http://localhost:${config.PORT}`,
             description: 'Development server'
          },
          {
-            url: 'https://api.audiobook.com/api',
+            url: 'https://api.audiobook.com',
             description: 'Production server'
          }
       ],
       components: {
          securitySchemes: {
+            bearerAuth: {
+               type: 'http',
+               scheme: 'bearer',
+               bearerFormat: 'JWT',
+               description: 'JWT access token from auth-service (Authorization: Bearer <token>)'
+            },
             sessionAuth: {
                type: 'apiKey',
                in: 'cookie',
                name: 'connect.sid',
-               description: 'Session-based authentication using express-session cookies'
+               description: 'Legacy session cookie (prefer bearerAuth for v1 API)'
             },
             csrfToken: {
                type: 'apiKey',
                in: 'header',
                name: 'X-CSRF-Token',
-               description: 'CSRF token for state-changing operations'
+               description: 'CSRF token for auth-service cookie flows'
             }
          },
          schemas: {
@@ -62,15 +68,17 @@ const options: swaggerJsdoc.Options = {
                   id: {
                      type: 'string',
                      description: 'Auth-service Author or Organization id',
+                     example: 'corg1234567890abcdefghij',
                   },
                },
+               example: { type: 'ORGANIZATION', id: 'corg1234567890abcdefghij' },
             },
             AudioBookOwner: {
                type: 'object',
                required: ['type', 'id'],
                properties: {
                   type: { $ref: '#/components/schemas/AudioBookOwnerType' },
-                  id: { type: 'string' },
+                  id: { type: 'string', example: 'corg1234567890abcdefghij' },
                   author: {
                      type: 'object',
                      nullable: true,
@@ -101,7 +109,7 @@ const options: swaggerJsdoc.Options = {
             },
             AudioBook: {
                type: 'object',
-               required: ['id', 'title', 'author', 'duration', 'fileSize', 'filePath', 'language', 'isActive', 'isPublic', 'owner'],
+               required: ['id', 'title', 'author', 'language', 'isActive', 'isPublic', 'owner'],
                properties: {
                   id: {
                      type: 'string',
@@ -213,7 +221,7 @@ const options: swaggerJsdoc.Options = {
             },
             CreateAudioBookRequest: {
                type: 'object',
-               required: ['title', 'author', 'owner', 'duration', 'fileSize', 'filePath'],
+               required: ['title', 'author', 'owner', 'genreIds', 'coverImage'],
                properties: {
                   title: {
                      type: 'string',
@@ -222,84 +230,93 @@ const options: swaggerJsdoc.Options = {
                   },
                   author: {
                      type: 'string',
-                     description: 'Author of the audiobook',
+                     description: 'Display author name on the audiobook',
                      example: 'F. Scott Fitzgerald'
+                  },
+                  owner: {
+                     $ref: '#/components/schemas/AudioBookOwnerInput',
                   },
                   narrator: {
                      type: 'string',
-                     description: 'Narrator of the audiobook',
                      example: 'Jake Gyllenhaal'
                   },
                   description: {
                      type: 'string',
-                     description: 'Description of the audiobook',
                      example: 'A classic American novel set in the Jazz Age'
                   },
-                  duration: {
-                     type: 'number',
-                     description: 'Duration in minutes',
-                     example: 180,
-                     minimum: 0
-                  },
-                  fileSize: {
-                     type: 'number',
-                     description: 'File size in bytes',
-                     example: 52428800,
-                     minimum: 0
-                  },
-                  filePath: {
-                     type: 'string',
-                     description: 'Path to the audio file',
-                     example: '/uploads/audiobooks/great-gatsby.mp3'
+                  genreIds: {
+                     type: 'array',
+                     items: { type: 'string' },
+                     description: 'At least one genre ID (JSON array or comma-separated in form-data)',
+                     example: ['cgenre1234567890abcdefgh']
                   },
                   coverImage: {
                      type: 'string',
-                     description: 'URL to the cover image',
-                     example: 'https://example.com/covers/great-gatsby.jpg'
-                  },
-                  genre: {
-                     type: 'string',
-                     description: 'Genre of the audiobook',
-                     example: 'Fiction'
+                     format: 'binary',
+                     description: 'Cover image file (required on create)'
                   },
                   language: {
                      type: 'string',
-                     description: 'Language of the audiobook',
-                     example: 'English',
-                     default: 'English'
+                     example: 'bn',
+                     default: 'bn'
                   },
-                  publisher: {
+                  publisher: { type: 'string', example: 'Penguin Random House' },
+                  publishDate: { type: 'string', format: 'date', example: '1925-04-10' },
+                  isbn: { type: 'string', example: '978-0-7432-7356-5' },
+                  isActive: { type: 'boolean', example: true, default: true },
+                  isPublic: { type: 'boolean', example: true, default: true },
+                  tagIds: {
+                     type: 'array',
+                     items: { type: 'string' },
+                     description: 'Optional tag IDs (JSON array or comma-separated in form-data)',
+                  },
+                  minSubscriptionTier: {
+                     type: 'integer',
+                     nullable: true,
+                     description: 'Optional minimum subscription tier required to access this audiobook',
+                     example: 2,
+                  },
+                  scheduledAt: {
                      type: 'string',
-                     description: 'Publisher of the audiobook',
-                     example: 'Penguin Random House'
+                     format: 'date-time',
+                     description: 'Optional future publish date; audiobook stays inactive until this time',
                   },
-                  publishDate: {
-                     type: 'string',
-                     format: 'date',
-                     description: 'Publication date',
-                     example: '1925-04-10'
-                  },
-                  isbn: {
-                     type: 'string',
-                     description: 'ISBN number',
-                     example: '978-0-7432-7356-5'
-                  },
-                  isActive: {
-                     type: 'boolean',
-                     description: 'Whether the audiobook is active',
-                     example: true,
-                     default: true
-                  },
-                  isPublic: {
-                     type: 'boolean',
-                     description: 'Whether the audiobook is publicly available',
-                     example: true,
-                     default: true
-                  },
+               },
+            },
+            CreateAudioBookFormData: {
+               type: 'object',
+               required: ['title', 'author', 'owner', 'genreIds', 'coverImage'],
+               description: 'Multipart form-data variant. Stringify JSON fields (owner, genreIds, tagIds) when sending as form fields.',
+               properties: {
+                  title: { type: 'string', example: 'My Audiobook' },
+                  author: { type: 'string', example: 'Jane Doe' },
                   owner: {
-                     $ref: '#/components/schemas/AudioBookOwnerInput',
-                  }
-               }
+                     type: 'string',
+                     description: 'JSON string {"type":"ORGANIZATION"|"AUTHOR","id":"..."}',
+                     example: '{"type":"ORGANIZATION","id":"corg1234567890abcdefghij"}',
+                  },
+                  genreIds: {
+                     type: 'string',
+                     description: 'JSON array string or comma-separated genre IDs',
+                     example: '["cgenre1234567890abcdefgh"]',
+                  },
+                  tagIds: {
+                     type: 'string',
+                     description: 'Optional. JSON array string or comma-separated tag IDs',
+                     example: '["ctag1234567890abcdefghij"]',
+                  },
+                  coverImage: { type: 'string', format: 'binary', description: 'Cover image file (required on create)' },
+                  narrator: { type: 'string', description: 'Optional narrator name' },
+                  description: { type: 'string', description: 'Optional description' },
+                  language: { type: 'string', example: 'bn', description: 'Optional language code (defaults to bn)' },
+                  publisher: { type: 'string', description: 'Optional publisher' },
+                  publishDate: { type: 'string', format: 'date', description: 'Optional publication date' },
+                  isbn: { type: 'string', description: 'Optional ISBN' },
+                  isActive: { type: 'boolean', description: 'Optional active flag (defaults to true)' },
+                  isPublic: { type: 'boolean', description: 'Optional public flag (defaults to true)' },
+                  minSubscriptionTier: { type: 'integer', description: 'Optional minimum subscription tier' },
+                  scheduledAt: { type: 'string', format: 'date-time', description: 'Optional scheduled publish time' },
+               },
             },
             UpdateAudioBookRequest: {
                type: 'object',
@@ -381,6 +398,26 @@ const options: swaggerJsdoc.Options = {
                      type: 'boolean',
                      description: 'Whether the audiobook is publicly available',
                      example: true
+                  },
+                  genreIds: {
+                     type: 'array',
+                     items: { type: 'string' },
+                     description: 'Optional genre IDs to replace current genres',
+                  },
+                  tagIds: {
+                     type: 'array',
+                     items: { type: 'string' },
+                     description: 'Optional tag IDs to replace current tags',
+                  },
+                  minSubscriptionTier: {
+                     type: 'integer',
+                     nullable: true,
+                     description: 'Optional minimum subscription tier required to access',
+                  },
+                  scheduledAt: {
+                     type: 'string',
+                     format: 'date-time',
+                     description: 'Optional scheduled publish time',
                   },
                   owner: {
                      $ref: '#/components/schemas/AudioBookOwnerInput',
@@ -744,6 +781,25 @@ const options: swaggerJsdoc.Options = {
                   timestamp: '2024-01-15T10:30:00Z'
                }
             },
+            Genre: {
+               type: 'object',
+               properties: {
+                  id: { type: 'string', example: 'cgenre1234567890abcdefgh' },
+                  name: { type: 'string', example: 'Fiction' },
+                  createdAt: { type: 'string', format: 'date-time' },
+                  updatedAt: { type: 'string', format: 'date-time' },
+               },
+            },
+            AuthorProfile: {
+               type: 'object',
+               properties: {
+                  id: { type: 'string' },
+                  authorId: { type: 'string', example: 'cauthor1234567890abcdefgh' },
+                  avatar: { type: 'string', nullable: true, example: 'https://cdn.example.com/avatar.jpg' },
+                  createdAt: { type: 'string', format: 'date-time' },
+                  updatedAt: { type: 'string', format: 'date-time' },
+               },
+            },
             PaginatedResponse: {
                type: 'object',
                properties: {
@@ -961,14 +1017,93 @@ const options: swaggerJsdoc.Options = {
                   example: 'desc'
                }
             },
+            OwnerTypeParam: {
+               name: 'ownerType',
+               in: 'query',
+               description: 'Filter by polymorphic owner type',
+               schema: { type: 'string', enum: ['AUTHOR', 'ORGANIZATION'], example: 'ORGANIZATION' },
+            },
+            OwnerIdParam: {
+               name: 'ownerId',
+               in: 'query',
+               description: 'Filter by owner id (auth-service Author or Organization id)',
+               schema: { type: 'string', example: 'corg1234567890abcdefghij' },
+            },
+            OwnerIdsParam: {
+               name: 'ownerIds',
+               in: 'query',
+               description: 'Comma-separated owner ids (same ownerType)',
+               schema: { type: 'string', example: 'corg1234567890abcdefghij,corg0987654321abcdefghij' },
+            },
             GenreParam: {
                name: 'genre',
                in: 'query',
-               description: 'Filter by genre',
+               description: 'Deprecated — use genreIds or genreId instead',
                required: false,
+               deprecated: true,
                schema: {
                   type: 'string',
                   example: 'Fiction'
+               }
+            },
+            GenreIdsParam: {
+               name: 'genreIds',
+               in: 'query',
+               description: 'Optional comma-separated genre IDs to filter by',
+               required: false,
+               schema: {
+                  type: 'string',
+                  example: 'cgenre1234567890abcdefgh,cgenre0987654321abcdefgh'
+               }
+            },
+            GenreIdParam: {
+               name: 'genreId',
+               in: 'query',
+               description: 'Optional single genre ID filter (alternative to genreIds)',
+               required: false,
+               schema: {
+                  type: 'string',
+                  example: 'cgenre1234567890abcdefgh'
+               }
+            },
+            MoodIdsParam: {
+               name: 'moodIds',
+               in: 'query',
+               description: 'Optional comma-separated mood IDs (alternative to moodId)',
+               required: false,
+               schema: {
+                  type: 'string',
+                  example: 'cmood1234567890abcdefghij,cmood0987654321abcdefghij'
+               }
+            },
+            ActiveParam: {
+               name: 'active',
+               in: 'query',
+               description: 'Optional filter for active audiobooks only (true) or inactive only (false)',
+               required: false,
+               schema: {
+                  type: 'boolean',
+                  example: true
+               }
+            },
+            ScheduledParam: {
+               name: 'scheduled',
+               in: 'query',
+               description: 'Optional filter for scheduled (future) audiobooks when true',
+               required: false,
+               schema: {
+                  type: 'boolean',
+                  example: false
+               }
+            },
+            StreamingUserQueryParam: {
+               name: 'user',
+               in: 'query',
+               description: 'Optional user ID for proxy auth when Bearer token is not used (app-service forwards as user_id header)',
+               required: false,
+               schema: {
+                  type: 'string',
+                  example: 'cuser1234567890abcdefghij'
                }
             },
             MoodIdParam: {
@@ -1164,12 +1299,30 @@ const options: swaggerJsdoc.Options = {
                   }
                }
             },
+            NotFoundError: {
+               $ref: '#/components/responses/NotFound'
+            },
             Forbidden: {
                description: 'Access forbidden',
                content: {
                   'application/json': {
                      schema: {
                         $ref: '#/components/schemas/ErrorResponse'
+                     }
+                  }
+               }
+            },
+            UnauthorizedError: {
+               description: 'Authentication required or token invalid',
+               content: {
+                  'application/json': {
+                     schema: {
+                        $ref: '#/components/schemas/ErrorResponse'
+                     },
+                     example: {
+                        success: false,
+                        message: 'Unauthorized',
+                        timestamp: '2024-01-15T10:30:00Z'
                      }
                   }
                }
@@ -1183,6 +1336,14 @@ const options: swaggerJsdoc.Options = {
                      }
                   }
                }
+            },
+            ForbiddenError: {
+               description: 'Access forbidden',
+               content: {
+                  'application/json': {
+                     schema: { $ref: '#/components/schemas/ErrorResponse' },
+                  },
+               },
             },
             InternalServerError: {
                description: 'Internal server error',
@@ -1226,8 +1387,16 @@ const options: swaggerJsdoc.Options = {
             description: 'User playlists and playlist items'
          },
          {
-            name: 'Authors',
-            description: 'Author management and organization links'
+            name: 'Organizations',
+            description: 'Organization catalog and audiobook listings'
+         },
+         {
+            name: 'AuthorProfiles',
+            description: 'App-service author profile (avatar) linked to auth-service Author'
+         },
+         {
+            name: 'Streaming',
+            description: 'HLS streaming proxy to streaming-service'
          },
          {
             name: 'Health',
@@ -1237,6 +1406,7 @@ const options: swaggerJsdoc.Options = {
    },
    apis: [
       './src/routes/*.ts',
+      './src/docs/*.ts',
       './src/controllers/*.ts'
    ]
 };

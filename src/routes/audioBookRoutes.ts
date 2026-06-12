@@ -24,19 +24,27 @@ export function createAudioBookRoutes(prisma: PrismaClient): Router {
     *     description: Retrieve a paginated list of audiobooks with optional filtering
     *     tags: [AudioBooks]
     *     security:
-    *       - sessionAuth: []
+    *       - bearerAuth: []
     *     parameters:
     *       - $ref: '#/components/parameters/PageParam'
     *       - $ref: '#/components/parameters/LimitParam'
     *       - $ref: '#/components/parameters/SortByParam'
     *       - $ref: '#/components/parameters/SortOrderParam'
-    *       - $ref: '#/components/parameters/GenreParam'
+    *       - $ref: '#/components/parameters/SearchParam'
+    *       - $ref: '#/components/parameters/GenreIdsParam'
+    *       - $ref: '#/components/parameters/GenreIdParam'
     *       - $ref: '#/components/parameters/MoodIdParam'
+    *       - $ref: '#/components/parameters/MoodIdsParam'
+    *       - $ref: '#/components/parameters/ActiveParam'
+    *       - $ref: '#/components/parameters/ScheduledParam'
     *       - $ref: '#/components/parameters/LanguageParam'
     *       - $ref: '#/components/parameters/AuthorParam'
     *       - $ref: '#/components/parameters/NarratorParam'
     *       - $ref: '#/components/parameters/IsActiveParam'
     *       - $ref: '#/components/parameters/IsPublicParam'
+    *       - $ref: '#/components/parameters/OwnerTypeParam'
+    *       - $ref: '#/components/parameters/OwnerIdParam'
+    *       - $ref: '#/components/parameters/OwnerIdsParam'
     *     responses:
     *       200:
     *         $ref: '#/components/responses/PaginatedSuccess'
@@ -62,7 +70,7 @@ export function createAudioBookRoutes(prisma: PrismaClient): Router {
     *     description: Search audiobooks by title, author, or description
     *     tags: [AudioBooks]
     *     security:
-    *       - sessionAuth: []
+    *       - bearerAuth: []
     *     parameters:
     *       - $ref: '#/components/parameters/QueryParam'
     *       - $ref: '#/components/parameters/PageParam'
@@ -92,7 +100,7 @@ export function createAudioBookRoutes(prisma: PrismaClient): Router {
     *     description: Get statistics about audiobooks in the system
     *     tags: [AudioBooks]
     *     security:
-    *       - sessionAuth: []
+    *       - bearerAuth: []
     *     responses:
     *       200:
     *         description: Statistics retrieved successfully
@@ -139,7 +147,7 @@ export function createAudioBookRoutes(prisma: PrismaClient): Router {
     *     description: Retrieve audiobooks filtered by genre
     *     tags: [AudioBooks]
     *     security:
-    *       - sessionAuth: []
+    *       - bearerAuth: []
     *     parameters:
     *       - $ref: '#/components/parameters/GenrePathParam'
     *       - $ref: '#/components/parameters/PageParam'
@@ -167,7 +175,7 @@ export function createAudioBookRoutes(prisma: PrismaClient): Router {
     *     description: Retrieve audiobooks filtered by author
     *     tags: [AudioBooks]
     *     security:
-    *       - sessionAuth: []
+    *       - bearerAuth: []
     *     parameters:
     *       - $ref: '#/components/parameters/AuthorPathParam'
     *       - $ref: '#/components/parameters/PageParam'
@@ -195,7 +203,7 @@ export function createAudioBookRoutes(prisma: PrismaClient): Router {
     *     description: Retrieve audiobooks filtered by one or more tags (comma-separated)
     *     tags: [AudioBooks]
     *     security:
-    *       - sessionAuth: []
+    *       - bearerAuth: []
     *     parameters:
     *       - name: tags
     *         in: path
@@ -241,7 +249,7 @@ export function createAudioBookRoutes(prisma: PrismaClient): Router {
     *     description: Retrieve a specific audiobook by its ID
     *     tags: [AudioBooks]
     *     security:
-    *       - sessionAuth: []
+    *       - bearerAuth: []
     *     parameters:
     *       - $ref: '#/components/parameters/IdParam'
     *     responses:
@@ -277,17 +285,36 @@ export function createAudioBookRoutes(prisma: PrismaClient): Router {
     * /api/v1/audiobooks:
     *   post:
     *     summary: Create audiobook
-    *     description: Create a new audiobook
+    *     description: Create a new audiobook with required polymorphic owner. Send multipart/form-data with cover image.
     *     tags: [AudioBooks]
     *     security:
-    *       - sessionAuth: []
-    *       - csrfToken: []
+    *       - bearerAuth: []
     *     requestBody:
     *       required: true
     *       content:
-    *         application/json:
+    *         multipart/form-data:
     *           schema:
-    *             $ref: '#/components/schemas/CreateAudioBookRequest'
+    *             $ref: '#/components/schemas/CreateAudioBookFormData'
+    *           examples:
+    *             organizationOwner:
+    *               summary: Create with organization owner
+    *               value:
+    *                 title: "My Audiobook"
+    *                 author: "Jane Doe"
+    *                 owner: '{"type":"ORGANIZATION","id":"corg1234567890abcdefghij"}'
+    *                 genreIds: '["cgenre1234567890abcdefgh"]'
+    *                 language: "bn"
+    *                 isPublic: true
+    *             authorOwner:
+    *               summary: Create with author owner
+    *               value:
+    *                 title: "Author Audiobook"
+    *                 author: "Jane Doe"
+    *                 owner: '{"type":"AUTHOR","id":"cauthor1234567890abcdefgh"}'
+    *                 genreIds: "cgenre1234567890abcdefgh,cgenre0987654321abcdefgh"
+    *                 tagIds: '["ctag1234567890abcdefghij"]'
+    *                 minSubscriptionTier: 2
+    *                 scheduledAt: "2026-07-01T00:00:00Z"
     *     responses:
     *       201:
     *         description: Audiobook created successfully
@@ -305,7 +332,7 @@ export function createAudioBookRoutes(prisma: PrismaClient): Router {
     *       401:
     *         $ref: '#/components/responses/UnauthorizedError'
     *       403:
-    *         $ref: '#/components/responses/ForbiddenError'
+    *         $ref: '#/components/responses/Forbidden'
     *       500:
     *         $ref: '#/components/responses/InternalServerError'
     */
@@ -325,8 +352,7 @@ export function createAudioBookRoutes(prisma: PrismaClient): Router {
     *     description: Update an existing audiobook
     *     tags: [AudioBooks]
     *     security:
-    *       - sessionAuth: []
-    *       - csrfToken: []
+    *       - bearerAuth: []
     *     parameters:
     *       - $ref: '#/components/parameters/IdParam'
     *     requestBody:
@@ -335,6 +361,34 @@ export function createAudioBookRoutes(prisma: PrismaClient): Router {
     *         application/json:
     *           schema:
     *             $ref: '#/components/schemas/UpdateAudioBookRequest'
+    *           examples:
+    *             metadataUpdate:
+    *               summary: Update metadata (JSON)
+    *               value:
+    *                 title: "Updated Title"
+    *                 genreIds: ["cgenre1234567890abcdefgh"]
+    *                 tagIds: ["ctag1234567890abcdefghij"]
+    *                 minSubscriptionTier: 1
+    *             ownerUpdate:
+    *               summary: Change owner
+    *               value:
+    *                 owner: { type: "AUTHOR", id: "cauthor1234567890abcdefgh" }
+    *         multipart/form-data:
+    *           schema:
+    *             type: object
+    *             properties:
+    *               title: { type: string, description: "Optional updated title" }
+    *               author: { type: string, description: "Optional updated author name" }
+    *               genreIds: { type: string, description: "Optional JSON array or comma-separated genre IDs" }
+    *               tagIds: { type: string, description: "Optional JSON array or comma-separated tag IDs" }
+    *               minSubscriptionTier: { type: integer, description: "Optional minimum subscription tier" }
+    *               scheduledAt: { type: string, format: date-time, description: "Optional scheduled publish time" }
+    *               coverImage: { type: string, format: binary, description: "Optional new cover image upload" }
+    *           examples:
+    *             coverImageUpdate:
+    *               summary: Update cover image (multipart)
+    *               value:
+    *                 title: "Updated Title"
     *     responses:
     *       200:
     *         description: Audiobook updated successfully
@@ -374,17 +428,12 @@ export function createAudioBookRoutes(prisma: PrismaClient): Router {
     *     description: Delete an audiobook
     *     tags: [AudioBooks]
     *     security:
-    *       - sessionAuth: []
-    *       - csrfToken: []
+    *       - bearerAuth: []
     *     parameters:
     *       - $ref: '#/components/parameters/IdParam'
     *     responses:
-    *       200:
-    *         description: Audiobook deleted successfully
-    *         content:
-    *           application/json:
-    *             schema:
-    *               $ref: '#/components/schemas/ApiResponse'
+    *       204:
+    *         $ref: '#/components/responses/NoContent'
     *       400:
     *         $ref: '#/components/responses/ValidationError'
     *       401:
