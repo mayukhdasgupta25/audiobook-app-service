@@ -11,6 +11,11 @@ export interface UserCreationMessage {
    avatar?: string;
 }
 
+export interface UserDeletionMessage {
+   userId: string;
+   authorId?: string;
+}
+
 /**
  * Username generation options
  */

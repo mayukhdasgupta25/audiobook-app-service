@@ -12,9 +12,15 @@ import { fileUrlService } from '../../services/FileUrlService';
 import { ApiError } from '../../types/ApiError';
 import { HttpStatusCode } from '../../types/common';
 import { AuthRole } from '../../constants/authRoles';
+import { authClient } from '../../clients/AuthClient';
 
 // Mock dependencies
 jest.mock('../../services/AudioBookService');
+jest.mock('../../clients/AuthClient', () => ({
+   authClient: {
+      getAuthorByUserId: jest.fn(),
+   },
+}));
 jest.mock('../../services/FileUrlService', () => ({
    fileUrlService: {
       processUploadedCoverFile: jest.fn(async (path: string) => `https://example.com${path}`),
@@ -319,6 +325,30 @@ describe('AudioBookController', () => {
 
          expect(mockContentAuthorizationService.canCreateAudiobook).not.toHaveBeenCalled();
          expect(mockAudioBookService.createAudioBook).toHaveBeenCalled();
+      });
+
+      it('should include authorId when creator is an author', async () => {
+         mockReq.user = { id: 'auth-author-1', role: AuthRole.AUTHOR };
+         (authClient.getAuthorByUserId as jest.Mock).mockResolvedValue({ id: 'author-1' });
+         mockReq.body = {
+            title: 'Author Personal Book',
+            author: 'Author Name',
+            genreIds: '["genre-123"]',
+         };
+         (mockReq as any).coverImageFile = mockCoverImageFile;
+
+         const mockBook = { id: 'book-author-personal', title: 'Author Personal Book' };
+         mockAudioBookService.createAudioBook.mockResolvedValue(mockBook as any);
+         (MessageHandler.getSuccessMessage as jest.Mock).mockReturnValue('Created');
+
+         await audioBookController.createAudioBook(mockReq, mockRes, mockReq.next);
+         await flushPromises();
+
+         expect(authClient.getAuthorByUserId).toHaveBeenCalledWith('auth-author-1', 'test-token');
+         expect(mockAudioBookService.createAudioBook).toHaveBeenCalledWith(
+            expect.objectContaining({ authorId: 'author-1' }),
+            'profile-1',
+         );
       });
 
       it('should create audiobook for author linked to organization', async () => {

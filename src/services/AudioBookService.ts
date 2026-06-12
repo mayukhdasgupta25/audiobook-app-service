@@ -19,6 +19,7 @@ import { fileUrlService } from './FileUrlService';
 import { UserAudioBookService } from './UserAudioBookService';
 import { ChapterService } from './ChapterService';
 import { HttpStatusCode, ErrorType } from '../types/common';
+import { AudiobookMediaCleanupService } from './AudiobookMediaCleanupService';
 
 export class AudioBookService {
   private prisma: PrismaClient;
@@ -320,6 +321,11 @@ export class AudioBookService {
         createData.organizationId = trimmedOrganizationId;
       }
 
+      const trimmedAuthorId = audiobookData.authorId?.trim();
+      if (trimmedAuthorId) {
+        createData.authorId = trimmedAuthorId;
+      }
+
       // Handle scheduledAt: if provided, set isActive=false and schedule activation job
       if (audiobookData.scheduledAt !== undefined) {
         createData.scheduledAt = audiobookData.scheduledAt;
@@ -563,17 +569,8 @@ export class AudioBookService {
    */
   async deleteAudioBook(id: string): Promise<void> {
     try {
-      const audiobook = await this.prisma.audioBook.findUnique({
-        where: { id }
-      });
-
-      if (!audiobook) {
-        throw ApiError.notFound(MessageHandler.getErrorMessage('not_found.audiobook'));
-      }
-
-      await this.prisma.audioBook.delete({
-        where: { id }
-      });
+      const cleanupService = new AudiobookMediaCleanupService(this.prisma);
+      await cleanupService.deleteAudiobookWithChapters(id);
     } catch (error) {
       if (error instanceof ApiError) {
         throw error;

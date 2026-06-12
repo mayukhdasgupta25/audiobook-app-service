@@ -54,6 +54,7 @@ model AudioBook {
 
   // Metadata
   organizationId String?
+  authorId       String?
   language       String    @default("bn")
   publisher      String?
   publishDate    DateTime?
@@ -95,6 +96,7 @@ model AudioBook {
   comments         Comment[]
 
   @@index([organizationId])
+  @@index([authorId])
   @@index([moodId])
   @@map("audiobooks")
 }

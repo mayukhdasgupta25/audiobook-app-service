@@ -35,6 +35,7 @@ export interface AudioBookDto {
   audiobookTags?: AudioBookTagDto[] | undefined;
   genres?: GenreDto[] | undefined;
   organizationId?: string | null | undefined;
+  authorId?: string | null | undefined;
   organization?: AudioBookOrganizationDto | undefined;
   subscriptionAccess?: AudiobookSubscriptionAccessDto;
   /** Current user's star rating (1–5) for this audiobook; null if not reviewed. */
@@ -65,6 +66,7 @@ export interface CreateAudioBookDto {
   coverImage?: string;
   genreIds: string[]; // Required - at least one genre is mandatory
   organizationId?: string;
+  authorId?: string;
   language?: string;
   publisher?: string;
   publishDate?: Date;
@@ -148,5 +150,6 @@ export function toAudioBookDto(audiobook: PrismaAudioBook & {
       name: abg.genre.name
     })) || undefined,
     organizationId: audiobook.organizationId ?? null,
+    authorId: (audiobook as PrismaAudioBook & { authorId?: string | null }).authorId ?? null,
   };
 }

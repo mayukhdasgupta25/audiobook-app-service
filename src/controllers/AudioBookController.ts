@@ -13,6 +13,8 @@ import { MessageHandler } from '../utils/MessageHandler';
 import { fileUrlService } from '../services/FileUrlService';
 import { ContentAuthorizationService } from '../services/ContentAuthorizationService';
 import { AuthenticatedRequest } from '../types/auth';
+import { authClient } from '../clients/AuthClient';
+import { isGlobalAuthorRole } from '../constants/authRoles';
 
 function getBearerToken(req: Request): string | undefined {
   const authorization = req.headers.authorization;
@@ -370,6 +372,12 @@ export class AudioBookController {
       )
       : undefined;
 
+    let authorId: string | undefined;
+    if (externalUserId && isGlobalAuthorRole(authReq.user?.role) && accessToken) {
+      const author = await authClient.getAuthorByUserId(externalUserId, accessToken);
+      authorId = author?.id;
+    }
+
     const audiobookData: any = {
       ...req.body,
       // Parse scheduledAt if provided (can be ISO string or Date)
@@ -378,7 +386,8 @@ export class AudioBookController {
       coverImage,
       // Include tagIds and genreIds in the data object (service expects them as part of data)
       tagIds: tagIds,
-      genreIds: genreIds
+      genreIds: genreIds,
+      ...(authorId ? { authorId } : {}),
     };
 
     const audiobook = await this.audioBookService.createAudioBook(
