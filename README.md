@@ -117,6 +117,8 @@ Once the server is running, you can access:
 - **Swagger UI**: `http://localhost:3000/api-docs` - Interactive API documentation
 - **OpenAPI Spec**: `http://localhost:3000/api-docs.json` - Machine-readable API specification
 
+All Srota backend services expose the same documentation URLs: `/api-docs` (UI) and `/api-docs.json` (spec). Authentication uses JWT `Authorization: Bearer <token>` (`bearerAuth` in the spec).
+
 The API documentation is generated using a **code-first approach** with comprehensive schemas, examples, and interactive testing capabilities.
 
 ## 🛡️ Security & Best Practices
