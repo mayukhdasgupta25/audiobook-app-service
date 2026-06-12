@@ -9,8 +9,6 @@ import { config } from '../config/env';
 import { getFileUrl } from '../middleware/UploadMiddleware';
 import { StorageFactory } from './storage/StorageFactory';
 import { AudioBookDto } from '../models/AudioBookDto';
-import { AuthorDto } from '../models/AuthorDto';
-import { OrganizationDto } from '../models/OrganizationDto';
 import { UserProfileDto } from '../models/UserDto';
 import { ChapterWithRelations } from '../models/ChapterDto';
 
@@ -250,35 +248,19 @@ export class FileUrlService {
       return `${config.AUTH_SERVICE_URL.replace(/\/$/, '')}${urlPath}`;
    }
 
-   async resolveAuthorMedia<T extends AuthorDto>(dto: T): Promise<T> {
-      let profileImage: string | undefined;
+   async resolveAuthorProfileMedia<T extends { avatar?: string | null }>(dto: T): Promise<T> {
+      let avatar: string | undefined;
 
-      if (dto.profileImage) {
-         profileImage = this.shouldSignUrls()
-            ? await this.resolveForClient(dto.profileImage)
-            : this.resolveDevAuthorProfileImage(dto.profileImage);
+      if (dto.avatar) {
+         avatar = this.shouldSignUrls()
+            ? await this.resolveForClient(dto.avatar)
+            : this.resolveDevAuthorProfileImage(dto.avatar);
       }
 
       return {
          ...dto,
-         profileImage,
+         avatar: avatar ?? dto.avatar ?? null,
       };
-   }
-
-   async resolveAuthorMediaList<T extends AuthorDto>(dtos: T[]): Promise<T[]> {
-      return Promise.all(dtos.map(dto => this.resolveAuthorMedia(dto)));
-   }
-
-   async resolveOrganizationMedia<T extends OrganizationDto>(dto: T): Promise<T> {
-      const image = await this.resolveForClient(dto.image);
-      return {
-         ...dto,
-         image,
-      };
-   }
-
-   async resolveOrganizationMediaList<T extends OrganizationDto>(dtos: T[]): Promise<T[]> {
-      return Promise.all(dtos.map(dto => this.resolveOrganizationMedia(dto)));
    }
 }
 

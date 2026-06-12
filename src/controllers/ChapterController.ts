@@ -6,7 +6,7 @@ import { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { ChapterService } from '../services/ChapterService';
 import { BackgroundJobService } from '../services/BackgroundJobService';
-import { OrganizationService } from '../services/OrganizationService';
+import { ContentAuthorizationService } from '../services/ContentAuthorizationService';
 import { ResponseHandler } from '../utils/ResponseHandler';
 import { ChapterQueryParams } from '../models/ChapterDto';
 import { ErrorHandler } from '../middleware/ErrorHandler';
@@ -17,13 +17,22 @@ import { AuthenticatedRequest } from '../types/auth';
 
 export class ChapterController {
    private chapterService: ChapterService;
-   private organizationService: OrganizationService;
+   private contentAuthorizationService: ContentAuthorizationService;
    private prisma: PrismaClient;
 
    constructor(prisma: PrismaClient, backgroundJobService?: BackgroundJobService) {
       this.prisma = prisma;
       this.chapterService = new ChapterService(prisma, backgroundJobService);
-      this.organizationService = new OrganizationService(prisma);
+      this.contentAuthorizationService = new ContentAuthorizationService(prisma);
+   }
+
+   private getBearerToken(req: Request): string | undefined {
+      const authorization = req.headers.authorization;
+      if (!authorization || !authorization.startsWith('Bearer ')) {
+         return undefined;
+      }
+      const token = authorization.slice(7).trim();
+      return token.length > 0 ? token : undefined;
    }
 
    /** Map JWT auth user id to local UserProfile.id */
@@ -270,18 +279,13 @@ export class ChapterController {
 
       const authReq = req as AuthenticatedRequest;
       const externalUserId = authReq.user?.id;
-      const creatorProfile = externalUserId
-         ? await this.prisma.userProfile.findUnique({
-            where: { userId: externalUserId },
-            select: { id: true },
-         })
-         : null;
+      const accessToken = this.getBearerToken(req);
 
-      const { audiobookExists, allowed } = await this.organizationService.canCreateChapter(
+      const { audiobookExists, allowed } = await this.contentAuthorizationService.canCreateChapter(
          externalUserId,
-         creatorProfile?.id,
          chapterData.audiobookId,
          authReq.user?.role,
+         accessToken,
       );
 
       if (!audiobookExists) {
@@ -390,18 +394,13 @@ export class ChapterController {
 
       const authReq = req as AuthenticatedRequest;
       const externalUserId = authReq.user?.id;
-      const creatorProfile = externalUserId
-         ? await this.prisma.userProfile.findUnique({
-            where: { userId: externalUserId },
-            select: { id: true },
-         })
-         : null;
+      const accessToken = this.getBearerToken(req);
 
-      const { chapterExists, allowed } = await this.organizationService.canManageChapter(
+      const { chapterExists, allowed } = await this.contentAuthorizationService.canManageChapter(
          externalUserId,
-         creatorProfile?.id,
          id as string,
          authReq.user?.role,
+         accessToken,
       );
 
       if (!chapterExists) {
@@ -497,18 +496,13 @@ export class ChapterController {
 
       const authReq = req as AuthenticatedRequest;
       const externalUserId = authReq.user?.id;
-      const creatorProfile = externalUserId
-         ? await this.prisma.userProfile.findUnique({
-            where: { userId: externalUserId },
-            select: { id: true },
-         })
-         : null;
+      const accessToken = this.getBearerToken(req);
 
-      const { chapterExists, allowed } = await this.organizationService.canManageChapter(
+      const { chapterExists, allowed } = await this.contentAuthorizationService.canManageChapter(
          externalUserId,
-         creatorProfile?.id,
          id as string,
          authReq.user?.role,
+         accessToken,
       );
 
       if (!chapterExists) {

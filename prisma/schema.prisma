@@ -34,7 +34,6 @@ model UserProfile {
   bookmarks           Bookmark[]
   notes               Note[]
   offlineDownloads    OfflineDownload[]
-  organizationMembers OrganizationMember[]
   comments            Comment[]
 
   @@map("user_profiles")
@@ -82,7 +81,6 @@ model AudioBook {
   moodId String?
 
   // Relations
-  organization     Organization?      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   mood             Mood?              @relation(fields: [moodId], references: [id], onDelete: SetNull)
   userAudioBooks   UserAudioBook[]
   reviews          Review[]
@@ -155,24 +153,15 @@ model Genre {
   @@map("genres")
 }
 
-// Author model for storing author information
-model Author {
-  id        String  @id @default(cuid())
-  userId    String  @unique
-  firstName String
-  lastName  String
-  address      String?
-  contact      String?
-  profileImage String? // URL/path to profile picture
+model AuthorProfile {
+  id       String  @id @default(cuid())
+  authorId String  @unique
+  avatar   String?
 
-  // Timestamps
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // Relations
-  organizations AuthorOrganization[]
-
-  @@map("authors")
+  @@map("author_profiles")
 }
 
 // Junction table for many-to-many relationship between AudioBook and Genre
@@ -502,85 +491,10 @@ model AudioBookTag {
   @@map("audiobook_tags")
 }
 
-// Organization model — the publisher / company that provides audiobooks to
-// listeners. Catalog access is not tied to organization membership; staff
-// roles are modeled on `OrganizationMember`.
-model Organization {
-  id          String  @id @default(cuid())
-  name        String
-  slug        String  @unique
-  description    String?
-  image          String? // URL/path to organization image
-  preferredGenre String? // Preferred genre name
-  websiteUrl     String?
-  teamSize       OrganizationTeamSize?
-
-  // Timestamps
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Relations
-  audiobooks AudioBook[]
-  members    OrganizationMember[]
-  authors    AuthorOrganization[]
-
-  @@map("organizations")
-}
-
-// Junction table for optional many-to-many between Author and Organization
-model AuthorOrganization {
-  id             String @id @default(cuid())
-  authorId       String
-  organizationId String
-
-  createdAt DateTime @default(now())
-
-  author       Author       @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-
-  @@unique([authorId, organizationId])
-  @@map("author_organizations")
-}
-
-// Staff who administer an organization (many-to-many with role). Distinct
-// from end-user listeners, who do not need membership to browse or play
-// that organization's catalog.
-model OrganizationMember {
-  id             String           @id @default(cuid())
-  userProfileId  String
-  organizationId String
-  role           OrganizationRole @default(ADMIN)
-
-  // Timestamps
-  joinedAt  DateTime @default(now())
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Relations
-  userProfile  UserProfile  @relation(fields: [userProfileId], references: [id], onDelete: Cascade)
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-
-  @@unique([userProfileId, organizationId])
-  @@index([organizationId])
-  @@map("organization_members")
-}
-
 // Enums
 enum UserAudioBookType {
   OWNED
   PURCHASED
-}
-
-enum OrganizationRole {
-  OWNER
-  ADMIN
-}
-
-enum OrganizationTeamSize {
-  SIZE_1_10     @map("1-10")
-  SIZE_11_50    @map("11-50")
-  SIZE_51_200   @map("51-200")
-  SIZE_200_PLUS @map("200+")
 }
 
 enum DownloadStatus {

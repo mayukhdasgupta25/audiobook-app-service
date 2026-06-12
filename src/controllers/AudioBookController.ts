@@ -11,18 +11,27 @@ import { AudioBookQueryParams } from '../models/AudioBookDto';
 import { ErrorHandler } from '../middleware/ErrorHandler';
 import { MessageHandler } from '../utils/MessageHandler';
 import { fileUrlService } from '../services/FileUrlService';
-import { OrganizationService } from '../services/OrganizationService';
+import { ContentAuthorizationService } from '../services/ContentAuthorizationService';
 import { AuthenticatedRequest } from '../types/auth';
+
+function getBearerToken(req: Request): string | undefined {
+  const authorization = req.headers.authorization;
+  if (!authorization || !authorization.startsWith('Bearer ')) {
+    return undefined;
+  }
+  const token = authorization.slice(7).trim();
+  return token.length > 0 ? token : undefined;
+}
 
 export class AudioBookController {
   private audioBookService: AudioBookService;
-  private organizationService: OrganizationService;
+  private contentAuthorizationService: ContentAuthorizationService;
   private prisma: PrismaClient;
 
   constructor(prisma: PrismaClient, backgroundJobService?: BackgroundJobService) {
     this.prisma = prisma;
     this.audioBookService = new AudioBookService(prisma, backgroundJobService);
-    this.organizationService = new OrganizationService(prisma);
+    this.contentAuthorizationService = new ContentAuthorizationService(prisma);
   }
 
   /**
@@ -285,6 +294,7 @@ export class AudioBookController {
 
     const authReq = req as AuthenticatedRequest;
     const externalUserId = authReq.user?.id;
+    const accessToken = getBearerToken(req);
     const creatorProfile = externalUserId
       ? await this.prisma.userProfile.findUnique({
         where: { userId: externalUserId },
@@ -293,13 +303,11 @@ export class AudioBookController {
       : null;
 
     if (organizationId) {
-      // ORG_ADMIN / ORG_COORDINATOR need matching org membership;
-      // authors may create for linked orgs only.
-      const allowed = await this.organizationService.canCreateAudiobook(
+      const allowed = await this.contentAuthorizationService.canCreateAudiobook(
         externalUserId,
-        creatorProfile?.id,
         organizationId,
         authReq.user?.role,
+        accessToken,
       );
       if (!allowed) {
         ResponseHandler.forbidden(
@@ -427,18 +435,13 @@ export class AudioBookController {
 
     const authReq = req as AuthenticatedRequest;
     const externalUserId = authReq.user?.id;
-    const creatorProfile = externalUserId
-      ? await this.prisma.userProfile.findUnique({
-        where: { userId: externalUserId },
-        select: { id: true },
-      })
-      : null;
+    const accessToken = getBearerToken(req);
 
-    const { audiobookExists, allowed } = await this.organizationService.canManageAudiobook(
+    const { audiobookExists, allowed } = await this.contentAuthorizationService.canManageAudiobook(
       externalUserId,
-      creatorProfile?.id,
       id as string,
       authReq.user?.role,
+      accessToken,
     );
 
     if (!audiobookExists) {
@@ -552,18 +555,13 @@ export class AudioBookController {
 
     const authReq = req as AuthenticatedRequest;
     const externalUserId = authReq.user?.id;
-    const creatorProfile = externalUserId
-      ? await this.prisma.userProfile.findUnique({
-        where: { userId: externalUserId },
-        select: { id: true },
-      })
-      : null;
+    const accessToken = getBearerToken(req);
 
-    const { audiobookExists, allowed } = await this.organizationService.canManageAudiobook(
+    const { audiobookExists, allowed } = await this.contentAuthorizationService.canManageAudiobook(
       externalUserId,
-      creatorProfile?.id,
       id as string,
       authReq.user?.role,
+      accessToken,
     );
 
     if (!audiobookExists) {
@@ -844,5 +842,33 @@ export class AudioBookController {
     );
 
     ResponseHandler.paginated(res, audiobooks, pagination, MessageHandler.getSuccessMessage('audiobooks.by_tags', { tags: tagList.join(', ') }));
+  });
+
+  listOrganizationAudioBooks = ErrorHandler.asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const { organizationId } = req.params as { organizationId: string };
+
+    const queryParams: AudioBookQueryParams = {
+      page: req.query['page'] ? parseInt(req.query['page'] as string, 10) : 1,
+      limit: req.query['limit'] ? parseInt(req.query['limit'] as string, 10) : 10,
+      sortBy: (req.query['sortBy'] as string) || 'createdAt',
+      sortOrder: (req.query['sortOrder'] as 'asc' | 'desc') || 'desc',
+      search: req.query['search'] as string,
+      organizationId,
+    };
+
+    const { audiobooks, totalCount } = await this.audioBookService.getAllAudioBooks(queryParams);
+
+    const pagination = ResponseHandler.calculatePagination(
+      queryParams.page!,
+      queryParams.limit!,
+      totalCount,
+    );
+
+    ResponseHandler.paginated(
+      res,
+      audiobooks,
+      pagination,
+      MessageHandler.getSuccessMessage('organizations.audiobooks_retrieved'),
+    );
   });
 }

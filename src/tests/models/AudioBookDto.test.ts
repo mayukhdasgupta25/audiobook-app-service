@@ -79,8 +79,9 @@ describe('AudioBookDto', () => {
          expect(result.organization).toBeUndefined();
       });
 
-      it('should map organization when present', () => {
+      it('should map organizationId without embedding organization relation', () => {
          const prismaAudioBook = createMockPrismaAudioBook({
+            organizationId: 'org-1',
             organization: {
                id: 'org-1',
                name: 'Test Org',
@@ -90,11 +91,8 @@ describe('AudioBookDto', () => {
 
          const result = toAudioBookDto(prismaAudioBook);
 
-         expect(result.organization).toEqual({
-            id: 'org-1',
-            name: 'Test Org',
-            slug: 'test-org',
-         });
+         expect(result.organizationId).toBe('org-1');
+         expect(result.organization).toBeUndefined();
       });
 
       it('should handle null optional string fields by converting to undefined', () => {

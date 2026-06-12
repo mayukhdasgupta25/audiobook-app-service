@@ -22,7 +22,7 @@ describe('ChapterController.createChapter', () => {
    let mockReq: any;
    let mockRes: any;
    let mockChapterService: jest.Mocked<ChapterService>;
-   let mockOrganizationService: { canCreateChapter: jest.Mock };
+   let mockContentAuthorizationService: { canCreateChapter: jest.Mock };
 
    const mockCoverImageFile = { path: '/uploads/covers/chapter-cover.jpg' };
    const mockAudioFile = { path: '/uploads/chapters/chapter-audio.mp3', size: 1024 };
@@ -45,6 +45,7 @@ describe('ChapterController.createChapter', () => {
             startPosition: '0',
             endPosition: '1200',
          },
+         headers: { authorization: 'Bearer test-token' },
          originalUrl: '/api/v1/chapters',
          user: { id: 'auth-author-1', role: AuthRole.AUTHOR },
       } as any;
@@ -60,8 +61,8 @@ describe('ChapterController.createChapter', () => {
 
       chapterController = new ChapterController(mockPrisma);
       mockChapterService = (chapterController as any).chapterService;
-      mockOrganizationService = (chapterController as any).organizationService;
-      mockOrganizationService.canCreateChapter = jest.fn().mockResolvedValue({
+      mockContentAuthorizationService = (chapterController as any).contentAuthorizationService;
+      mockContentAuthorizationService.canCreateChapter = jest.fn().mockResolvedValue({
          audiobookExists: true,
          allowed: true,
          organizationId: 'org-1',
@@ -79,11 +80,11 @@ describe('ChapterController.createChapter', () => {
       await chapterController.createChapter(mockReq, mockRes, mockReq.next);
       await flushPromises();
 
-      expect(mockOrganizationService.canCreateChapter).toHaveBeenCalledWith(
+      expect(mockContentAuthorizationService.canCreateChapter).toHaveBeenCalledWith(
          'auth-author-1',
-         'profile-1',
          'audiobook-1',
          AuthRole.AUTHOR,
+         'test-token',
       );
       expect(mockChapterService.createChapter).toHaveBeenCalled();
       expect(ResponseHandler.success).toHaveBeenCalledWith(
@@ -95,7 +96,7 @@ describe('ChapterController.createChapter', () => {
    });
 
    it('should return forbidden when author is not linked to organization', async () => {
-      mockOrganizationService.canCreateChapter.mockResolvedValue({
+      mockContentAuthorizationService.canCreateChapter.mockResolvedValue({
          audiobookExists: true,
          allowed: false,
          organizationId: 'org-1',
@@ -110,7 +111,7 @@ describe('ChapterController.createChapter', () => {
    });
 
    it('should return not found when audiobook does not exist', async () => {
-      mockOrganizationService.canCreateChapter.mockResolvedValue({
+      mockContentAuthorizationService.canCreateChapter.mockResolvedValue({
          audiobookExists: false,
          allowed: false,
       });
@@ -124,7 +125,7 @@ describe('ChapterController.createChapter', () => {
    });
 
    it('should create chapter on org-less audiobook for authenticated user', async () => {
-      mockOrganizationService.canCreateChapter.mockResolvedValue({
+      mockContentAuthorizationService.canCreateChapter.mockResolvedValue({
          audiobookExists: true,
          allowed: true,
          organizationId: null,
@@ -152,7 +153,7 @@ describe('ChapterController.createChapter', () => {
       await flushPromises();
 
       expect(ResponseHandler.validationError).toHaveBeenCalledWith(mockRes, 'Cover image is required');
-      expect(mockOrganizationService.canCreateChapter).not.toHaveBeenCalled();
+      expect(mockContentAuthorizationService.canCreateChapter).not.toHaveBeenCalled();
       expect(mockChapterService.createChapter).not.toHaveBeenCalled();
    });
 });

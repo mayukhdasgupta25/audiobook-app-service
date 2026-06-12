@@ -36,7 +36,7 @@ describe('AudioBookController', () => {
    let mockReq: any;
    let mockRes: any;
    let mockAudioBookService: jest.Mocked<AudioBookService>;
-   let mockOrganizationService: {
+   let mockContentAuthorizationService: {
       canCreateAudiobook: jest.Mock;
       canManageAudiobook: jest.Mock;
    };
@@ -51,7 +51,7 @@ describe('AudioBookController', () => {
          params: {},
          query: {},
          body: {},
-         headers: {},
+         headers: { authorization: 'Bearer test-token' },
          files: undefined,
          file: undefined,
          originalUrl: '/api/v1/audiobooks',
@@ -69,9 +69,9 @@ describe('AudioBookController', () => {
 
       audioBookController = new AudioBookController(mockPrisma);
       mockAudioBookService = (audioBookController as any).audioBookService;
-      mockOrganizationService = (audioBookController as any).organizationService;
-      mockOrganizationService.canCreateAudiobook = jest.fn().mockResolvedValue(true);
-      mockOrganizationService.canManageAudiobook = jest
+      mockContentAuthorizationService = (audioBookController as any).contentAuthorizationService;
+      mockContentAuthorizationService.canCreateAudiobook = jest.fn().mockResolvedValue(true);
+      mockContentAuthorizationService.canManageAudiobook = jest
          .fn()
          .mockResolvedValue({ audiobookExists: true, allowed: true });
       mockAudioBookService.getSubscriptionAccessForAudiobook = jest
@@ -201,7 +201,7 @@ describe('AudioBookController', () => {
             'book-123',
             null,
             'auth-user-1',
-            null
+            'test-token'
          );
          expect(mockAudioBookService.getUserReviewRatingForAudiobook).toHaveBeenCalledWith(
             'book-123',
@@ -317,13 +317,13 @@ describe('AudioBookController', () => {
          await audioBookController.createAudioBook(mockReq, mockRes, mockReq.next);
          await flushPromises();
 
-         expect(mockOrganizationService.canCreateAudiobook).not.toHaveBeenCalled();
+         expect(mockContentAuthorizationService.canCreateAudiobook).not.toHaveBeenCalled();
          expect(mockAudioBookService.createAudioBook).toHaveBeenCalled();
       });
 
       it('should create audiobook for author linked to organization', async () => {
          mockReq.user = { id: 'auth-author-1', role: AuthRole.AUTHOR };
-         mockOrganizationService.canCreateAudiobook.mockResolvedValue(true);
+         mockContentAuthorizationService.canCreateAudiobook.mockResolvedValue(true);
          mockReq.body = {
             title: 'Author Book',
             author: 'Author Name',
@@ -338,18 +338,18 @@ describe('AudioBookController', () => {
          await audioBookController.createAudioBook(mockReq, mockRes, mockReq.next);
          await flushPromises();
 
-         expect(mockOrganizationService.canCreateAudiobook).toHaveBeenCalledWith(
+         expect(mockContentAuthorizationService.canCreateAudiobook).toHaveBeenCalledWith(
             'auth-author-1',
-            'profile-1',
             'org-1',
             AuthRole.AUTHOR,
+            'test-token',
          );
          expect(mockAudioBookService.createAudioBook).toHaveBeenCalled();
       });
 
       it('should return forbidden when author is not linked to organization', async () => {
          mockReq.user = { id: 'auth-author-1', role: AuthRole.AUTHOR };
-         mockOrganizationService.canCreateAudiobook.mockResolvedValue(false);
+         mockContentAuthorizationService.canCreateAudiobook.mockResolvedValue(false);
          mockReq.body = {
             title: 'Author Book',
             author: 'Author Name',
@@ -374,11 +374,11 @@ describe('AudioBookController', () => {
          await audioBookController.deleteAudioBook(mockReq, mockRes, mockReq.next);
          await flushPromises();
 
-         expect(mockOrganizationService.canManageAudiobook).toHaveBeenCalledWith(
+         expect(mockContentAuthorizationService.canManageAudiobook).toHaveBeenCalledWith(
             'auth-user-1',
-            'profile-1',
             'book-123',
             AuthRole.AUTHOR,
+            'test-token',
          );
          expect(mockAudioBookService.deleteAudioBook).toHaveBeenCalledWith('book-123');
          expect(ResponseHandler.noContent).toHaveBeenCalledWith(mockRes);

@@ -110,23 +110,21 @@ describe('FileUrlService', () => {
       });
    });
 
-   describe('resolveAuthorMedia', () => {
-      it('resolves profileImage on author DTOs', async () => {
-         const result = await fileUrlService.resolveAuthorMedia({
-            id: 'author-1',
-            userId: 'user-1',
-            firstName: 'Jane',
-            lastName: 'Doe',
+   describe('resolveAuthorProfileMedia', () => {
+      it('resolves avatar on author profile DTOs', async () => {
+         const result = await fileUrlService.resolveAuthorProfileMedia({
+            id: 'profile-1',
+            authorId: 'author-1',
             createdAt: new Date(),
             updatedAt: new Date(),
-            profileImage: 'uploads/images/authors/image-1.jpg',
+            avatar: 'uploads/images/authors/image-1.jpg',
          });
 
-         expect(result.profileImage).toBe('https://signed.example/object');
+         expect(result.avatar).toBe('https://signed.example/object');
       });
    });
 
-   describe('resolveAuthorMedia development mode', () => {
+   describe('resolveAuthorProfileMedia development mode', () => {
       let existsSyncSpy: jest.SpyInstance;
 
       afterEach(() => {
@@ -156,17 +154,15 @@ describe('FileUrlService', () => {
 
          const { FileUrlService: DevFileUrlService } = require('../../services/FileUrlService');
          const devFileUrlService = new DevFileUrlService();
-         const result = await devFileUrlService.resolveAuthorMedia({
-            id: 'author-1',
-            userId: 'user-1',
-            firstName: 'Jane',
-            lastName: 'Doe',
+         const result = await devFileUrlService.resolveAuthorProfileMedia({
+            id: 'profile-1',
+            authorId: 'author-1',
             createdAt: new Date(),
             updatedAt: new Date(),
-            profileImage: '/uploads/images/authors/image-1.jpg',
+            avatar: '/uploads/images/authors/image-1.jpg',
          });
 
-         expect(result.profileImage).toBe('/uploads/images/authors/image-1.jpg');
+         expect(result.avatar).toBe('/uploads/images/authors/image-1.jpg');
       });
 
       it('returns AUTH_SERVICE_URL path when image is stored in auth-service only', async () => {
@@ -191,33 +187,16 @@ describe('FileUrlService', () => {
 
          const { FileUrlService: DevFileUrlService } = require('../../services/FileUrlService');
          const devFileUrlService = new DevFileUrlService();
-         const result = await devFileUrlService.resolveAuthorMedia({
-            id: 'author-1',
-            userId: 'user-1',
-            firstName: 'Jane',
-            lastName: 'Doe',
+         const result = await devFileUrlService.resolveAuthorProfileMedia({
+            id: 'profile-1',
+            authorId: 'author-1',
             createdAt: new Date(),
             updatedAt: new Date(),
-            profileImage: '/uploads/images/authors/image-1.jpg',
+            avatar: '/uploads/images/authors/image-1.jpg',
          });
 
-         expect(result.profileImage).toBe('http://localhost:8080/uploads/images/authors/image-1.jpg');
+         expect(result.avatar).toBe('http://localhost:8080/uploads/images/authors/image-1.jpg');
          expect(existsSyncSpy).toHaveBeenCalled();
-      });
-   });
-
-   describe('resolveOrganizationMedia', () => {
-      it('resolves image on organization DTOs', async () => {
-         const result = await fileUrlService.resolveOrganizationMedia({
-            id: 'org-1',
-            name: 'Acme',
-            slug: 'acme',
-            createdAt: new Date(),
-            updatedAt: new Date(),
-            image: 'uploads/images/organizations/image-1.jpg',
-         });
-
-         expect(result.image).toBe('https://signed.example/object');
       });
    });
 
