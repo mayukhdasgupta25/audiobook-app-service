@@ -3,6 +3,7 @@
  * Provides type-safe validation following OOP principles
  */
 import { Request, Response, NextFunction } from 'express';
+import { parseAudioBookOwnerFromBody } from '../utils/parseAudioBookOwner';
 import { ResponseHandler } from '../utils/ResponseHandler';
 import { MessageHandler } from '../utils/MessageHandler';
 
@@ -58,9 +59,39 @@ export class ValidationMiddleware {
    * Validate audiobook filter parameters
    */
   static validateAudioBookFilters(req: Request, res: Response, next: NextFunction): void {
-    const { genre, language, author, narrator, isActive, isPublic, search, moodId, moodIds } = req.query;
+    const { genre, language, author, narrator, isActive, isPublic, search, moodId, moodIds, ownerType, ownerId, ownerIds } = req.query;
 
     const cuidRegex = /^c[a-z0-9]{24}$/;
+
+    if (ownerType !== undefined) {
+      if (ownerType !== 'AUTHOR' && ownerType !== 'ORGANIZATION') {
+        ResponseHandler.validationError(res, 'ownerType must be AUTHOR or ORGANIZATION');
+        return;
+      }
+    }
+
+    if (ownerId !== undefined) {
+      if (typeof ownerId !== 'string' || !cuidRegex.test(ownerId)) {
+        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.id_format'));
+        return;
+      }
+    }
+
+    if (ownerIds !== undefined) {
+      const rawOwnerIds = Array.isArray(ownerIds)
+        ? ownerIds
+        : typeof ownerIds === 'string'
+          ? ownerIds.split(',').map((id: string) => id.trim()).filter((id: string) => id.length > 0)
+          : [];
+
+      for (const id of rawOwnerIds) {
+        if (typeof id !== 'string' || !cuidRegex.test(id)) {
+          ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.id_format'));
+          return;
+        }
+      }
+    }
+
     const moodIdValues: string[] = [];
 
     if (moodId !== undefined) {
@@ -117,6 +148,18 @@ export class ValidationMiddleware {
       }
     }
 
+    next();
+  }
+
+  /**
+   * Validate required owner on audiobook create (after multipart body is parsed).
+   */
+  static validateAudioBookCreate(req: Request, res: Response, next: NextFunction): void {
+    const owner = parseAudioBookOwnerFromBody(req.body as Record<string, unknown>);
+    if (!owner) {
+      ResponseHandler.validationError(res, 'owner is required with type and id');
+      return;
+    }
     next();
   }
 

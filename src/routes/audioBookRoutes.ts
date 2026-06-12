@@ -313,6 +313,7 @@ export function createAudioBookRoutes(prisma: PrismaClient): Router {
       '/',
       requireContentCreator(),
       UploadMiddleware.handleRequiredImageUpload,
+      ValidationMiddleware.validateAudioBookCreate,
       audioBookController.createAudioBook
    );
 

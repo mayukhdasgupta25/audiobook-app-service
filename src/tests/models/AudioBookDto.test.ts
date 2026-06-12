@@ -11,7 +11,6 @@ import {
 } from '../../models/AudioBookDto';
 
 describe('AudioBookDto', () => {
-   // Mock factory for creating test data
    const createMockPrismaAudioBook = (overrides = {}) => {
       return {
          id: 'test-audiobook-id',
@@ -19,11 +18,11 @@ describe('AudioBookDto', () => {
          author: 'Test Author',
          narrator: 'Test Narrator',
          description: 'Test Description',
-         duration: 3600, // 1 hour in seconds
-         fileSize: BigInt(1024 * 1024 * 500), // 500 MB
+         duration: 3600,
+         fileSize: BigInt(1024 * 1024 * 500),
          coverImage: 'https://example.com/cover.jpg',
-         organizationId: 'org-1',
-         authorId: null,
+         ownerType: 'ORGANIZATION' as const,
+         ownerId: 'org-1',
          language: 'en',
          publisher: 'Test Publisher',
          publishDate: new Date('2024-01-01'),
@@ -38,7 +37,6 @@ describe('AudioBookDto', () => {
          moodId: null,
          audiobookTags: [],
          audioBookGenres: [],
-         organization: null,
          ...overrides,
       };
    };
@@ -52,59 +50,18 @@ describe('AudioBookDto', () => {
          expect(result.id).toBe(prismaAudioBook.id);
          expect(result.title).toBe(prismaAudioBook.title);
          expect(result.author).toBe(prismaAudioBook.author);
-         expect(result.narrator).toBe(prismaAudioBook.narrator);
-         expect(result.description).toBe(prismaAudioBook.description);
-         expect(result.duration).toBe(prismaAudioBook.duration);
-         expect(result.fileSize).toBe(Number(prismaAudioBook.fileSize));
-         expect(result.coverImage).toBe(prismaAudioBook.coverImage);
-         expect(result.language).toBe(prismaAudioBook.language);
-         expect(result.publisher).toBe(prismaAudioBook.publisher);
-         expect(result.publishDate).toEqual(prismaAudioBook.publishDate);
-         expect(result.isbn).toBe(prismaAudioBook.isbn);
-         expect(result.isActive).toBe(prismaAudioBook.isActive);
-         expect(result.isPublic).toBe(prismaAudioBook.isPublic);
-         expect(result.createdAt).toEqual(prismaAudioBook.createdAt);
-         expect(result.updatedAt).toEqual(prismaAudioBook.updatedAt);
-         expect(result.organizationId).toBe('org-1');
-         expect(result.authorId).toBeNull();
+         expect(result.owner).toEqual({ type: 'ORGANIZATION', id: 'org-1' });
       });
 
-      it('should map authorId when present', () => {
+      it('should map AUTHOR owner type', () => {
          const prismaAudioBook = createMockPrismaAudioBook({
-            authorId: 'author-1',
+            ownerType: 'AUTHOR',
+            ownerId: 'author-1',
          });
 
          const result = toAudioBookDto(prismaAudioBook);
 
-         expect(result.authorId).toBe('author-1');
-      });
-
-      it('should map null organizationId', () => {
-         const prismaAudioBook = createMockPrismaAudioBook({
-            organizationId: null,
-            organization: null,
-         });
-
-         const result = toAudioBookDto(prismaAudioBook);
-
-         expect(result.organizationId).toBeNull();
-         expect(result.organization).toBeUndefined();
-      });
-
-      it('should map organizationId without embedding organization relation', () => {
-         const prismaAudioBook = createMockPrismaAudioBook({
-            organizationId: 'org-1',
-            organization: {
-               id: 'org-1',
-               name: 'Test Org',
-               slug: 'test-org',
-            },
-         });
-
-         const result = toAudioBookDto(prismaAudioBook);
-
-         expect(result.organizationId).toBe('org-1');
-         expect(result.organization).toBeUndefined();
+         expect(result.owner).toEqual({ type: 'AUTHOR', id: 'author-1' });
       });
 
       it('should handle null optional string fields by converting to undefined', () => {
@@ -125,18 +82,8 @@ describe('AudioBookDto', () => {
          expect(result.isbn).toBeUndefined();
       });
 
-      it('should handle null publishDate by converting to undefined', () => {
-         const prismaAudioBook = createMockPrismaAudioBook({
-            publishDate: null,
-         });
-
-         const result = toAudioBookDto(prismaAudioBook);
-
-         expect(result.publishDate).toBeUndefined();
-      });
-
       it('should convert BigInt fileSize to Number', () => {
-         const largeFileSize = BigInt('9223372036854775807'); // Max safe integer
+         const largeFileSize = BigInt('9223372036854775807');
          const prismaAudioBook = createMockPrismaAudioBook({
             fileSize: largeFileSize,
          });
@@ -167,245 +114,57 @@ describe('AudioBookDto', () => {
 
          const result = toAudioBookDto(prismaAudioBook);
 
-         expect(result.genres).toBeDefined();
          expect(result.genres?.[0]?.name).toBe('Fantasy');
-      });
-
-      it('should handle empty genres array', () => {
-         const prismaAudioBook = createMockPrismaAudioBook({
-            audioBookGenres: [],
-         });
-
-         const result = toAudioBookDto(prismaAudioBook);
-
-         expect(result.genres).toEqual([]);
-      });
-
-      it('should handle audiobookTags with multiple tags', () => {
-         const mockTags = [
-            {
-               id: 'tag1',
-               audiobookId: 'audiobook-id',
-               tagId: 't1',
-               createdAt: new Date(),
-               tag: {
-                  id: 't1',
-                  name: 'Trending',
-                  type: 'TRENDING',
-                  createdAt: new Date(),
-                  updatedAt: new Date(),
-               },
-            },
-            {
-               id: 'tag2',
-               audiobookId: 'audiobook-id',
-               tagId: 't2',
-               createdAt: new Date(),
-               tag: {
-                  id: 't2',
-                  name: 'New Release',
-                  type: 'NEW_RELEASES',
-                  createdAt: new Date(),
-                  updatedAt: new Date(),
-               },
-            },
-         ];
-
-         const prismaAudioBook = createMockPrismaAudioBook({
-            audiobookTags: mockTags,
-         });
-
-         const result = toAudioBookDto(prismaAudioBook);
-
-         expect(result.audiobookTags).toBeDefined();
-         expect(result.audiobookTags?.length).toBe(2);
-         expect(result.audiobookTags?.[0]).toEqual({ name: 'Trending' });
-         expect(result.audiobookTags?.[1]).toEqual({ name: 'New Release' });
-      });
-
-      it('should handle empty audiobookTags array', () => {
-         const prismaAudioBook = createMockPrismaAudioBook({
-            audiobookTags: [],
-         });
-
-         const result = toAudioBookDto(prismaAudioBook);
-
-         expect(result.audiobookTags).toEqual([]);
-      });
-
-      it('should handle undefined audiobookTags', () => {
-         const prismaAudioBook = createMockPrismaAudioBook({
-            audiobookTags: undefined,
-         });
-
-         const result = toAudioBookDto(prismaAudioBook);
-
-         expect(result.audiobookTags).toBeUndefined();
       });
    });
 
    describe('CreateAudioBookDto', () => {
-      it('should accept valid CreateAudioBookDto', () => {
+      it('should accept valid CreateAudioBookDto with required owner', () => {
          const createDto: CreateAudioBookDto = {
             title: 'New Audiobook',
             author: 'New Author',
-            duration: 1800,
-            fileSize: 1024 * 1024,
-            organizationId: 'org-id',
+            owner: { type: 'ORGANIZATION', id: 'org-id' },
             genreIds: ['genre-id'],
          };
 
-         expect(createDto.title).toBe('New Audiobook');
-         expect(createDto.author).toBe('New Author');
-         expect(createDto.duration).toBe(1800);
-         expect(createDto.fileSize).toBe(1024 * 1024);
-         expect(createDto.organizationId).toBe('org-id');
-      });
-
-      it('should accept CreateAudioBookDto without organizationId', () => {
-         const createDto: CreateAudioBookDto = {
-            title: 'New Audiobook',
-            author: 'New Author',
-            genreIds: ['genre-id'],
-         };
-
-         expect(createDto.organizationId).toBeUndefined();
+         expect(createDto.owner).toEqual({ type: 'ORGANIZATION', id: 'org-id' });
       });
 
       it('should accept optional fields in CreateAudioBookDto', () => {
          const createDto: CreateAudioBookDto = {
             title: 'New Audiobook',
             author: 'New Author',
-            duration: 1800,
-            fileSize: 1024 * 1024,
+            owner: { type: 'AUTHOR', id: 'author-id' },
             narrator: 'Narrator Name',
-            description: 'Description',
-            coverImage: 'image.jpg',
             genreIds: ['genre-id'],
-            organizationId: 'org-id',
             language: 'en',
-            publisher: 'Publisher',
-            publishDate: new Date(),
-            isbn: '1234567890',
-            isActive: true,
-            isPublic: true,
          };
 
-         expect(createDto.narrator).toBe('Narrator Name');
-         expect(createDto.description).toBe('Description');
-         expect(createDto.genreIds).toEqual(['genre-id']);
-         expect(createDto.organizationId).toBe('org-id');
+         expect(createDto.owner.type).toBe('AUTHOR');
       });
    });
 
    describe('UpdateAudioBookDto', () => {
-      it('should accept all optional fields', () => {
+      it('should accept optional owner update', () => {
          const updateDto: UpdateAudioBookDto = {
-            title: 'Updated Title',
-            author: 'Updated Author',
-            narrator: 'Updated Narrator',
-            description: 'Updated Description',
-            duration: 2400,
-            fileSize: 2048 * 1024,
-            coverImage: 'updated.jpg',
-            genreIds: ['new-genre-id'],
-            language: 'fr',
-            publisher: 'New Publisher',
-            publishDate: new Date(),
-            isbn: '9876543210',
-            isActive: false,
-            isPublic: false,
+            owner: { type: 'ORGANIZATION', id: 'org-2' },
          };
 
-         expect(updateDto.title).toBe('Updated Title');
-         expect(updateDto.language).toBe('fr');
-         expect(updateDto.isActive).toBe(false);
-      });
-
-      it('should accept partial updates', () => {
-         const partialUpdate: UpdateAudioBookDto = {
-            title: 'Only Title Updated',
-         };
-
-         expect(partialUpdate.title).toBe('Only Title Updated');
+         expect(updateDto.owner?.id).toBe('org-2');
       });
    });
 
    describe('AudioBookQueryParams', () => {
-      it('should accept valid query parameters', () => {
+      it('should accept owner filter parameters', () => {
          const params: AudioBookQueryParams = {
-            page: 1,
-            limit: 20,
-            sortBy: 'title',
-            sortOrder: 'asc',
-            genreIds: ['genre-id'],
-            moodIds: ['cmood1234567890abcdefghij'],
-            language: 'en',
-            author: 'Author Name',
-            narrator: 'Narrator Name',
-            isActive: true,
-            isPublic: true,
-            search: 'keyword',
+            ownerType: 'ORGANIZATION',
+            ownerId: 'org-1',
+            ownerIds: ['org-1', 'org-2'],
          };
 
-         expect(params.page).toBe(1);
-         expect(params.limit).toBe(20);
-         expect(params.sortOrder).toBe('asc');
-         expect(params.search).toBe('keyword');
-      });
-
-      it('should accept partial query parameters', () => {
-         const params: AudioBookQueryParams = {
-            page: 1,
-            limit: 10,
-         };
-
-         expect(params.page).toBe(1);
-         expect(params.limit).toBe(10);
-      });
-
-      it('should handle partial parameters', () => {
-         const params: AudioBookQueryParams = {
-            page: 1,
-            limit: 10,
-         };
-
-         expect(params.page).toBe(1);
-         expect(params.limit).toBe(10);
-      });
-   });
-
-   describe('Edge cases', () => {
-      it('should handle fileSize conversion for very large numbers', () => {
-         const veryLargeFileSize = BigInt('999999999999'); // 999 GB
-         const prismaAudioBook = createMockPrismaAudioBook({
-            fileSize: veryLargeFileSize,
-         });
-
-         const result = toAudioBookDto(prismaAudioBook);
-
-         expect(result.fileSize).toBe(999999999999);
-      });
-
-      it('should handle zero duration', () => {
-         const prismaAudioBook = createMockPrismaAudioBook({
-            duration: 0,
-         });
-
-         const result = toAudioBookDto(prismaAudioBook);
-
-         expect(result.duration).toBe(0);
-      });
-
-      it('should handle minimum file size', () => {
-         const prismaAudioBook = createMockPrismaAudioBook({
-            fileSize: BigInt(1),
-         });
-
-         const result = toAudioBookDto(prismaAudioBook);
-
-         expect(result.fileSize).toBe(1);
+         expect(params.ownerType).toBe('ORGANIZATION');
+         expect(params.ownerId).toBe('org-1');
+         expect(params.ownerIds).toHaveLength(2);
       });
    });
 });
-

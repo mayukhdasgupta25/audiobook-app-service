@@ -49,9 +49,59 @@ const options: swaggerJsdoc.Options = {
             }
          },
          schemas: {
+            AudioBookOwnerType: {
+               type: 'string',
+               enum: ['AUTHOR', 'ORGANIZATION'],
+               description: 'Polymorphic owner kind (auth-service Author or Organization)',
+            },
+            AudioBookOwnerInput: {
+               type: 'object',
+               required: ['type', 'id'],
+               properties: {
+                  type: { $ref: '#/components/schemas/AudioBookOwnerType' },
+                  id: {
+                     type: 'string',
+                     description: 'Auth-service Author or Organization id',
+                  },
+               },
+            },
+            AudioBookOwner: {
+               type: 'object',
+               required: ['type', 'id'],
+               properties: {
+                  type: { $ref: '#/components/schemas/AudioBookOwnerType' },
+                  id: { type: 'string' },
+                  author: {
+                     type: 'object',
+                     nullable: true,
+                     properties: {
+                        id: { type: 'string' },
+                        slug: { type: 'string' },
+                        userId: { type: 'string' },
+                        firstName: { type: 'string', nullable: true },
+                        lastName: { type: 'string', nullable: true },
+                        avatar: { type: 'string', nullable: true },
+                     },
+                  },
+                  organization: {
+                     type: 'object',
+                     nullable: true,
+                     properties: {
+                        id: { type: 'string' },
+                        name: { type: 'string' },
+                        slug: { type: 'string' },
+                        description: { type: 'string', nullable: true },
+                        image: { type: 'string', nullable: true },
+                        preferredGenre: { type: 'string', nullable: true },
+                        websiteUrl: { type: 'string', nullable: true },
+                        teamSize: { type: 'string', nullable: true },
+                     },
+                  },
+               },
+            },
             AudioBook: {
                type: 'object',
-               required: ['id', 'title', 'author', 'duration', 'fileSize', 'filePath', 'language', 'isActive', 'isPublic'],
+               required: ['id', 'title', 'author', 'duration', 'fileSize', 'filePath', 'language', 'isActive', 'isPublic', 'owner'],
                properties: {
                   id: {
                      type: 'string',
@@ -144,10 +194,8 @@ const options: swaggerJsdoc.Options = {
                      description: 'Whether the audiobook is publicly available',
                      example: true
                   },
-                  organizationId: {
-                     type: 'string',
-                     description: 'Organization ID when the audiobook belongs to an organization',
-                     nullable: true
+                  owner: {
+                     $ref: '#/components/schemas/AudioBookOwner',
                   },
                   createdAt: {
                      type: 'string',
@@ -165,7 +213,7 @@ const options: swaggerJsdoc.Options = {
             },
             CreateAudioBookRequest: {
                type: 'object',
-               required: ['title', 'author', 'duration', 'fileSize', 'filePath'],
+               required: ['title', 'author', 'owner', 'duration', 'fileSize', 'filePath'],
                properties: {
                   title: {
                      type: 'string',
@@ -248,9 +296,8 @@ const options: swaggerJsdoc.Options = {
                      example: true,
                      default: true
                   },
-                  organizationId: {
-                     type: 'string',
-                     description: 'Optional organization ID; when omitted, any authenticated user may create the audiobook'
+                  owner: {
+                     $ref: '#/components/schemas/AudioBookOwnerInput',
                   }
                }
             },
@@ -335,10 +382,8 @@ const options: swaggerJsdoc.Options = {
                      description: 'Whether the audiobook is publicly available',
                      example: true
                   },
-                  organizationId: {
-                     type: 'string',
-                     description: 'Organization ID; set to null to detach from an organization',
-                     nullable: true
+                  owner: {
+                     $ref: '#/components/schemas/AudioBookOwnerInput',
                   }
                }
             },

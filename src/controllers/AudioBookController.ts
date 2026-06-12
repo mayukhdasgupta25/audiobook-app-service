@@ -7,14 +7,13 @@ import { PrismaClient } from '@prisma/client';
 import { AudioBookService } from '../services/AudioBookService';
 import { BackgroundJobService } from '../services/BackgroundJobService';
 import { ResponseHandler } from '../utils/ResponseHandler';
-import { AudioBookQueryParams } from '../models/AudioBookDto';
+import { AudioBookQueryParams, CreateAudioBookDto } from '../models/AudioBookDto';
 import { ErrorHandler } from '../middleware/ErrorHandler';
 import { MessageHandler } from '../utils/MessageHandler';
 import { fileUrlService } from '../services/FileUrlService';
 import { ContentAuthorizationService } from '../services/ContentAuthorizationService';
 import { AuthenticatedRequest } from '../types/auth';
-import { authClient } from '../clients/AuthClient';
-import { isGlobalAuthorRole } from '../constants/authRoles';
+import { parseAudioBookOwnerFromBody } from '../utils/parseAudioBookOwner';
 
 function getBearerToken(req: Request): string | undefined {
   const authorization = req.headers.authorization;
@@ -96,7 +95,8 @@ export class AudioBookController {
       sortOrder: (req.query['sortOrder'] as 'asc' | 'desc') || 'desc',
       genreIds: genreIds,
       moodIds: moodIds,
-      organizationId: req.query['organizationId'] as string,
+      ownerType: req.query['ownerType'] as AudioBookQueryParams['ownerType'],
+      ownerId: req.query['ownerId'] as string,
       language: req.query['language'] as string,
       author: req.query['author'] as string,
       narrator: req.query['narrator'] as string,
@@ -107,7 +107,10 @@ export class AudioBookController {
       scheduled: req.query['scheduled'] !== undefined ? req.query['scheduled'] === 'true' : undefined,
     };
 
-    const { audiobooks, totalCount } = await this.audioBookService.getAllAudioBooks(queryParams);
+    const { audiobooks, totalCount } = await this.audioBookService.getAllAudioBooks(
+      queryParams,
+      getBearerToken(req),
+    );
 
     const pagination = ResponseHandler.calculatePagination(
       queryParams.page!,
@@ -174,13 +177,14 @@ export class AudioBookController {
   getAudioBookById = ErrorHandler.asyncHandler(async (req: Request, res: Response): Promise<void> => {
     const { id } = req.params;
 
-    const audiobook = await this.audioBookService.getAudioBookById(id as string);
-
     const authReq = req as AuthenticatedRequest;
     const externalUserId = authReq.user?.id ?? null;
-    const authHeader = req.headers.authorization;
-    const accessToken =
-      authHeader && authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+    const accessToken = getBearerToken(req) ?? null;
+
+    const audiobook = await this.audioBookService.getAudioBookById(
+      id as string,
+      accessToken ?? undefined,
+    );
 
     const subscriptionAccess =
       await this.audioBookService.getSubscriptionAccessForAudiobook(
@@ -291,8 +295,11 @@ export class AudioBookController {
       return;
     }
 
-    const organizationIdRaw = req.body.organizationId as string | undefined;
-    const organizationId = organizationIdRaw?.trim() || undefined;
+    const owner = parseAudioBookOwnerFromBody(req.body as Record<string, unknown>);
+    if (!owner) {
+      ResponseHandler.validationError(res, 'owner is required with type and id');
+      return;
+    }
 
     const authReq = req as AuthenticatedRequest;
     const externalUserId = authReq.user?.id;
@@ -304,20 +311,18 @@ export class AudioBookController {
       })
       : null;
 
-    if (organizationId) {
-      const allowed = await this.contentAuthorizationService.canCreateAudiobook(
-        externalUserId,
-        organizationId,
-        authReq.user?.role,
-        accessToken,
+    const allowed = await this.contentAuthorizationService.canCreateAudiobook(
+      externalUserId,
+      owner,
+      authReq.user?.role,
+      accessToken,
+    );
+    if (!allowed) {
+      ResponseHandler.forbidden(
+        res,
+        MessageHandler.getErrorMessage('organizations.admin_required')
       );
-      if (!allowed) {
-        ResponseHandler.forbidden(
-          res,
-          MessageHandler.getErrorMessage('organizations.admin_required')
-        );
-        return;
-      }
+      return;
     }
 
     // Parse tagIds from form-data (can be string, array, or JSON string)
@@ -372,27 +377,19 @@ export class AudioBookController {
       )
       : undefined;
 
-    let authorId: string | undefined;
-    if (externalUserId && isGlobalAuthorRole(authReq.user?.role) && accessToken) {
-      const author = await authClient.getAuthorByUserId(externalUserId, accessToken);
-      authorId = author?.id;
-    }
-
-    const audiobookData: any = {
+    const audiobookData: Record<string, unknown> = {
       ...req.body,
-      // Parse scheduledAt if provided (can be ISO string or Date)
+      owner,
       scheduledAt: req.body.scheduledAt ? new Date(req.body.scheduledAt) : undefined,
-      // Cover image from uploaded file
       coverImage,
-      // Include tagIds and genreIds in the data object (service expects them as part of data)
-      tagIds: tagIds,
-      genreIds: genreIds,
-      ...(authorId ? { authorId } : {}),
+      tagIds,
+      genreIds,
     };
 
     const audiobook = await this.audioBookService.createAudioBook(
-      audiobookData,
-      creatorProfile?.id
+      audiobookData as unknown as CreateAudioBookDto & { tagIds?: string[]; genreIds?: string[] },
+      creatorProfile?.id,
+      accessToken,
     );
 
     ResponseHandler.success(res, audiobook, MessageHandler.getSuccessMessage('audiobooks.created'), 201);
@@ -518,9 +515,17 @@ export class AudioBookController {
 
     const updateData = {
       ...req.body,
-      // Parse scheduledAt if provided (can be ISO string or Date)
       scheduledAt: req.body.scheduledAt ? new Date(req.body.scheduledAt) : undefined
     };
+
+    if (req.body.owner !== undefined) {
+      const ownerUpdate = parseAudioBookOwnerFromBody(req.body as Record<string, unknown>);
+      if (!ownerUpdate) {
+        ResponseHandler.validationError(res, 'owner must include type and id when provided');
+        return;
+      }
+      updateData.owner = ownerUpdate;
+    }
 
     // Remove tagIds and genreIds from updateData as they will be handled separately
     delete updateData.tagIds;
@@ -537,7 +542,13 @@ export class AudioBookController {
       );
     }
 
-    const audiobook = await this.audioBookService.updateAudioBook(id as string, updateData, tagIds, genreIds);
+    const audiobook = await this.audioBookService.updateAudioBook(
+      id as string,
+      updateData,
+      tagIds,
+      genreIds,
+      accessToken,
+    );
 
     ResponseHandler.success(res, audiobook, MessageHandler.getSuccessMessage('audiobooks.updated'));
   });
@@ -681,7 +692,10 @@ export class AudioBookController {
       sortOrder: 'desc'
     };
 
-    const { audiobooks, totalCount } = await this.audioBookService.getAllAudioBooks(queryParams);
+    const { audiobooks, totalCount } = await this.audioBookService.getAllAudioBooks(
+      queryParams,
+      getBearerToken(req),
+    );
 
     const pagination = ResponseHandler.calculatePagination(
       queryParams.page!,
@@ -723,7 +737,10 @@ export class AudioBookController {
       sortOrder: 'desc'
     };
 
-    const { audiobooks, totalCount } = await this.audioBookService.getAllAudioBooks(queryParams);
+    const { audiobooks, totalCount } = await this.audioBookService.getAllAudioBooks(
+      queryParams,
+      getBearerToken(req),
+    );
 
     const pagination = ResponseHandler.calculatePagination(
       queryParams.page!,
@@ -765,7 +782,10 @@ export class AudioBookController {
       sortOrder: 'desc'
     };
 
-    const { audiobooks, totalCount } = await this.audioBookService.getAllAudioBooks(queryParams);
+    const { audiobooks, totalCount } = await this.audioBookService.getAllAudioBooks(
+      queryParams,
+      getBearerToken(req),
+    );
 
     const pagination = ResponseHandler.calculatePagination(
       queryParams.page!,
@@ -842,7 +862,11 @@ export class AudioBookController {
       search: req.query['search'] as string
     };
 
-    const { audiobooks, totalCount } = await this.audioBookService.getAudioBooksByTags(tagList, queryParams);
+    const { audiobooks, totalCount } = await this.audioBookService.getAudioBooksByTags(
+      tagList,
+      queryParams,
+      getBearerToken(req),
+    );
 
     const pagination = ResponseHandler.calculatePagination(
       queryParams.page!,
@@ -862,10 +886,14 @@ export class AudioBookController {
       sortBy: (req.query['sortBy'] as string) || 'createdAt',
       sortOrder: (req.query['sortOrder'] as 'asc' | 'desc') || 'desc',
       search: req.query['search'] as string,
-      organizationId,
+      ownerType: 'ORGANIZATION',
+      ownerId: organizationId,
     };
 
-    const { audiobooks, totalCount } = await this.audioBookService.getAllAudioBooks(queryParams);
+    const { audiobooks, totalCount } = await this.audioBookService.getAllAudioBooks(
+      queryParams,
+      getBearerToken(req),
+    );
 
     const pagination = ResponseHandler.calculatePagination(
       queryParams.page!,

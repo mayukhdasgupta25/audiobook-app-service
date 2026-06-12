@@ -49,7 +49,7 @@ export class EntityDeletionCleanupService {
       });
 
       const audiobooks = await this.prisma.audioBook.findMany({
-         where: { authorId, organizationId: null },
+         where: { ownerType: 'AUTHOR', ownerId: authorId },
          select: { id: true },
       });
 
@@ -65,7 +65,7 @@ export class EntityDeletionCleanupService {
 
    async cleanupOrganization(organizationId: string): Promise<void> {
       const audiobooks = await this.prisma.audioBook.findMany({
-         where: { organizationId },
+         where: { ownerType: 'ORGANIZATION', ownerId: organizationId },
          select: { id: true },
       });
 
