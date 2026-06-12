@@ -4,38 +4,26 @@ import { ErrorHandler } from '../middleware/ErrorHandler';
 import { ResponseHandler } from '../utils/ResponseHandler';
 import { MessageHandler } from '../utils/MessageHandler';
 import { UserProfileService } from '../services/UserProfileService';
-import { LocationResolverService } from '../services/LocationResolverService';
 import { UpdateUserProfileDto } from '../models/UserDto';
 import { fileUrlService } from '../services/FileUrlService';
 
 export class UserProfileController {
    private userProfileService: UserProfileService;
-   private locationResolver: LocationResolverService;
 
-   constructor(prisma: PrismaClient, locationResolver?: LocationResolverService) {
+   constructor(prisma: PrismaClient) {
       this.userProfileService = new UserProfileService(prisma);
-      this.locationResolver = locationResolver ?? new LocationResolverService();
    }
 
    /**
     * @swagger
     * /api/v1/user/profile:
     *   get:
-    *     summary: Get current user's profile
-    *     description: Retrieve the authenticated user's profile information
+    *     summary: Get current user's app profile
+    *     description: Retrieve username, avatar, and preferences for the authenticated user
     *     tags: [Auth]
     *     responses:
     *       200:
     *         description: Profile retrieved successfully
-    *         content:
-    *           application/json:
-    *             schema:
-    *               allOf:
-    *                 - $ref: '#/components/schemas/ApiResponse'
-    *                 - type: object
-    *                   properties:
-    *                     data:
-    *                       $ref: '#/components/schemas/UserProfile'
     *       401:
     *         $ref: '#/components/responses/Unauthorized'
     *       404:
@@ -53,8 +41,8 @@ export class UserProfileController {
     * @swagger
     * /api/v1/user/profile:
     *   put:
-    *     summary: Update current user's profile
-    *     description: Update the authenticated user's profile information
+    *     summary: Update current user's app profile
+    *     description: Update username, avatar, and preferences. Demographic fields are managed by auth-service.
     *     tags: [Auth]
     *     requestBody:
     *       required: true
@@ -65,10 +53,6 @@ export class UserProfileController {
     *             properties:
     *               username:
     *                 type: string
-    *               firstName:
-    *                 type: string
-    *               lastName:
-    *                 type: string
     *               avatar:
     *                 type: string
     *                 format: binary
@@ -77,32 +61,9 @@ export class UserProfileController {
     *         application/json:
     *           schema:
     *             $ref: '#/components/schemas/UpdateUserProfileRequest'
-    *           examples:
-    *             example1:
-    *               summary: Update profile
-    *               value:
-    *                 username: "newusername"
-    *                 firstName: "Jane"
-    *                 lastName: "Smith"
-    *                 avatar: "https://example.com/avatar.jpg"
-    *                 location:
-    *                   latitude: "13.0595592"
-    *                   longitude: "77.5962203"
-    *                 preferences:
-    *                   theme: "dark"
-    *                   language: "en"
     *     responses:
     *       200:
     *         description: Profile updated successfully
-    *         content:
-    *           application/json:
-    *             schema:
-    *               allOf:
-    *                 - $ref: '#/components/schemas/ApiResponse'
-    *                 - type: object
-    *                   properties:
-    *                     data:
-    *                       $ref: '#/components/schemas/UserProfile'
     *       400:
     *         $ref: '#/components/responses/ValidationError'
     *       401:
@@ -112,8 +73,9 @@ export class UserProfileController {
     */
    updateProfile = ErrorHandler.asyncHandler(async (req: Request, res: Response): Promise<void> => {
       const userId = (req as any).user.id;
-      const { location, ...profileFields } = req.body as UpdateUserProfileDto;
-      const updateData: Parameters<UserProfileService['updateUserProfile']>[1] = { ...profileFields };
+      const updateData: Parameters<UserProfileService['updateUserProfile']>[1] = {
+         ...(req.body as UpdateUserProfileDto),
+      };
 
       const avatarFile = (req as Request & { avatarFile?: Express.Multer.File }).avatarFile;
       if (avatarFile) {
@@ -125,21 +87,8 @@ export class UserProfileController {
          );
       }
 
-      if (location !== undefined) {
-         if (location === null) {
-            updateData.location = null;
-         } else {
-            updateData.location = await this.locationResolver.resolveFromCoordinates(
-               Number(location.latitude),
-               Number(location.longitude)
-            );
-         }
-      }
-
       const updated = await this.userProfileService.updateUserProfile(userId, updateData);
 
       ResponseHandler.success(res, updated, MessageHandler.getSuccessMessage('auth.profile_updated'));
    });
 }
-
-

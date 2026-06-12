@@ -20,8 +20,6 @@ export interface UserAudioBookWithRelations extends UserAudioBookDto {
       id: string;
       userId: string;
       username: string;
-      firstName?: string | null;
-      lastName?: string | null;
    };
    audiobook: {
       id: string;
@@ -79,8 +77,6 @@ export function toUserAudioBookWithRelations(userAudioBook: any): UserAudioBookW
          id: userAudioBook.userProfile.id,
          userId: userAudioBook.userProfile.userId,
          username: userAudioBook.userProfile.username,
-         firstName: userAudioBook.userProfile.firstName,
-         lastName: userAudioBook.userProfile.lastName
       },
       audiobook: {
          id: userAudioBook.audiobook.id,

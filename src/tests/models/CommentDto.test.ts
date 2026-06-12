@@ -12,15 +12,13 @@ describe('CommentDto', () => {
          createdAt: new Date('2024-01-01T00:00:00Z'),
          updatedAt: new Date('2024-01-02T00:00:00Z'),
          userProfile: {
-            firstName: 'Jane',
-            lastName: 'Doe',
+            username: 'jane_doe',
             avatar: 'https://example.com/avatar.png',
          },
       });
 
       expect(dto.user).toEqual({
-         firstName: 'Jane',
-         lastName: 'Doe',
+         username: 'jane_doe',
          avatar: 'https://example.com/avatar.png',
       });
    });

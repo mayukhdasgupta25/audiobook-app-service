@@ -15,14 +15,7 @@ model UserProfile {
   id        String  @id @default(cuid())
   userId    String  @unique
   username  String  @unique
-  firstName String?
-  lastName  String?
   avatar    String? // URL to profile picture
-  address   String?
-  contact   String?
-  gender    Gender?
-  location  String?
-  age       Int?
 
   // User preferences
   preferences Json? // Store user preferences as JSON
@@ -573,14 +566,6 @@ model OrganizationMember {
 }
 
 // Enums
-enum Gender {
-  MALE
-  FEMALE
-  NON_BINARY
-  OTHER
-  PREFER_NOT_TO_SAY
-}
-
 enum UserAudioBookType {
   OWNED
   PURCHASED

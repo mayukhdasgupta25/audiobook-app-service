@@ -8,10 +8,6 @@
  */
 export interface UserCreationMessage {
    userId: string;
-   firstName?: string;
-   lastName?: string;
-   address?: string;
-   contact?: string;
    avatar?: string;
 }
 

@@ -442,8 +442,7 @@ const options: swaggerJsdoc.Options = {
             CommentUser: {
                type: 'object',
                properties: {
-                  firstName: { type: 'string', nullable: true },
-                  lastName: { type: 'string', nullable: true },
+                  username: { type: 'string', nullable: true },
                   avatar: { type: 'string', nullable: true, description: 'URL to profile picture' }
                }
             },
