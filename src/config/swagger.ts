@@ -144,6 +144,11 @@ const options: swaggerJsdoc.Options = {
                      description: 'Whether the audiobook is publicly available',
                      example: true
                   },
+                  organizationId: {
+                     type: 'string',
+                     description: 'Organization ID when the audiobook belongs to an organization',
+                     nullable: true
+                  },
                   createdAt: {
                      type: 'string',
                      format: 'date-time',
@@ -242,6 +247,10 @@ const options: swaggerJsdoc.Options = {
                      description: 'Whether the audiobook is publicly available',
                      example: true,
                      default: true
+                  },
+                  organizationId: {
+                     type: 'string',
+                     description: 'Optional organization ID; when omitted, any authenticated user may create the audiobook'
                   }
                }
             },
@@ -325,6 +334,11 @@ const options: swaggerJsdoc.Options = {
                      type: 'boolean',
                      description: 'Whether the audiobook is publicly available',
                      example: true
+                  },
+                  organizationId: {
+                     type: 'string',
+                     description: 'Organization ID; set to null to detach from an organization',
+                     nullable: true
                   }
                }
             },

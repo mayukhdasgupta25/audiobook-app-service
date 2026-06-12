@@ -62,6 +62,7 @@ describe('ChapterController.createChapter', () => {
       mockChapterService = (chapterController as any).chapterService;
       mockOrganizationService = (chapterController as any).organizationService;
       mockOrganizationService.canCreateChapter = jest.fn().mockResolvedValue({
+         audiobookExists: true,
          allowed: true,
          organizationId: 'org-1',
       });
@@ -95,6 +96,7 @@ describe('ChapterController.createChapter', () => {
 
    it('should return forbidden when author is not linked to organization', async () => {
       mockOrganizationService.canCreateChapter.mockResolvedValue({
+         audiobookExists: true,
          allowed: false,
          organizationId: 'org-1',
       });
@@ -108,7 +110,10 @@ describe('ChapterController.createChapter', () => {
    });
 
    it('should return not found when audiobook does not exist', async () => {
-      mockOrganizationService.canCreateChapter.mockResolvedValue({ allowed: false });
+      mockOrganizationService.canCreateChapter.mockResolvedValue({
+         audiobookExists: false,
+         allowed: false,
+      });
       (MessageHandler.getErrorMessage as jest.Mock).mockReturnValue('Audiobook not found');
 
       await chapterController.createChapter(mockReq, mockRes, mockReq.next);
@@ -116,6 +121,28 @@ describe('ChapterController.createChapter', () => {
 
       expect(ResponseHandler.notFound).toHaveBeenCalledWith(mockRes, 'Audiobook not found');
       expect(mockChapterService.createChapter).not.toHaveBeenCalled();
+   });
+
+   it('should create chapter on org-less audiobook for authenticated user', async () => {
+      mockOrganizationService.canCreateChapter.mockResolvedValue({
+         audiobookExists: true,
+         allowed: true,
+         organizationId: null,
+      });
+      const mockChapter = { id: 'chapter-1', title: 'Chapter 1' };
+      mockChapterService.createChapter.mockResolvedValue(mockChapter as any);
+      (MessageHandler.getSuccessMessage as jest.Mock).mockReturnValue('Chapter created');
+
+      await chapterController.createChapter(mockReq, mockRes, mockReq.next);
+      await flushPromises();
+
+      expect(mockChapterService.createChapter).toHaveBeenCalled();
+      expect(ResponseHandler.success).toHaveBeenCalledWith(
+         mockRes,
+         mockChapter,
+         'Chapter created',
+         201,
+      );
    });
 
    it('should return validation error when cover image is missing', async () => {

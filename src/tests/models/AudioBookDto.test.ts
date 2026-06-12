@@ -67,6 +67,18 @@ describe('AudioBookDto', () => {
          expect(result.organizationId).toBe('org-1');
       });
 
+      it('should map null organizationId', () => {
+         const prismaAudioBook = createMockPrismaAudioBook({
+            organizationId: null,
+            organization: null,
+         });
+
+         const result = toAudioBookDto(prismaAudioBook);
+
+         expect(result.organizationId).toBeNull();
+         expect(result.organization).toBeUndefined();
+      });
+
       it('should map organization when present', () => {
          const prismaAudioBook = createMockPrismaAudioBook({
             organization: {
@@ -238,6 +250,16 @@ describe('AudioBookDto', () => {
          expect(createDto.duration).toBe(1800);
          expect(createDto.fileSize).toBe(1024 * 1024);
          expect(createDto.organizationId).toBe('org-id');
+      });
+
+      it('should accept CreateAudioBookDto without organizationId', () => {
+         const createDto: CreateAudioBookDto = {
+            title: 'New Audiobook',
+            author: 'New Author',
+            genreIds: ['genre-id'],
+         };
+
+         expect(createDto.organizationId).toBeUndefined();
       });
 
       it('should accept optional fields in CreateAudioBookDto', () => {

@@ -297,16 +297,22 @@ describe('AudioBookController', () => {
          );
       });
 
-      it('should return validation error when organizationId is missing', async () => {
-         mockReq.body = { title: 'No Org Book' };
-         (mockReq as any).coverImageFile = { path: '/uploads/covers/cover.jpg' };
-         (MessageHandler.getErrorMessage as jest.Mock).mockReturnValue('Org required');
+      it('should create audiobook without organizationId when authenticated', async () => {
+         mockReq.body = {
+            title: 'No Org Book',
+            author: 'Author Name',
+         };
+         (mockReq as any).coverImageFile = mockCoverImageFile;
+
+         const mockBook = { id: 'book-no-org', title: 'No Org Book' };
+         mockAudioBookService.createAudioBook.mockResolvedValue(mockBook as any);
+         (MessageHandler.getSuccessMessage as jest.Mock).mockReturnValue('Created');
 
          await audioBookController.createAudioBook(mockReq, mockRes, mockReq.next);
          await flushPromises();
 
-         expect(ResponseHandler.validationError).toHaveBeenCalledWith(mockRes, 'Org required');
-         expect(mockAudioBookService.createAudioBook).not.toHaveBeenCalled();
+         expect(mockOrganizationService.canCreateAudiobook).not.toHaveBeenCalled();
+         expect(mockAudioBookService.createAudioBook).toHaveBeenCalled();
       });
 
       it('should create audiobook for author linked to organization', async () => {

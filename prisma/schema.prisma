@@ -61,7 +61,7 @@ model AudioBook {
   coverImage String? // URL to cover image
 
   // Metadata
-  organizationId String
+  organizationId String?
   language       String    @default("bn")
   publisher      String?
   publishDate    DateTime?
@@ -89,7 +89,7 @@ model AudioBook {
   moodId String?
 
   // Relations
-  organization     Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization     Organization?      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   mood             Mood?              @relation(fields: [moodId], references: [id], onDelete: SetNull)
   userAudioBooks   UserAudioBook[]
   reviews          Review[]

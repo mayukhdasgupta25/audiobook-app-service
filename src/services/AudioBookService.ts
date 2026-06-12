@@ -315,10 +315,14 @@ export class AudioBookService {
       const createData: any = {
         title: audiobookData.title,
         author: audiobookData.author,
-        organizationId: audiobookData.organizationId, // Required
         language: audiobookData.language || 'bn', // Default language is now Bengali
         isPublic: audiobookData.isPublic ?? true,
       };
+
+      const trimmedOrganizationId = audiobookData.organizationId?.trim();
+      if (trimmedOrganizationId) {
+        createData.organizationId = trimmedOrganizationId;
+      }
 
       // Handle scheduledAt: if provided, set isActive=false and schedule activation job
       if (audiobookData.scheduledAt !== undefined) {
@@ -456,6 +460,11 @@ export class AudioBookService {
       if (data.minSubscriptionTier !== undefined) {
         this.validateMinSubscriptionTier(data.minSubscriptionTier);
         updateData.minSubscriptionTier = data.minSubscriptionTier;
+      }
+      if (data.organizationId !== undefined) {
+        const trimmedOrganizationId =
+          typeof data.organizationId === 'string' ? data.organizationId.trim() : data.organizationId;
+        updateData.organizationId = trimmedOrganizationId || null;
       }
 
       // updateData.duration = parseInt(updateData.duration);
@@ -788,20 +797,6 @@ export class AudioBookService {
     const invalidGenreIds = genreIds.filter(id => !id || typeof id !== 'string' || id.trim().length === 0);
     if (invalidGenreIds.length > 0) {
       throw ApiError.validationError(MessageHandler.getErrorMessage('validation.genre_required') || 'All genre IDs must be valid');
-    }
-
-    // Organization is mandatory - every audiobook belongs to an organization
-    if (!data.organizationId || data.organizationId.trim().length === 0) {
-      throw ApiError.validationError(
-        MessageHandler.getErrorMessage('validation.organization_id_required') || 'Organization is required'
-      );
-    }
-
-    // Organization is mandatory - every audiobook belongs to an organization
-    if (!data.organizationId || data.organizationId.trim().length === 0) {
-      throw ApiError.validationError(
-        MessageHandler.getErrorMessage('validation.organization_id_required') || 'Organization is required'
-      );
     }
 
     // Validate ISBN format if provided
