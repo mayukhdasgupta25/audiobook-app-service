@@ -425,6 +425,35 @@ export class AudioBookController {
   updateAudioBook = ErrorHandler.asyncHandler(async (req: Request, res: Response): Promise<void> => {
     const { id } = req.params;
 
+    const authReq = req as AuthenticatedRequest;
+    const externalUserId = authReq.user?.id;
+    const creatorProfile = externalUserId
+      ? await this.prisma.userProfile.findUnique({
+        where: { userId: externalUserId },
+        select: { id: true },
+      })
+      : null;
+
+    const { audiobookExists, allowed } = await this.organizationService.canManageAudiobook(
+      externalUserId,
+      creatorProfile?.id,
+      id as string,
+      authReq.user?.role,
+    );
+
+    if (!audiobookExists) {
+      ResponseHandler.notFound(res, MessageHandler.getErrorMessage('not_found.audiobook'));
+      return;
+    }
+
+    if (!allowed) {
+      ResponseHandler.forbidden(
+        res,
+        MessageHandler.getErrorMessage('organizations.admin_required'),
+      );
+      return;
+    }
+
     // Extract tagIds before creating updateData
     // Handle both array and string formats (form-data might send as string)
     let tagIds: string[] | undefined = undefined;
@@ -520,6 +549,35 @@ export class AudioBookController {
    */
   deleteAudioBook = ErrorHandler.asyncHandler(async (req: Request, res: Response): Promise<void> => {
     const { id } = req.params;
+
+    const authReq = req as AuthenticatedRequest;
+    const externalUserId = authReq.user?.id;
+    const creatorProfile = externalUserId
+      ? await this.prisma.userProfile.findUnique({
+        where: { userId: externalUserId },
+        select: { id: true },
+      })
+      : null;
+
+    const { audiobookExists, allowed } = await this.organizationService.canManageAudiobook(
+      externalUserId,
+      creatorProfile?.id,
+      id as string,
+      authReq.user?.role,
+    );
+
+    if (!audiobookExists) {
+      ResponseHandler.notFound(res, MessageHandler.getErrorMessage('not_found.audiobook'));
+      return;
+    }
+
+    if (!allowed) {
+      ResponseHandler.forbidden(
+        res,
+        MessageHandler.getErrorMessage('organizations.admin_required'),
+      );
+      return;
+    }
 
     await this.audioBookService.deleteAudioBook(id as string);
 

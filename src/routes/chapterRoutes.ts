@@ -8,7 +8,7 @@ import { ChapterController } from '../controllers/ChapterController';
 import { BackgroundJobService } from '../services/BackgroundJobService';
 import { ValidationMiddleware } from '../middleware/ValidationMiddleware';
 import { UploadMiddleware } from '../middleware/UploadMiddleware';
-import { requireContentCreator } from '../middleware/RoleMiddleware';
+import { requireContentCreator, requireContentManager } from '../middleware/RoleMiddleware';
 
 export function createChapterRoutes(prisma: PrismaClient): Router {
    const router = Router();
@@ -51,6 +51,7 @@ export function createChapterRoutes(prisma: PrismaClient): Router {
    // Update chapter
    router.put(
       '/chapters/:id',
+      requireContentManager(),
       ValidationMiddleware.validateId,
       UploadMiddleware.handleImageUpload,
       UploadMiddleware.handleAudioUpload,
@@ -60,6 +61,7 @@ export function createChapterRoutes(prisma: PrismaClient): Router {
    // Delete chapter
    router.delete(
       '/chapters/:id',
+      requireContentManager(),
       ValidationMiddleware.validateId,
       chapterController.deleteChapter
    );

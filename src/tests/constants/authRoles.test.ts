@@ -1,6 +1,7 @@
 import {
    AuthRole,
    isContentCreatorRole,
+   isContentManagerRole,
    isGlobalAdminRole,
    isGlobalAuthorRole,
    isOrgAdminRole,
@@ -51,6 +52,19 @@ describe('authRoles', () => {
       test('returns false for LISTENER and GLOBAL_ADMIN', () => {
          expect(isContentCreatorRole(AuthRole.LISTENER)).toBe(false);
          expect(isContentCreatorRole(AuthRole.GLOBAL_ADMIN)).toBe(false);
+      });
+   });
+
+   describe('isContentManagerRole', () => {
+      test('returns true for GLOBAL_ADMIN, org staff, and AUTHOR', () => {
+         expect(isContentManagerRole(AuthRole.GLOBAL_ADMIN)).toBe(true);
+         expect(isContentManagerRole(AuthRole.ORG_ADMIN)).toBe(true);
+         expect(isContentManagerRole(AuthRole.ORG_COORDINATOR)).toBe(true);
+         expect(isContentManagerRole(AuthRole.AUTHOR)).toBe(true);
+      });
+
+      test('returns false for LISTENER', () => {
+         expect(isContentManagerRole(AuthRole.LISTENER)).toBe(false);
       });
    });
 
