@@ -1,7 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import { AudioBookOwnerService } from '../../services/AudioBookOwnerService';
 import { authClient } from '../../clients/AuthClient';
-import { fileUrlService } from '../../services/FileUrlService';
 import { AudioBookDto } from '../../models/AudioBookDto';
 
 jest.mock('../../clients/AuthClient', () => ({
