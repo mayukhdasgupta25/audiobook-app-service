@@ -36,7 +36,10 @@ describe('AudioBookController', () => {
    let mockReq: any;
    let mockRes: any;
    let mockAudioBookService: jest.Mocked<AudioBookService>;
-   let mockOrganizationService: { canCreateAudiobook: jest.Mock };
+   let mockOrganizationService: {
+      canCreateAudiobook: jest.Mock;
+      canManageAudiobook: jest.Mock;
+   };
 
    beforeEach(() => {
       mockPrisma = {
@@ -68,6 +71,9 @@ describe('AudioBookController', () => {
       mockAudioBookService = (audioBookController as any).audioBookService;
       mockOrganizationService = (audioBookController as any).organizationService;
       mockOrganizationService.canCreateAudiobook = jest.fn().mockResolvedValue(true);
+      mockOrganizationService.canManageAudiobook = jest
+         .fn()
+         .mockResolvedValue({ audiobookExists: true, allowed: true });
       mockAudioBookService.getSubscriptionAccessForAudiobook = jest
          .fn()
          .mockResolvedValue({ canAccess: true }) as any;
@@ -366,7 +372,14 @@ describe('AudioBookController', () => {
          mockAudioBookService.deleteAudioBook.mockResolvedValue(undefined);
 
          await audioBookController.deleteAudioBook(mockReq, mockRes, mockReq.next);
+         await flushPromises();
 
+         expect(mockOrganizationService.canManageAudiobook).toHaveBeenCalledWith(
+            'auth-user-1',
+            'profile-1',
+            'book-123',
+            AuthRole.AUTHOR,
+         );
          expect(mockAudioBookService.deleteAudioBook).toHaveBeenCalledWith('book-123');
          expect(ResponseHandler.noContent).toHaveBeenCalledWith(mockRes);
       });
