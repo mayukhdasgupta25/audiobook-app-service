@@ -277,14 +277,14 @@ export class ChapterController {
          })
          : null;
 
-      const { allowed, organizationId } = await this.organizationService.canCreateChapter(
+      const { audiobookExists, allowed } = await this.organizationService.canCreateChapter(
          externalUserId,
          creatorProfile?.id,
          chapterData.audiobookId,
          authReq.user?.role,
       );
 
-      if (!organizationId) {
+      if (!audiobookExists) {
          ResponseHandler.notFound(res, MessageHandler.getErrorMessage('not_found.audiobook'));
          return;
       }

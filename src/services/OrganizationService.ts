@@ -607,9 +607,13 @@ export class OrganizationService {
    async canCreateAudiobook(
       authUserId: string | undefined,
       userProfileId: string | undefined,
-      organizationId: string,
+      organizationId: string | null | undefined,
       jwtRole: string | undefined,
    ): Promise<boolean> {
+      if (!organizationId) {
+         return Boolean(authUserId);
+      }
+
       if (isGlobalAdminRole(jwtRole)) {
          return true;
       }
@@ -634,14 +638,22 @@ export class OrganizationService {
       userProfileId: string | undefined,
       audiobookId: string,
       jwtRole: string | undefined,
-   ): Promise<{ allowed: boolean; organizationId?: string }> {
+   ): Promise<{ audiobookExists: boolean; allowed: boolean; organizationId?: string | null }> {
       const audiobook = await this.prisma.audioBook.findUnique({
          where: { id: audiobookId },
          select: { organizationId: true },
       });
 
       if (!audiobook) {
-         return { allowed: false };
+         return { audiobookExists: false, allowed: false };
+      }
+
+      if (audiobook.organizationId === null) {
+         return {
+            audiobookExists: true,
+            allowed: Boolean(authUserId),
+            organizationId: null,
+         };
       }
 
       const allowed = await this.canCreateAudiobook(
@@ -651,7 +663,7 @@ export class OrganizationService {
          jwtRole,
       );
 
-      return { allowed, organizationId: audiobook.organizationId };
+      return { audiobookExists: true, allowed, organizationId: audiobook.organizationId };
    }
 
    /**

@@ -246,6 +246,9 @@ export class AudioBookController {
     *               isPublic:
     *                 type: boolean
     *                 description: Whether the audiobook is public
+    *               organizationId:
+    *                 type: string
+    *                 description: Optional organization ID; when omitted, any authenticated user may create the audiobook
     *               coverImage:
     *                 type: string
     *                 format: binary
@@ -277,15 +280,8 @@ export class AudioBookController {
       return;
     }
 
-    // organizationId is required (every audiobook belongs to an organization)
-    const organizationId = req.body.organizationId as string | undefined;
-    if (!organizationId || organizationId.trim().length === 0) {
-      ResponseHandler.validationError(
-        res,
-        MessageHandler.getErrorMessage('validation.organization_id_required')
-      );
-      return;
-    }
+    const organizationIdRaw = req.body.organizationId as string | undefined;
+    const organizationId = organizationIdRaw?.trim() || undefined;
 
     const authReq = req as AuthenticatedRequest;
     const externalUserId = authReq.user?.id;
@@ -296,20 +292,22 @@ export class AudioBookController {
       })
       : null;
 
-    // Global admins bypass org checks. Authors may create for linked orgs;
-    // org staff (OWNER/ADMIN) may also create in their organization.
-    const allowed = await this.organizationService.canCreateAudiobook(
-      externalUserId,
-      creatorProfile?.id,
-      organizationId,
-      authReq.user?.role,
-    );
-    if (!allowed) {
-      ResponseHandler.forbidden(
-        res,
-        MessageHandler.getErrorMessage('organizations.admin_required')
+    if (organizationId) {
+      // Global admins bypass org checks. Authors may create for linked orgs;
+      // org staff (OWNER/ADMIN) may also create in their organization.
+      const allowed = await this.organizationService.canCreateAudiobook(
+        externalUserId,
+        creatorProfile?.id,
+        organizationId,
+        authReq.user?.role,
       );
-      return;
+      if (!allowed) {
+        ResponseHandler.forbidden(
+          res,
+          MessageHandler.getErrorMessage('organizations.admin_required')
+        );
+        return;
+      }
     }
 
     // Parse tagIds from form-data (can be string, array, or JSON string)
