@@ -2,10 +2,12 @@ import { PrismaClient } from '@prisma/client';
 import { AudiobookMediaCleanupService } from '../../services/AudiobookMediaCleanupService';
 import { mediaCleanupService } from '../../services/MediaCleanupService';
 
+const mockPublishChapterDeletion = jest.fn().mockResolvedValue(true);
+
 jest.mock('../../config/rabbitmq', () => ({
    RabbitMQFactory: {
       getConnection: jest.fn(() => ({
-         publishChapterDeletion: jest.fn().mockResolvedValue(true),
+         publishChapterDeletion: mockPublishChapterDeletion,
       })),
    },
 }));
@@ -29,6 +31,8 @@ describe('AudiobookMediaCleanupService', () => {
 
    beforeEach(() => {
       jest.clearAllMocks();
+      mockPublishChapterDeletion.mockResolvedValue(true);
+      publishChapterDeletion = mockPublishChapterDeletion;
       mockPrisma = {
          audioBook: {
             findUnique: jest.fn(),
@@ -36,9 +40,6 @@ describe('AudiobookMediaCleanupService', () => {
          },
       };
       service = new AudiobookMediaCleanupService(mockPrisma as unknown as PrismaClient);
-
-      const { RabbitMQFactory } = jest.requireMock('../../config/rabbitmq');
-      publishChapterDeletion = RabbitMQFactory.getConnection().publishChapterDeletion;
    });
 
    it('loads chapters, publishes chapter.deleted, and deletes audiobook', async () => {
