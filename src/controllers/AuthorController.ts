@@ -10,6 +10,27 @@ import { ErrorHandler } from '../middleware/ErrorHandler';
 import { MessageHandler } from '../utils/MessageHandler';
 import { CreateAuthorDto, UpdateAuthorDto } from '../models/AuthorDto';
 import { fileUrlService } from '../services/FileUrlService';
+import { AuthenticatedRequest } from '../types/auth';
+import { isGlobalAdminRole } from '../constants/authRoles';
+
+function assertAuthorSelfOrAdmin(
+   req: Request,
+   res: Response,
+   authorUserId: string,
+): boolean {
+   const authReq = req as AuthenticatedRequest;
+   if (isGlobalAdminRole(authReq.user?.role)) {
+      return true;
+   }
+   if (authReq.user?.id === authorUserId) {
+      return true;
+   }
+   ResponseHandler.forbidden(
+      res,
+      MessageHandler.getErrorMessage('forbidden.admin_required'),
+   );
+   return false;
+}
 
 function parseFormDataStringArray(value: unknown): string[] | undefined {
    if (value === undefined || value === null || value === '') {
@@ -100,6 +121,11 @@ export class AuthorController {
    getAuthorById = ErrorHandler.asyncHandler(async (req: Request, res: Response): Promise<void> => {
       const { id } = req.params as { id: string };
       const author = await this.authorService.getAuthorById(id);
+
+      if (!assertAuthorSelfOrAdmin(req, res, author.userId)) {
+         return;
+      }
+
       ResponseHandler.success(res, author, MessageHandler.getSuccessMessage('authors.retrieved'));
    });
 
@@ -160,6 +186,20 @@ export class AuthorController {
     *         $ref: '#/components/responses/InternalServerError'
     */
    createAuthor = ErrorHandler.asyncHandler(async (req: Request, res: Response): Promise<void> => {
+      const authReq = req as AuthenticatedRequest;
+      const targetUserId = req.body?.userId as string | undefined;
+
+      if (
+         !isGlobalAdminRole(authReq.user?.role) &&
+         (!targetUserId || targetUserId !== authReq.user?.id)
+      ) {
+         ResponseHandler.forbidden(
+            res,
+            MessageHandler.getErrorMessage('forbidden.admin_required'),
+         );
+         return;
+      }
+
       const uploadedProfileImage = (req as any).profileImageFile as Express.Multer.File | undefined;
 
       const profileImage = uploadedProfileImage
@@ -239,6 +279,12 @@ export class AuthorController {
     */
    updateAuthor = ErrorHandler.asyncHandler(async (req: Request, res: Response): Promise<void> => {
       const { id } = req.params as { id: string };
+      const existing = await this.authorService.getAuthorById(id);
+
+      if (!assertAuthorSelfOrAdmin(req, res, existing.userId)) {
+         return;
+      }
+
       const uploadedProfileImage = (req as any).profileImageFile as Express.Multer.File | undefined;
 
       const updateAuthorDto: UpdateAuthorDto = {
@@ -285,6 +331,12 @@ export class AuthorController {
     */
    deleteAuthor = ErrorHandler.asyncHandler(async (req: Request, res: Response): Promise<void> => {
       const { id } = req.params as { id: string };
+      const existing = await this.authorService.getAuthorById(id);
+
+      if (!assertAuthorSelfOrAdmin(req, res, existing.userId)) {
+         return;
+      }
+
       await this.authorService.deleteAuthor(id);
       ResponseHandler.success(res, null, MessageHandler.getSuccessMessage('authors.deleted'));
    });

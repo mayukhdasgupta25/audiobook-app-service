@@ -13,6 +13,12 @@ export const AuthRoleGroups = {
    GLOBAL_ADMIN_OR_AUTHOR: [AuthRole.GLOBAL_ADMIN, AuthRole.AUTHOR],
    ORG_STAFF: [AuthRole.ORG_ADMIN, AuthRole.ORG_COORDINATOR],
    CONTENT_CREATOR: [AuthRole.ORG_ADMIN, AuthRole.ORG_COORDINATOR, AuthRole.AUTHOR],
+   CONTENT_MANAGER: [
+      AuthRole.GLOBAL_ADMIN,
+      AuthRole.ORG_ADMIN,
+      AuthRole.ORG_COORDINATOR,
+      AuthRole.AUTHOR,
+   ],
    ALL_AUTHENTICATED: [
       AuthRole.LISTENER,
       AuthRole.GLOBAL_ADMIN,
@@ -45,6 +51,13 @@ export function isGlobalAuthorRole(role: string | undefined): boolean {
 export function isContentCreatorRole(role: string | undefined): boolean {
    const normalized = normalizeAuthRole(role);
    return AuthRoleGroups.CONTENT_CREATOR.some(
+      (allowed) => normalizeAuthRole(allowed) === normalized,
+   );
+}
+
+export function isContentManagerRole(role: string | undefined): boolean {
+   const normalized = normalizeAuthRole(role);
+   return AuthRoleGroups.CONTENT_MANAGER.some(
       (allowed) => normalizeAuthRole(allowed) === normalized,
    );
 }

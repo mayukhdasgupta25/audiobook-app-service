@@ -153,10 +153,7 @@ export class BullBoardAuth {
             return;
          }
 
-         // Check if user is admin (you can customize this logic)
-         const isAdmin = isGlobalAdminRole(req.session.user.role) ||
-            req.session.user.isAdmin === true ||
-            req.session.user.email === 'admin@audiobook.com'; // Customize this
+         const isAdmin = isGlobalAdminRole(req.session.user.role);
 
          if (!isAdmin) {
             ResponseHandler.forbidden(res, MessageHandler.getErrorMessage('forbidden.admin_required'));

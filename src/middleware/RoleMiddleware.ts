@@ -68,6 +68,13 @@ export function requireContentCreator() {
    return requireRole([...AuthRoleGroups.CONTENT_CREATOR]);
 }
 
+/**
+ * Require GLOBAL_ADMIN, ORG_ADMIN, ORG_COORDINATOR, or AUTHOR (audiobook/chapter update/delete)
+ */
+export function requireContentManager() {
+   return requireRole([...AuthRoleGroups.CONTENT_MANAGER]);
+}
+
 /** @deprecated Use requireGlobalAdmin */
 export const requireAdmin = requireGlobalAdmin;
 

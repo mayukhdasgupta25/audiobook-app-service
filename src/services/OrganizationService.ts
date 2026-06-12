@@ -23,12 +23,15 @@ import {
 import { ApiError } from '../types/ApiError';
 import { MessageHandler } from '../utils/MessageHandler';
 import { fileUrlService } from './FileUrlService';
+import { authClient } from '../clients/AuthClient';
 import {
+   AuthRole,
    isContentCreatorRole,
    isGlobalAdminRole,
    isGlobalAuthorRole,
    isOrgAdminRole,
    isOrgCoordinatorRole,
+   normalizeAuthRole,
 } from '../constants/authRoles';
 
 export function hasOwnerTierOrgAccess(
@@ -368,12 +371,60 @@ export class OrganizationService {
    }
 
    /**
+    * Validate that a user profile's auth account is eligible for org membership.
+    */
+   async validateMemberAuthEligibility(
+      userProfileId: string,
+      membershipRole: OrganizationRole,
+      accessToken: string,
+   ): Promise<void> {
+      const userProfile = await this.prisma.userProfile.findUnique({
+         where: { id: userProfileId },
+         select: { userId: true },
+      });
+
+      if (!userProfile) {
+         throw ApiError.notFound(MessageHandler.getErrorMessage('not_found.user'));
+      }
+
+      const authUser = await authClient.getUserById(userProfile.userId, accessToken);
+      if (!authUser) {
+         throw ApiError.notFound(MessageHandler.getErrorMessage('not_found.user'));
+      }
+
+      if (normalizeAuthRole(authUser.role) === normalizeAuthRole(AuthRole.LISTENER)) {
+         throw ApiError.conflict(
+            MessageHandler.getErrorMessage('organizations.listener_member_not_allowed'),
+         );
+      }
+
+      if (
+         membershipRole === OrganizationRole.OWNER &&
+         !isOrgAdminRole(authUser.role)
+      ) {
+         throw ApiError.conflict(
+            MessageHandler.getErrorMessage('organizations.member_role_mismatch'),
+         );
+      }
+
+      if (
+         membershipRole === OrganizationRole.ADMIN &&
+         !isOrgCoordinatorRole(authUser.role)
+      ) {
+         throw ApiError.conflict(
+            MessageHandler.getErrorMessage('organizations.member_role_mismatch'),
+         );
+      }
+   }
+
+   /**
     * Add a user to an organization. The optional `role` defaults to ADMIN.
     */
    async addMember(
       organizationId: string,
       userProfileId: string,
-      role: OrganizationRole = OrganizationRole.ADMIN
+      role: OrganizationRole = OrganizationRole.ADMIN,
+      accessToken?: string,
    ): Promise<OrganizationMemberDto> {
       try {
          const [organization, userProfile] = await Promise.all([
@@ -390,6 +441,10 @@ export class OrganizationService {
             throw ApiError.notFound(
                MessageHandler.getErrorMessage('not_found.user')
             );
+         }
+
+         if (accessToken) {
+            await this.validateMemberAuthEligibility(userProfileId, role, accessToken);
          }
 
          const existing = await this.prisma.organizationMember.findUnique({
@@ -470,7 +525,8 @@ export class OrganizationService {
    async updateMemberRole(
       organizationId: string,
       userProfileId: string,
-      role: OrganizationRole
+      role: OrganizationRole,
+      accessToken?: string,
    ): Promise<OrganizationMemberDto> {
       try {
          const member = await this.prisma.organizationMember.findUnique({
@@ -482,6 +538,10 @@ export class OrganizationService {
             throw ApiError.notFound(
                MessageHandler.getErrorMessage('organizations.member_not_found')
             );
+         }
+
+         if (accessToken) {
+            await this.validateMemberAuthEligibility(userProfileId, role, accessToken);
          }
 
          if (
@@ -714,6 +774,66 @@ export class OrganizationService {
       );
 
       return { audiobookExists: true, allowed, organizationId: audiobook.organizationId };
+   }
+
+   /**
+    * Whether the caller may update or delete an audiobook.
+    */
+   async canManageAudiobook(
+      authUserId: string | undefined,
+      userProfileId: string | undefined,
+      audiobookId: string,
+      jwtRole: string | undefined,
+   ): Promise<{ audiobookExists: boolean; allowed: boolean }> {
+      const audiobook = await this.prisma.audioBook.findUnique({
+         where: { id: audiobookId },
+         select: { organizationId: true },
+      });
+
+      if (!audiobook) {
+         return { audiobookExists: false, allowed: false };
+      }
+
+      if (isGlobalAdminRole(jwtRole)) {
+         return { audiobookExists: true, allowed: true };
+      }
+
+      const allowed = await this.canCreateAudiobook(
+         authUserId,
+         userProfileId,
+         audiobook.organizationId,
+         jwtRole,
+      );
+
+      return { audiobookExists: true, allowed };
+   }
+
+   /**
+    * Whether the caller may update or delete a chapter.
+    */
+   async canManageChapter(
+      authUserId: string | undefined,
+      userProfileId: string | undefined,
+      chapterId: string,
+      jwtRole: string | undefined,
+   ): Promise<{ chapterExists: boolean; allowed: boolean }> {
+      const chapter = await this.prisma.chapter.findUnique({
+         where: { id: chapterId },
+         select: { audiobookId: true },
+      });
+
+      if (!chapter) {
+         return { chapterExists: false, allowed: false };
+      }
+
+      const { audiobookExists, allowed } = await this.canManageAudiobook(
+         authUserId,
+         userProfileId,
+         chapter.audiobookId,
+         jwtRole,
+      );
+
+      return { chapterExists: true, allowed: audiobookExists && allowed };
    }
 
    /**

@@ -21,6 +21,14 @@ jest.mock('../../services/FileUrlService', () => ({
    },
 }));
 
+jest.mock('../../clients/AuthClient', () => ({
+   authClient: {
+      getUserById: jest.fn(),
+   },
+}));
+
+import { authClient } from '../../clients/AuthClient';
+
 // Build a Prisma double whose transaction callback just receives the same
 // stub so we can exercise the same code paths in tests.
 const buildMockPrisma = () => {
@@ -55,6 +63,9 @@ const buildMockPrisma = () => {
          findUnique: jest.fn(),
       },
       audioBook: {
+         findUnique: jest.fn(),
+      },
+      chapter: {
          findUnique: jest.fn(),
       },
       $transaction: jest.fn(async (cb: any) => cb(prisma)),
@@ -458,6 +469,32 @@ describe('OrganizationService', () => {
          );
       });
 
+      it('throws conflict when auth user is LISTENER', async () => {
+         mockPrisma.organization.findUnique.mockResolvedValue({ id: 'o' });
+         mockPrisma.userProfile.findUnique.mockResolvedValue({ id: 'u', userId: 'auth-1' });
+         (authClient.getUserById as jest.Mock).mockResolvedValue({
+            role: 'LISTENER',
+            email: 'listener@example.com',
+         });
+
+         await expect(
+            service.addMember('o', 'u', OrganizationRole.ADMIN, 'token'),
+         ).rejects.toBeInstanceOf(ApiError);
+      });
+
+      it('throws conflict when membership role does not match auth role', async () => {
+         mockPrisma.organization.findUnique.mockResolvedValue({ id: 'o' });
+         mockPrisma.userProfile.findUnique.mockResolvedValue({ id: 'u', userId: 'auth-1' });
+         (authClient.getUserById as jest.Mock).mockResolvedValue({
+            role: 'ORG_COORDINATOR',
+            email: 'staff@example.com',
+         });
+
+         await expect(
+            service.addMember('o', 'u', OrganizationRole.OWNER, 'token'),
+         ).rejects.toBeInstanceOf(ApiError);
+      });
+
       it('throws not found when org or user is missing', async () => {
          mockPrisma.organization.findUnique.mockResolvedValue(null);
          mockPrisma.userProfile.findUnique.mockResolvedValue({ id: 'u' });
@@ -704,6 +741,23 @@ describe('OrganizationService', () => {
          expect(
             await service.canCreateChapter('auth-user-1', 'profile-1', 'missing-audiobook', 'AUTHOR'),
          ).toEqual({ audiobookExists: false, allowed: false });
+      });
+
+      it('canManageAudiobook allows global admin', async () => {
+         mockPrisma.audioBook.findUnique.mockResolvedValue({ organizationId: 'org-1' });
+
+         expect(
+            await service.canManageAudiobook('auth-user-1', 'profile-1', 'audiobook-1', 'GLOBAL_ADMIN'),
+         ).toEqual({ audiobookExists: true, allowed: true });
+      });
+
+      it('canManageChapter allows global admin', async () => {
+         mockPrisma.chapter.findUnique.mockResolvedValue({ audiobookId: 'audiobook-1' });
+         mockPrisma.audioBook.findUnique.mockResolvedValue({ organizationId: 'org-1' });
+
+         expect(
+            await service.canManageChapter('auth-user-1', 'profile-1', 'chapter-1', 'GLOBAL_ADMIN'),
+         ).toEqual({ chapterExists: true, allowed: true });
       });
    });
 });

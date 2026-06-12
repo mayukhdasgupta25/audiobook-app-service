@@ -387,6 +387,36 @@ export class ChapterController {
     */
    updateChapter = ErrorHandler.asyncHandler(async (req: Request, res: Response): Promise<void> => {
       const { id } = req.params;
+
+      const authReq = req as AuthenticatedRequest;
+      const externalUserId = authReq.user?.id;
+      const creatorProfile = externalUserId
+         ? await this.prisma.userProfile.findUnique({
+            where: { userId: externalUserId },
+            select: { id: true },
+         })
+         : null;
+
+      const { chapterExists, allowed } = await this.organizationService.canManageChapter(
+         externalUserId,
+         creatorProfile?.id,
+         id as string,
+         authReq.user?.role,
+      );
+
+      if (!chapterExists) {
+         ResponseHandler.notFound(res, MessageHandler.getErrorMessage('not_found.chapter'));
+         return;
+      }
+
+      if (!allowed) {
+         ResponseHandler.forbidden(
+            res,
+            MessageHandler.getErrorMessage('organizations.admin_required'),
+         );
+         return;
+      }
+
       const uploadedFile = req.file as Express.Multer.File | undefined;
       const uploadedCoverImage = (req as any).coverImageFile as Express.Multer.File | undefined;
 
@@ -464,6 +494,35 @@ export class ChapterController {
     */
    deleteChapter = ErrorHandler.asyncHandler(async (req: Request, res: Response): Promise<void> => {
       const { id } = req.params;
+
+      const authReq = req as AuthenticatedRequest;
+      const externalUserId = authReq.user?.id;
+      const creatorProfile = externalUserId
+         ? await this.prisma.userProfile.findUnique({
+            where: { userId: externalUserId },
+            select: { id: true },
+         })
+         : null;
+
+      const { chapterExists, allowed } = await this.organizationService.canManageChapter(
+         externalUserId,
+         creatorProfile?.id,
+         id as string,
+         authReq.user?.role,
+      );
+
+      if (!chapterExists) {
+         ResponseHandler.notFound(res, MessageHandler.getErrorMessage('not_found.chapter'));
+         return;
+      }
+
+      if (!allowed) {
+         ResponseHandler.forbidden(
+            res,
+            MessageHandler.getErrorMessage('organizations.admin_required'),
+         );
+         return;
+      }
 
       await this.chapterService.deleteChapter(id as string);
 

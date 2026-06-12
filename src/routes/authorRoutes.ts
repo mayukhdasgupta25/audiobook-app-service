@@ -7,6 +7,10 @@ import { PrismaClient } from '@prisma/client';
 import { AuthorController } from '../controllers/AuthorController';
 import { ValidationMiddleware } from '../middleware/ValidationMiddleware';
 import { UploadMiddleware } from '../middleware/UploadMiddleware';
+import {
+   requireAuthenticated,
+   requireGlobalAdminOrAuthor,
+} from '../middleware/RoleMiddleware';
 
 export function createAuthorRoutes(prisma: PrismaClient): Router {
    const router = Router();
@@ -29,7 +33,7 @@ export function createAuthorRoutes(prisma: PrismaClient): Router {
     *       500:
     *         $ref: '#/components/responses/InternalServerError'
     */
-   router.get('/', authorController.getAllAuthors);
+   router.get('/', requireAuthenticated(), authorController.getAllAuthors);
 
    /**
     * @swagger
@@ -55,7 +59,7 @@ export function createAuthorRoutes(prisma: PrismaClient): Router {
     *       500:
     *         $ref: '#/components/responses/InternalServerError'
     */
-   router.get('/:id', ValidationMiddleware.validateId, authorController.getAuthorById);
+   router.get('/:id', requireAuthenticated(), ValidationMiddleware.validateId, authorController.getAuthorById);
 
    /**
     * @swagger
@@ -105,6 +109,7 @@ export function createAuthorRoutes(prisma: PrismaClient): Router {
     */
    router.post(
       '/',
+      requireGlobalAdminOrAuthor(),
       UploadMiddleware.handleOptionalProfileImageUpload,
       ValidationMiddleware.validateCreateAuthor,
       ValidationMiddleware.validateAuthorOrganizationIds,
@@ -161,6 +166,7 @@ export function createAuthorRoutes(prisma: PrismaClient): Router {
     */
    router.put(
       '/:id',
+      requireGlobalAdminOrAuthor(),
       ValidationMiddleware.validateId,
       UploadMiddleware.handleOptionalProfileImageUpload,
       ValidationMiddleware.validateUpdateAuthor,
@@ -192,7 +198,7 @@ export function createAuthorRoutes(prisma: PrismaClient): Router {
     *       500:
     *         $ref: '#/components/responses/InternalServerError'
     */
-   router.delete('/:id', ValidationMiddleware.validateId, authorController.deleteAuthor);
+   router.delete('/:id', requireGlobalAdminOrAuthor(), ValidationMiddleware.validateId, authorController.deleteAuthor);
 
    return router;
 }

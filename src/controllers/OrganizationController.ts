@@ -85,6 +85,15 @@ function isGlobalAdmin(req: Request): boolean {
    return isGlobalAdminRole(authReq.user?.role);
 }
 
+function getBearerToken(req: Request): string | undefined {
+   const authorization = req.headers.authorization;
+   if (!authorization || !authorization.startsWith('Bearer ')) {
+      return undefined;
+   }
+   const token = authorization.slice(7).trim();
+   return token.length > 0 ? token : undefined;
+}
+
 export class OrganizationController {
    private prisma: PrismaClient;
    private organizationService: OrganizationService;
@@ -480,7 +489,8 @@ export class OrganizationController {
          const member = await this.organizationService.addMember(
             id,
             userProfileId,
-            (role as OrganizationRole) || OrganizationRole.ADMIN
+            (role as OrganizationRole) || OrganizationRole.ADMIN,
+            getBearerToken(req),
          );
          ResponseHandler.success(
             res,
@@ -518,7 +528,8 @@ export class OrganizationController {
          const updated = await this.organizationService.updateMemberRole(
             id,
             userProfileId,
-            role as OrganizationRole
+            role as OrganizationRole,
+            getBearerToken(req),
          );
          ResponseHandler.success(
             res,

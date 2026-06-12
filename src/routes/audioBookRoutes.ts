@@ -8,7 +8,7 @@ import { AudioBookController } from '../controllers/AudioBookController';
 import { BackgroundJobService } from '../services/BackgroundJobService';
 import { ValidationMiddleware } from '../middleware/ValidationMiddleware';
 import { UploadMiddleware } from '../middleware/UploadMiddleware';
-import { requireContentCreator, requireUserOrAdmin } from '../middleware/RoleMiddleware';
+import { requireAuthenticated, requireContentCreator, requireContentManager } from '../middleware/RoleMiddleware';
 
 export function createAudioBookRoutes(prisma: PrismaClient): Router {
    const router = Router();
@@ -47,7 +47,7 @@ export function createAudioBookRoutes(prisma: PrismaClient): Router {
     */
    router.get(
       '/',
-      requireUserOrAdmin(),
+      requireAuthenticated(),
       ValidationMiddleware.validatePagination,
       ValidationMiddleware.validateAudioBookFilters,
       ValidationMiddleware.sanitizeQueryParams,
@@ -267,7 +267,7 @@ export function createAudioBookRoutes(prisma: PrismaClient): Router {
     */
    router.get(
       '/:id',
-      requireUserOrAdmin(),
+      requireAuthenticated(),
       ValidationMiddleware.validateId,
       audioBookController.getAudioBookById
    );
@@ -359,6 +359,7 @@ export function createAudioBookRoutes(prisma: PrismaClient): Router {
     */
    router.put(
       '/:id',
+      requireContentManager(),
       ValidationMiddleware.validateId,
       UploadMiddleware.handleImageUpload,
       audioBookController.updateAudioBook
@@ -396,6 +397,7 @@ export function createAudioBookRoutes(prisma: PrismaClient): Router {
     */
    router.delete(
       '/:id',
+      requireContentManager(),
       ValidationMiddleware.validateId,
       audioBookController.deleteAudioBook
    );

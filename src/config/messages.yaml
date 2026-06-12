@@ -380,6 +380,8 @@ errors:
     name_too_long: "Organization name must be less than 100 characters"
     role_invalid: "Role must be one of: OWNER, ADMIN"
     member_exists: "User is already a member of this organization"
+    listener_member_not_allowed: "Organization members must use a separate account with ORG_ADMIN or ORG_COORDINATOR role; listener accounts cannot be added"
+    member_role_mismatch: "Organization membership role does not match the user's auth role (OWNER requires ORG_ADMIN, ADMIN requires ORG_COORDINATOR)"
     last_owner: "Cannot demote or remove the last owner of the organization"
     access_denied: "You do not have access to this organization"
     admin_required: "Organization admin access required"
