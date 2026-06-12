@@ -10,7 +10,8 @@ import {
   CreateAudioBookDto,
   UpdateAudioBookDto,
   AudioBookQueryParams,
-  toAudioBookDto
+  toAudioBookDto,
+  toPrismaOwnerType,
 } from '../models/AudioBookDto';
 import { ApiError } from '../types/ApiError';
 import { MessageHandler } from '../utils/MessageHandler';
@@ -20,11 +21,13 @@ import { UserAudioBookService } from './UserAudioBookService';
 import { ChapterService } from './ChapterService';
 import { HttpStatusCode, ErrorType } from '../types/common';
 import { AudiobookMediaCleanupService } from './AudiobookMediaCleanupService';
+import { AudioBookOwnerService } from './AudioBookOwnerService';
 
 export class AudioBookService {
   private prisma: PrismaClient;
   private backgroundJobService: BackgroundJobService | undefined;
   private subscriptionClient: SubscriptionClient;
+  private audioBookOwnerService: AudioBookOwnerService;
 
   constructor(
     prisma: PrismaClient,
@@ -34,12 +37,27 @@ export class AudioBookService {
     this.prisma = prisma;
     this.backgroundJobService = backgroundJobService;
     this.subscriptionClient = subscriptionClientInstance;
+    this.audioBookOwnerService = new AudioBookOwnerService(prisma);
+  }
+
+  private async hydrateOwner(
+    dto: AudioBookDto,
+    accessToken?: string,
+  ): Promise<AudioBookDto> {
+    return this.audioBookOwnerService.attachOwnerDetail(dto, accessToken);
+  }
+
+  private async hydrateOwners(
+    dtos: AudioBookDto[],
+    accessToken?: string,
+  ): Promise<AudioBookDto[]> {
+    return this.audioBookOwnerService.attachOwnerDetails(dtos, accessToken);
   }
 
   /**
    * Get all audiobooks with pagination and filtering
    */
-  async getAllAudioBooks(params: AudioBookQueryParams): Promise<{
+  async getAllAudioBooks(params: AudioBookQueryParams, accessToken?: string): Promise<{
     audiobooks: AudioBookDto[];
     totalCount: number;
   }> {
@@ -82,10 +100,12 @@ export class AudioBookService {
         this.prisma.audioBook.count({ where })
       ]);
 
+      const resolved = await fileUrlService.resolveAudioBookMediaList(
+        audiobooks.map(toAudioBookDto)
+      );
+
       return {
-        audiobooks: await fileUrlService.resolveAudioBookMediaList(
-          audiobooks.map(toAudioBookDto)
-        ),
+        audiobooks: await this.hydrateOwners(resolved, accessToken),
         totalCount
       };
     } catch (_error) {
@@ -96,7 +116,7 @@ export class AudioBookService {
   /**
    * Get all audiobooks with chapter counts
    */
-  async getAllAudioBooksWithChapterCounts(params: AudioBookQueryParams): Promise<{
+  async getAllAudioBooksWithChapterCounts(params: AudioBookQueryParams, accessToken?: string): Promise<{
     audiobooks: (AudioBookDto & { chapterCount: number })[];
     totalCount: number;
   }> {
@@ -151,8 +171,13 @@ export class AudioBookService {
         }))
       );
 
+      const hydrated = await this.hydrateOwners(resolved, accessToken);
+
       return {
-        audiobooks: resolved,
+        audiobooks: hydrated.map((dto, index) => ({
+          ...dto,
+          chapterCount: resolved[index]?.chapterCount ?? 0,
+        })),
         totalCount
       };
     } catch (_error) {
@@ -164,17 +189,17 @@ export class AudioBookService {
    * Build the Prisma where clause for audiobook list queries. Centralised
    * so list/list-with-counts/tags/etc. all stay in sync.
    *
-   * `organizationIds` (plural) optionally restricts results to those orgs
-   * (e.g. internal tooling); `organizationId` (singular) filters to a single
-   * org and takes precedence when both are provided. Listing is not gated on
-   * the caller being a member of those organizations.
+   * `ownerIds` optionally restricts results to those owner IDs (same ownerType);
+   * `ownerId` (singular) filters to a single owner and takes precedence when both
+   * are provided with ownerType. Listing is not gated on caller membership.
    */
   private buildWhereClause(params: AudioBookQueryParams): Prisma.AudioBookWhereInput {
     const {
       genreIds,
       moodIds,
-      organizationId,
-      organizationIds,
+      ownerType,
+      ownerId,
+      ownerIds,
       language,
       author,
       narrator,
@@ -185,7 +210,18 @@ export class AudioBookService {
       scheduled,
     } = params;
 
+    const ownerFilter: Prisma.AudioBookWhereInput = ownerType && ownerId
+      ? { ownerType: toPrismaOwnerType(ownerType), ownerId }
+      : ownerType && ownerIds && ownerIds.length > 0
+        ? { ownerType: toPrismaOwnerType(ownerType), ownerId: { in: ownerIds } }
+        : ownerId
+          ? { ownerId }
+          : ownerIds && ownerIds.length > 0
+            ? { ownerId: { in: ownerIds } }
+            : {};
+
     const where: Prisma.AudioBookWhereInput = {
+      ...ownerFilter,
       ...(isActive !== undefined && { isActive }),
       ...(isPublic !== undefined && { isPublic }),
       ...(genreIds && genreIds.length > 0 && {
@@ -196,11 +232,6 @@ export class AudioBookService {
       ...(moodIds && moodIds.length > 0 && {
         moodId: { in: moodIds },
       }),
-      ...(organizationId
-        ? { organizationId }
-        : organizationIds && organizationIds.length > 0
-          ? { organizationId: { in: organizationIds } }
-          : {}),
       ...(language && { language: { contains: language, mode: 'insensitive' } }),
       ...(author && { author: { contains: author, mode: 'insensitive' } }),
       ...(narrator && { narrator: { contains: narrator, mode: 'insensitive' } }),
@@ -222,7 +253,7 @@ export class AudioBookService {
   /**
    * Get audiobook by ID
    */
-  async getAudioBookById(id: string): Promise<AudioBookDto> {
+  async getAudioBookById(id: string, accessToken?: string): Promise<AudioBookDto> {
     try {
       const audiobook = await this.prisma.audioBook.findUnique({
         where: { id },
@@ -244,7 +275,8 @@ export class AudioBookService {
         throw ApiError.notFound(MessageHandler.getErrorMessage('not_found.audiobook'));
       }
 
-      return fileUrlService.resolveAudioBookMedia(toAudioBookDto(audiobook));
+      const dto = await fileUrlService.resolveAudioBookMedia(toAudioBookDto(audiobook));
+      return this.hydrateOwner(dto, accessToken);
     } catch (error) {
       if (error instanceof ApiError) {
         throw error;
@@ -256,7 +288,7 @@ export class AudioBookService {
   /**
    * Get audiobook by ID with chapters
    */
-  async getAudioBookByIdWithChapters(id: string): Promise<AudioBookDto & { chapters: any[] }> {
+  async getAudioBookByIdWithChapters(id: string, accessToken?: string): Promise<AudioBookDto & { chapters: any[] }> {
     try {
       const audiobook = await this.prisma.audioBook.findUnique({
         where: { id },
@@ -281,7 +313,10 @@ export class AudioBookService {
         throw ApiError.notFound(MessageHandler.getErrorMessage('not_found.audiobook'));
       }
 
-      const dto = await fileUrlService.resolveAudioBookMedia(toAudioBookDto(audiobook));
+      const dto = await this.hydrateOwner(
+        await fileUrlService.resolveAudioBookMedia(toAudioBookDto(audiobook)),
+        accessToken,
+      );
       return {
         ...dto,
         chapters: audiobook.chapters
@@ -299,7 +334,8 @@ export class AudioBookService {
    */
   async createAudioBook(
     data: CreateAudioBookDto & { tagIds?: string[]; genreIds?: string[] },
-    ownerUserProfileId?: string
+    ownerUserProfileId?: string,
+    accessToken?: string,
   ): Promise<AudioBookDto> {
     try {
       // Extract tagIds and genreIds from data before validation
@@ -309,22 +345,14 @@ export class AudioBookService {
       this.validateCreateData(audiobookData, genreIds);
 
       // Construct data object, only including defined values for optional fields
-      const createData: any = {
+      const createData: Prisma.AudioBookUncheckedCreateInput = {
         title: audiobookData.title,
         author: audiobookData.author,
-        language: audiobookData.language || 'bn', // Default language is now Bengali
+        ownerType: toPrismaOwnerType(audiobookData.owner.type),
+        ownerId: audiobookData.owner.id,
+        language: audiobookData.language || 'bn',
         isPublic: this.parseBooleanFlag(audiobookData.isPublic, true),
       };
-
-      const trimmedOrganizationId = audiobookData.organizationId?.trim();
-      if (trimmedOrganizationId) {
-        createData.organizationId = trimmedOrganizationId;
-      }
-
-      const trimmedAuthorId = audiobookData.authorId?.trim();
-      if (trimmedAuthorId) {
-        createData.authorId = trimmedAuthorId;
-      }
 
       // Handle scheduledAt: if provided, set isActive=false and schedule activation job
       if (audiobookData.scheduledAt !== undefined) {
@@ -418,7 +446,10 @@ export class AudioBookService {
         await userAudioBookService.createOwnedUserAudioBook(ownerUserProfileId, audiobook.id);
       }
 
-      return fileUrlService.resolveAudioBookMedia(toAudioBookDto(audiobookWithRelations));
+      return this.hydrateOwner(
+        await fileUrlService.resolveAudioBookMedia(toAudioBookDto(audiobookWithRelations)),
+        accessToken,
+      );
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError) {
         if (error.code === 'P2002') {
@@ -436,7 +467,13 @@ export class AudioBookService {
   /**
    * Update an existing audiobook
    */
-  async updateAudioBook(id: string, data: UpdateAudioBookDto, tagIds?: string[], genreIds?: string[]): Promise<AudioBookDto> {
+  async updateAudioBook(
+    id: string,
+    data: UpdateAudioBookDto,
+    tagIds?: string[],
+    genreIds?: string[],
+    accessToken?: string,
+  ): Promise<AudioBookDto> {
     try {
       // Check if audiobook exists
       const existingAudioBook = await this.prisma.audioBook.findUnique({
@@ -453,18 +490,18 @@ export class AudioBookService {
       }
 
       // Handle scheduledAt: if provided, set isActive=false and schedule activation job
-      const updateData: any = { ...data };
+      const updateData: Prisma.AudioBookUncheckedUpdateInput = { ...data };
       if (data.scheduledAt !== undefined) {
         updateData.isActive = false;
       }
       if (data.minSubscriptionTier !== undefined) {
         updateData.minSubscriptionTier = this.validateMinSubscriptionTier(data.minSubscriptionTier);
       }
-      if (data.organizationId !== undefined) {
-        const trimmedOrganizationId =
-          typeof data.organizationId === 'string' ? data.organizationId.trim() : data.organizationId;
-        updateData.organizationId = trimmedOrganizationId || null;
+      if (data.owner !== undefined) {
+        updateData.ownerType = toPrismaOwnerType(data.owner.type);
+        updateData.ownerId = data.owner.id;
       }
+      delete (updateData as { owner?: unknown }).owner;
 
       // updateData.duration = parseInt(updateData.duration);
       // updateData.fileSize = BigInt(updateData.fileSize);
@@ -549,7 +586,10 @@ export class AudioBookService {
         throw ApiError.internalError(MessageHandler.getErrorMessage('internal.update_audiobook'));
       }
 
-      return fileUrlService.resolveAudioBookMedia(toAudioBookDto(audiobookWithRelations));
+      return this.hydrateOwner(
+        await fileUrlService.resolveAudioBookMedia(toAudioBookDto(audiobookWithRelations)),
+        accessToken,
+      );
     } catch (error) {
       if (error instanceof ApiError) {
         throw error;
@@ -663,7 +703,7 @@ export class AudioBookService {
   /**
    * Get audiobooks by tags
    */
-  async getAudioBooksByTags(tags: string[], params: AudioBookQueryParams): Promise<{
+  async getAudioBooksByTags(tags: string[], params: AudioBookQueryParams, accessToken?: string): Promise<{
     audiobooks: AudioBookDto[];
     totalCount: number;
   }> {
@@ -715,10 +755,12 @@ export class AudioBookService {
         this.prisma.audioBook.count({ where })
       ]);
 
+      const resolved = await fileUrlService.resolveAudioBookMediaList(
+        audiobooks.map(toAudioBookDto)
+      );
+
       return {
-        audiobooks: await fileUrlService.resolveAudioBookMediaList(
-          audiobooks.map(toAudioBookDto)
-        ),
+        audiobooks: await this.hydrateOwners(resolved, accessToken),
         totalCount
       };
     } catch (_error) {
@@ -774,6 +816,14 @@ export class AudioBookService {
 
     if (!data.author || data.author.trim().length === 0) {
       throw ApiError.validationError(MessageHandler.getErrorMessage('validation.author_required'));
+    }
+
+    if (!data.owner?.type || !data.owner?.id?.trim()) {
+      throw ApiError.validationError('owner is required with type and id');
+    }
+
+    if (data.owner.type !== 'AUTHOR' && data.owner.type !== 'ORGANIZATION') {
+      throw ApiError.validationError('owner.type must be AUTHOR or ORGANIZATION');
     }
 
     // At least one genre is mandatory

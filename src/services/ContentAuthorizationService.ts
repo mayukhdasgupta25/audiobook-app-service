@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import { authClient } from '../clients/AuthClient';
+import { AudioBookOwnerInput } from '../models/AudioBookDto';
 import {
    isContentCreatorRole,
    isGlobalAdminRole,
@@ -82,7 +83,7 @@ export class ContentAuthorizationService {
 
    async canCreateAudiobook(
       authUserId: string | undefined,
-      organizationId: string | null | undefined,
+      owner: AudioBookOwnerInput,
       jwtRole: string | undefined,
       accessToken?: string,
    ): Promise<boolean> {
@@ -90,16 +91,24 @@ export class ContentAuthorizationService {
          return false;
       }
 
-      if (!organizationId) {
+      if (isGlobalAdminRole(jwtRole)) {
          return true;
       }
 
+      if (owner.type === 'AUTHOR') {
+         if (!accessToken) {
+            return false;
+         }
+         const author = await authClient.getAuthorByUserId(authUserId, accessToken);
+         return author?.id === owner.id;
+      }
+
       if (isOrgAdminRole(jwtRole) || isOrgCoordinatorRole(jwtRole)) {
-         return this.hasOrgStaffAccessForUser(organizationId, jwtRole, accessToken);
+         return this.hasOrgStaffAccessForUser(owner.id, jwtRole, accessToken);
       }
 
       if (isGlobalAuthorRole(jwtRole)) {
-         return this.isAuthorLinkedToOrganization(authUserId, organizationId, accessToken);
+         return this.isAuthorLinkedToOrganization(authUserId, owner.id, accessToken);
       }
 
       return false;
@@ -110,32 +119,24 @@ export class ContentAuthorizationService {
       audiobookId: string,
       jwtRole: string | undefined,
       accessToken?: string,
-   ): Promise<{ audiobookExists: boolean; allowed: boolean; organizationId?: string | null }> {
+   ): Promise<{ audiobookExists: boolean; allowed: boolean }> {
       const audiobook = await this.prisma.audioBook.findUnique({
          where: { id: audiobookId },
-         select: { organizationId: true },
+         select: { ownerType: true, ownerId: true },
       });
 
       if (!audiobook) {
          return { audiobookExists: false, allowed: false };
       }
 
-      if (audiobook.organizationId === null) {
-         return {
-            audiobookExists: true,
-            allowed: Boolean(authUserId) && isContentCreatorRole(jwtRole),
-            organizationId: null,
-         };
-      }
-
       const allowed = await this.canCreateAudiobook(
          authUserId,
-         audiobook.organizationId,
+         { type: audiobook.ownerType as AudioBookOwnerInput['type'], id: audiobook.ownerId },
          jwtRole,
          accessToken,
       );
 
-      return { audiobookExists: true, allowed, organizationId: audiobook.organizationId };
+      return { audiobookExists: true, allowed };
    }
 
    async canManageAudiobook(
@@ -146,7 +147,7 @@ export class ContentAuthorizationService {
    ): Promise<{ audiobookExists: boolean; allowed: boolean }> {
       const audiobook = await this.prisma.audioBook.findUnique({
          where: { id: audiobookId },
-         select: { organizationId: true },
+         select: { ownerType: true, ownerId: true },
       });
 
       if (!audiobook) {
@@ -159,7 +160,7 @@ export class ContentAuthorizationService {
 
       const allowed = await this.canCreateAudiobook(
          authUserId,
-         audiobook.organizationId,
+         { type: audiobook.ownerType as AudioBookOwnerInput['type'], id: audiobook.ownerId },
          jwtRole,
          accessToken,
       );

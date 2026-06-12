@@ -65,7 +65,6 @@ describe('ChapterController.createChapter', () => {
       mockContentAuthorizationService.canCreateChapter = jest.fn().mockResolvedValue({
          audiobookExists: true,
          allowed: true,
-         organizationId: 'org-1',
       });
 
       (mockReq as any).coverImageFile = mockCoverImageFile;
@@ -99,7 +98,6 @@ describe('ChapterController.createChapter', () => {
       mockContentAuthorizationService.canCreateChapter.mockResolvedValue({
          audiobookExists: true,
          allowed: false,
-         organizationId: 'org-1',
       });
       (MessageHandler.getErrorMessage as jest.Mock).mockReturnValue('Org admin required');
 
@@ -124,11 +122,10 @@ describe('ChapterController.createChapter', () => {
       expect(mockChapterService.createChapter).not.toHaveBeenCalled();
    });
 
-   it('should create chapter on org-less audiobook for authenticated user', async () => {
+   it('should create chapter for author-owned audiobook', async () => {
       mockContentAuthorizationService.canCreateChapter.mockResolvedValue({
          audiobookExists: true,
          allowed: true,
-         organizationId: null,
       });
       const mockChapter = { id: 'chapter-1', title: 'Chapter 1' };
       mockChapterService.createChapter.mockResolvedValue(mockChapter as any);

@@ -12,15 +12,9 @@ import { fileUrlService } from '../../services/FileUrlService';
 import { ApiError } from '../../types/ApiError';
 import { HttpStatusCode } from '../../types/common';
 import { AuthRole } from '../../constants/authRoles';
-import { authClient } from '../../clients/AuthClient';
 
 // Mock dependencies
 jest.mock('../../services/AudioBookService');
-jest.mock('../../clients/AuthClient', () => ({
-   authClient: {
-      getAuthorByUserId: jest.fn(),
-   },
-}));
 jest.mock('../../services/FileUrlService', () => ({
    fileUrlService: {
       processUploadedCoverFile: jest.fn(async (path: string) => `https://example.com${path}`),
@@ -118,7 +112,8 @@ describe('AudioBookController', () => {
                limit: 10,
                sortBy: 'createdAt',
                sortOrder: 'desc',
-            })
+            }),
+            'test-token',
          );
          expect(ResponseHandler.paginated).toHaveBeenCalled();
       });
@@ -202,7 +197,7 @@ describe('AudioBookController', () => {
          await audioBookController.getAudioBookById(mockReq, mockRes, mockReq.next);
          await flushPromises();
 
-         expect(mockAudioBookService.getAudioBookById).toHaveBeenCalledWith('book-123');
+         expect(mockAudioBookService.getAudioBookById).toHaveBeenCalledWith('book-123', 'test-token');
          expect(mockAudioBookService.getSubscriptionAccessForAudiobook).toHaveBeenCalledWith(
             'book-123',
             null,
@@ -232,11 +227,7 @@ describe('AudioBookController', () => {
             title: 'New Book',
             author: 'Author Name',
             genreIds: '["genre-123"]',
-            organizationId: 'org-1'
-         };
-         // Simulate UploadMiddleware result expected by the controller
-         (mockReq as any).coverImageFile = {
-            path: '/uploads/covers/cover.jpg'
+            owner: JSON.stringify({ type: 'ORGANIZATION', id: 'org-1' }),
          };
          (mockReq as any).coverImageFile = mockCoverImageFile;
 
@@ -247,14 +238,22 @@ describe('AudioBookController', () => {
          await audioBookController.createAudioBook(mockReq, mockRes, mockReq.next);
          await flushPromises();
 
+         expect(mockContentAuthorizationService.canCreateAudiobook).toHaveBeenCalledWith(
+            'auth-user-1',
+            { type: 'ORGANIZATION', id: 'org-1' },
+            AuthRole.AUTHOR,
+            'test-token',
+         );
          expect(mockAudioBookService.createAudioBook).toHaveBeenCalledWith(
             expect.objectContaining({
                title: 'New Book',
                author: 'Author Name',
+               owner: { type: 'ORGANIZATION', id: 'org-1' },
                genreIds: ['genre-123'],
                coverImage: 'https://example.com/uploads/covers/cover.jpg',
             }),
-            'profile-1'
+            'profile-1',
+            'test-token',
          );
          expect(fileUrlService.processUploadedCoverFile).toHaveBeenCalledWith(
             '/uploads/covers/cover.jpg',
@@ -285,7 +284,7 @@ describe('AudioBookController', () => {
          mockReq.body = {
             title: 'Book with Cover',
             author: 'Author Name',
-            organizationId: 'org-1',
+            owner: JSON.stringify({ type: 'ORGANIZATION', id: 'org-1' }),
          };
          (mockReq as any).coverImageFile = mockCoverImageFile;
 
@@ -300,7 +299,8 @@ describe('AudioBookController', () => {
             expect.objectContaining({
                coverImage: 'https://example.com/uploads/covers/cover.jpg',
             }),
-            'profile-1'
+            'profile-1',
+            'test-token',
          );
          expect(fileUrlService.processUploadedCoverFile).toHaveBeenCalledWith(
             '/uploads/covers/cover.jpg',
@@ -309,31 +309,30 @@ describe('AudioBookController', () => {
          );
       });
 
-      it('should create audiobook without organizationId when authenticated', async () => {
+      it('should return validation error when owner is missing', async () => {
          mockReq.body = {
-            title: 'No Org Book',
+            title: 'No Owner Book',
             author: 'Author Name',
          };
          (mockReq as any).coverImageFile = mockCoverImageFile;
 
-         const mockBook = { id: 'book-no-org', title: 'No Org Book' };
-         mockAudioBookService.createAudioBook.mockResolvedValue(mockBook as any);
-         (MessageHandler.getSuccessMessage as jest.Mock).mockReturnValue('Created');
-
          await audioBookController.createAudioBook(mockReq, mockRes, mockReq.next);
          await flushPromises();
 
-         expect(mockContentAuthorizationService.canCreateAudiobook).not.toHaveBeenCalled();
-         expect(mockAudioBookService.createAudioBook).toHaveBeenCalled();
+         expect(ResponseHandler.validationError).toHaveBeenCalledWith(
+            mockRes,
+            'owner is required with type and id',
+         );
+         expect(mockAudioBookService.createAudioBook).not.toHaveBeenCalled();
       });
 
-      it('should include authorId when creator is an author', async () => {
+      it('should create audiobook for author owner', async () => {
          mockReq.user = { id: 'auth-author-1', role: AuthRole.AUTHOR };
-         (authClient.getAuthorByUserId as jest.Mock).mockResolvedValue({ id: 'author-1' });
          mockReq.body = {
             title: 'Author Personal Book',
             author: 'Author Name',
             genreIds: '["genre-123"]',
+            owner: JSON.stringify({ type: 'AUTHOR', id: 'author-1' }),
          };
          (mockReq as any).coverImageFile = mockCoverImageFile;
 
@@ -344,10 +343,16 @@ describe('AudioBookController', () => {
          await audioBookController.createAudioBook(mockReq, mockRes, mockReq.next);
          await flushPromises();
 
-         expect(authClient.getAuthorByUserId).toHaveBeenCalledWith('auth-author-1', 'test-token');
+         expect(mockContentAuthorizationService.canCreateAudiobook).toHaveBeenCalledWith(
+            'auth-author-1',
+            { type: 'AUTHOR', id: 'author-1' },
+            AuthRole.AUTHOR,
+            'test-token',
+         );
          expect(mockAudioBookService.createAudioBook).toHaveBeenCalledWith(
-            expect.objectContaining({ authorId: 'author-1' }),
+            expect.objectContaining({ owner: { type: 'AUTHOR', id: 'author-1' } }),
             'profile-1',
+            'test-token',
          );
       });
 
@@ -357,7 +362,7 @@ describe('AudioBookController', () => {
          mockReq.body = {
             title: 'Author Book',
             author: 'Author Name',
-            organizationId: 'org-1',
+            owner: JSON.stringify({ type: 'ORGANIZATION', id: 'org-1' }),
          };
          (mockReq as any).coverImageFile = mockCoverImageFile;
 
@@ -370,7 +375,7 @@ describe('AudioBookController', () => {
 
          expect(mockContentAuthorizationService.canCreateAudiobook).toHaveBeenCalledWith(
             'auth-author-1',
-            'org-1',
+            { type: 'ORGANIZATION', id: 'org-1' },
             AuthRole.AUTHOR,
             'test-token',
          );
@@ -383,7 +388,7 @@ describe('AudioBookController', () => {
          mockReq.body = {
             title: 'Author Book',
             author: 'Author Name',
-            organizationId: 'org-1',
+            owner: JSON.stringify({ type: 'ORGANIZATION', id: 'org-1' }),
          };
          (mockReq as any).coverImageFile = mockCoverImageFile;
          (MessageHandler.getErrorMessage as jest.Mock).mockReturnValue('Org admin required');

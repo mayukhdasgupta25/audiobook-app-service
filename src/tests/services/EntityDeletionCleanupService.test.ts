@@ -76,7 +76,7 @@ describe('EntityDeletionCleanupService', () => {
          await service.cleanupAuthor('author-1', 'user-1');
 
          expect(mockPrisma.audioBook.findMany).toHaveBeenCalledWith({
-            where: { authorId: 'author-1', organizationId: null },
+            where: { ownerType: 'AUTHOR', ownerId: 'author-1' },
             select: { id: true },
          });
          expect(mockDeleteAudiobookWithChapters).toHaveBeenCalledTimes(2);
@@ -91,7 +91,7 @@ describe('EntityDeletionCleanupService', () => {
          await service.cleanupOrganization('org-1');
 
          expect(mockPrisma.audioBook.findMany).toHaveBeenCalledWith({
-            where: { organizationId: 'org-1' },
+            where: { ownerType: 'ORGANIZATION', ownerId: 'org-1' },
             select: { id: true },
          });
          expect(mockDeleteAudiobookWithChapters).toHaveBeenCalledWith('book-org-1');

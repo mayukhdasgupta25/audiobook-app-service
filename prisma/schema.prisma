@@ -39,6 +39,11 @@ model UserProfile {
   @@map("user_profiles")
 }
 
+enum AudioBookOwnerType {
+  AUTHOR
+  ORGANIZATION
+}
+
 // AudioBook model for storing book information
 model AudioBook {
   id          String  @id @default(cuid())
@@ -52,9 +57,11 @@ model AudioBook {
   fileSize   BigInt? // File size in bytes
   coverImage String? // URL to cover image
 
+  // Polymorphic owner (auth-service Author or Organization id)
+  ownerType AudioBookOwnerType
+  ownerId   String
+
   // Metadata
-  organizationId String?
-  authorId       String?
   language       String    @default("bn")
   publisher      String?
   publishDate    DateTime?
@@ -95,8 +102,7 @@ model AudioBook {
   audioBookGenres  AudioBookGenre[]
   comments         Comment[]
 
-  @@index([organizationId])
-  @@index([authorId])
+  @@index([ownerType, ownerId])
   @@index([moodId])
   @@map("audiobooks")
 }

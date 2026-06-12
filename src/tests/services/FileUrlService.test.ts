@@ -90,7 +90,7 @@ describe('FileUrlService', () => {
             isActive: true,
             isPublic: true,
             minSubscriptionTier: null,
-            organizationId: 'org-1',
+            owner: { type: 'ORGANIZATION', id: 'org-1' },
             createdAt: new Date(),
             updatedAt: new Date(),
             coverImage: 'uploads/images/audiobooks/cover-1.jpg',

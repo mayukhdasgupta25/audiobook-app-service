@@ -12,6 +12,25 @@ export interface AuthAuthorInfo {
    userId: string;
 }
 
+export interface AuthAuthorCatalogInfo {
+   id: string;
+   slug: string;
+   userId: string;
+   firstName?: string | null;
+   lastName?: string | null;
+}
+
+export interface AuthOrganizationCatalogInfo {
+   id: string;
+   name: string;
+   slug: string;
+   description?: string | null;
+   image?: string | null;
+   preferredGenre?: string | null;
+   websiteUrl?: string | null;
+   teamSize?: string | null;
+}
+
 export interface AuthMembershipInfo {
    role: string;
 }
@@ -75,6 +94,47 @@ export class AuthClient {
             return null;
          }
          console.error('AuthClient.getAuthorByUserId failed:', error);
+         throw error;
+      }
+   }
+
+   async getAuthorCatalogById(authorId: string, accessToken: string): Promise<AuthAuthorCatalogInfo | null> {
+      try {
+         const response = await axios.get<{ author: AuthAuthorCatalogInfo }>(
+            `${this.baseUrl}/auth/catalog/authors/${authorId}`,
+            {
+               headers: this.authHeaders(accessToken),
+               timeout: 5000,
+            },
+         );
+         return response.data?.author ?? null;
+      } catch (error) {
+         if (axios.isAxiosError(error) && (error as AxiosError).response?.status === 404) {
+            return null;
+         }
+         console.error('AuthClient.getAuthorCatalogById failed:', error);
+         throw error;
+      }
+   }
+
+   async getOrganizationCatalogById(
+      organizationId: string,
+      accessToken: string,
+   ): Promise<AuthOrganizationCatalogInfo | null> {
+      try {
+         const response = await axios.get<{ organization: AuthOrganizationCatalogInfo }>(
+            `${this.baseUrl}/auth/catalog/organizations/${organizationId}`,
+            {
+               headers: this.authHeaders(accessToken),
+               timeout: 5000,
+            },
+         );
+         return response.data?.organization ?? null;
+      } catch (error) {
+         if (axios.isAxiosError(error) && (error as AxiosError).response?.status === 404) {
+            return null;
+         }
+         console.error('AuthClient.getOrganizationCatalogById failed:', error);
          throw error;
       }
    }
