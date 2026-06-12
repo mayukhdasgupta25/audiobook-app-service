@@ -316,7 +316,7 @@ export class AudioBookService {
         title: audiobookData.title,
         author: audiobookData.author,
         language: audiobookData.language || 'bn', // Default language is now Bengali
-        isPublic: audiobookData.isPublic ?? true,
+        isPublic: this.parseBooleanFlag(audiobookData.isPublic, true),
       };
 
       const trimmedOrganizationId = audiobookData.organizationId?.trim();
@@ -342,8 +342,7 @@ export class AudioBookService {
       if (audiobookData.publishDate !== undefined) createData.publishDate = audiobookData.publishDate;
       if (audiobookData.isbn !== undefined) createData.isbn = audiobookData.isbn;
       if (audiobookData.minSubscriptionTier !== undefined) {
-        this.validateMinSubscriptionTier(audiobookData.minSubscriptionTier);
-        createData.minSubscriptionTier = audiobookData.minSubscriptionTier;
+        createData.minSubscriptionTier = this.validateMinSubscriptionTier(audiobookData.minSubscriptionTier);
       }
 
       const audiobook = await this.prisma.audioBook.create({
@@ -458,8 +457,7 @@ export class AudioBookService {
         updateData.isActive = false;
       }
       if (data.minSubscriptionTier !== undefined) {
-        this.validateMinSubscriptionTier(data.minSubscriptionTier);
-        updateData.minSubscriptionTier = data.minSubscriptionTier;
+        updateData.minSubscriptionTier = this.validateMinSubscriptionTier(data.minSubscriptionTier);
       }
       if (data.organizationId !== undefined) {
         const trimmedOrganizationId =
@@ -822,17 +820,24 @@ export class AudioBookService {
     return false;
   }
 
+  private parseBooleanFlag(value: boolean | string | undefined, defaultValue: boolean): boolean {
+    if (value === undefined) return defaultValue;
+    return value === 'true' || value === true;
+  }
+
   /**
    * Validate a `minSubscriptionTier` value. Null is allowed (means "no
    * subscription gating"); any other value must be a non-negative integer.
    */
-  private validateMinSubscriptionTier(value: number | null | undefined): void {
-    if (value === null || value === undefined) return;
-    if (!Number.isInteger(value) || value < 0) {
+  private validateMinSubscriptionTier(value: number | string | null | undefined): number | null {
+    if (value === null || value === undefined) return null;
+    const parsed = Number(value);
+    if (!Number.isInteger(parsed) || parsed < 0) {
       throw ApiError.validationError(
         MessageHandler.getErrorMessage('validation.min_subscription_tier_invalid')
       );
     }
+    return parsed;
   }
 
   /**
