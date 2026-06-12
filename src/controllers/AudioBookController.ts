@@ -293,8 +293,8 @@ export class AudioBookController {
       : null;
 
     if (organizationId) {
-      // Global admins bypass org checks. Authors may create for linked orgs;
-      // org staff (OWNER/ADMIN) may also create in their organization.
+      // ORG_ADMIN / ORG_COORDINATOR need matching org membership;
+      // authors may create for linked orgs only.
       const allowed = await this.organizationService.canCreateAudiobook(
         externalUserId,
         creatorProfile?.id,

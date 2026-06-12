@@ -24,6 +24,7 @@ import { ApiError } from '../types/ApiError';
 import { MessageHandler } from '../utils/MessageHandler';
 import { fileUrlService } from './FileUrlService';
 import {
+   isContentCreatorRole,
    isGlobalAdminRole,
    isGlobalAuthorRole,
    isOrgAdminRole,
@@ -657,22 +658,21 @@ export class OrganizationService {
       organizationId: string | null | undefined,
       jwtRole: string | undefined,
    ): Promise<boolean> {
+      if (!authUserId || !isContentCreatorRole(jwtRole)) {
+         return false;
+      }
+
       if (!organizationId) {
-         return Boolean(authUserId);
-      }
-
-      if (isGlobalAdminRole(jwtRole)) {
          return true;
       }
 
-      if (
-         userProfileId &&
-         (await this.hasOrgStaffAccess(organizationId, userProfileId, jwtRole))
-      ) {
-         return true;
+      if (isOrgAdminRole(jwtRole) || isOrgCoordinatorRole(jwtRole)) {
+         return userProfileId
+            ? await this.hasOrgStaffAccess(organizationId, userProfileId, jwtRole)
+            : false;
       }
 
-      if (authUserId && isGlobalAuthorRole(jwtRole)) {
+      if (isGlobalAuthorRole(jwtRole)) {
          return this.isAuthorLinkedToOrganization(authUserId, organizationId);
       }
 
@@ -701,7 +701,7 @@ export class OrganizationService {
       if (audiobook.organizationId === null) {
          return {
             audiobookExists: true,
-            allowed: Boolean(authUserId),
+            allowed: Boolean(authUserId) && isContentCreatorRole(jwtRole),
             organizationId: null,
          };
       }

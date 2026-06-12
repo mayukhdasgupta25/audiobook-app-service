@@ -1,6 +1,7 @@
 export {
    AuthRole,
    AuthRoleGroups,
+   isContentCreatorRole,
    isGlobalAdminRole,
    isGlobalAuthorRole,
    isOrgAdminRole,

@@ -594,9 +594,27 @@ describe('OrganizationService', () => {
          expect(mockPrisma.authorOrganization.findUnique).not.toHaveBeenCalled();
       });
 
-      it('canCreateAudiobook allows global admin without org membership', async () => {
+      it('canCreateAudiobook denies global admin', async () => {
          expect(
             await service.canCreateAudiobook('auth-user-1', undefined, 'org-1', 'GLOBAL_ADMIN'),
+         ).toBe(false);
+      });
+
+      it('canCreateAudiobook allows org admin with owner-tier membership', async () => {
+         mockPrisma.organizationMember.findUnique.mockResolvedValue({
+            role: OrganizationRole.OWNER,
+         });
+         expect(
+            await service.canCreateAudiobook('auth-user-1', 'profile-1', 'org-1', 'ORG_ADMIN'),
+         ).toBe(true);
+      });
+
+      it('canCreateAudiobook allows org coordinator with admin-tier membership', async () => {
+         mockPrisma.organizationMember.findUnique.mockResolvedValue({
+            role: OrganizationRole.ADMIN,
+         });
+         expect(
+            await service.canCreateAudiobook('auth-user-1', 'profile-1', 'org-1', 'ORG_COORDINATOR'),
          ).toBe(true);
       });
 
@@ -618,10 +636,16 @@ describe('OrganizationService', () => {
          ).toBe(false);
       });
 
-      it('canCreateAudiobook allows any authenticated user when organizationId is omitted', async () => {
+      it('canCreateAudiobook allows content creator when organizationId is omitted', async () => {
+         expect(
+            await service.canCreateAudiobook('auth-user-1', 'profile-1', undefined, 'AUTHOR'),
+         ).toBe(true);
+      });
+
+      it('canCreateAudiobook denies listener when organizationId is omitted', async () => {
          expect(
             await service.canCreateAudiobook('auth-user-1', 'profile-1', undefined, 'LISTENER'),
-         ).toBe(true);
+         ).toBe(false);
       });
 
       it('canCreateAudiobook denies unauthenticated user when organizationId is omitted', async () => {
@@ -630,12 +654,12 @@ describe('OrganizationService', () => {
          ).toBe(false);
       });
 
-      it('canCreateChapter allows global admin when audiobook exists', async () => {
+      it('canCreateChapter denies global admin when audiobook exists', async () => {
          mockPrisma.audioBook.findUnique.mockResolvedValue({ organizationId: 'org-1' });
 
          expect(
             await service.canCreateChapter('auth-user-1', undefined, 'audiobook-1', 'GLOBAL_ADMIN'),
-         ).toEqual({ audiobookExists: true, allowed: true, organizationId: 'org-1' });
+         ).toEqual({ audiobookExists: true, allowed: false, organizationId: 'org-1' });
       });
 
       it('canCreateChapter allows author linked to audiobook organization', async () => {
@@ -658,12 +682,20 @@ describe('OrganizationService', () => {
          ).toEqual({ audiobookExists: true, allowed: false, organizationId: 'org-1' });
       });
 
-      it('canCreateChapter allows authenticated user when audiobook has no organization', async () => {
+      it('canCreateChapter allows content creator when audiobook has no organization', async () => {
+         mockPrisma.audioBook.findUnique.mockResolvedValue({ organizationId: null });
+
+         expect(
+            await service.canCreateChapter('auth-user-1', 'profile-1', 'audiobook-1', 'AUTHOR'),
+         ).toEqual({ audiobookExists: true, allowed: true, organizationId: null });
+      });
+
+      it('canCreateChapter denies listener when audiobook has no organization', async () => {
          mockPrisma.audioBook.findUnique.mockResolvedValue({ organizationId: null });
 
          expect(
             await service.canCreateChapter('auth-user-1', 'profile-1', 'audiobook-1', 'LISTENER'),
-         ).toEqual({ audiobookExists: true, allowed: true, organizationId: null });
+         ).toEqual({ audiobookExists: true, allowed: false, organizationId: null });
       });
 
       it('canCreateChapter returns not-allowed when audiobook is unknown', async () => {

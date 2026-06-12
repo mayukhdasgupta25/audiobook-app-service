@@ -61,11 +61,18 @@ export function requireGlobalAdminOrAuthor() {
    return requireRole([...AuthRoleGroups.GLOBAL_ADMIN_OR_AUTHOR]);
 }
 
+/**
+ * Require ORG_ADMIN, ORG_COORDINATOR, or AUTHOR (audiobook/chapter creation)
+ */
+export function requireContentCreator() {
+   return requireRole([...AuthRoleGroups.CONTENT_CREATOR]);
+}
+
 /** @deprecated Use requireGlobalAdmin */
 export const requireAdmin = requireGlobalAdmin;
 
 /** @deprecated Use requireAuthenticated */
 export const requireUserOrAdmin = requireAuthenticated;
 
-/** @deprecated Use requireGlobalAdminOrAuthor */
-export const requireAdminOrAuthor = requireGlobalAdminOrAuthor;
+/** @deprecated Use requireContentCreator for create flows */
+export const requireAdminOrAuthor = requireContentCreator;
