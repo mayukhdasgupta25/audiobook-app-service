@@ -20,6 +20,7 @@ import { RabbitMQFactory } from './config/rabbitmq';
 import { TranscodingWorkerFactory } from './workers/TranscodingWorker';
 import { UserConsumerWorkerFactory } from './workers/UserConsumerWorker';
 import { AuthorConsumerWorkerFactory } from './workers/AuthorConsumerWorker';
+import { EntityDeletionConsumerWorkerFactory } from './workers/EntityDeletionConsumerWorker';
 import { prisma } from './lib/prisma';
 
 const app = express();
@@ -74,8 +75,11 @@ queueManager.createCleanupQueue();
 
       // Start author consumer worker
       await AuthorConsumerWorkerFactory.startWorker(prisma);
+
+      // Start entity deletion consumer worker
+      await EntityDeletionConsumerWorkerFactory.startWorker(prisma);
    } catch (error) {
-      logger.error({ err: error }, 'Failed to initialize RabbitMQ, transcoding worker, or user consumer worker');
+      logger.error({ err: error }, 'Failed to initialize RabbitMQ, transcoding worker, or consumer workers');
    }
 })();
 

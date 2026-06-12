@@ -23,6 +23,7 @@ describe('AudioBookDto', () => {
          fileSize: BigInt(1024 * 1024 * 500), // 500 MB
          coverImage: 'https://example.com/cover.jpg',
          organizationId: 'org-1',
+         authorId: null,
          language: 'en',
          publisher: 'Test Publisher',
          publishDate: new Date('2024-01-01'),
@@ -65,6 +66,17 @@ describe('AudioBookDto', () => {
          expect(result.createdAt).toEqual(prismaAudioBook.createdAt);
          expect(result.updatedAt).toEqual(prismaAudioBook.updatedAt);
          expect(result.organizationId).toBe('org-1');
+         expect(result.authorId).toBeNull();
+      });
+
+      it('should map authorId when present', () => {
+         const prismaAudioBook = createMockPrismaAudioBook({
+            authorId: 'author-1',
+         });
+
+         const result = toAudioBookDto(prismaAudioBook);
+
+         expect(result.authorId).toBe('author-1');
       });
 
       it('should map null organizationId', () => {
