@@ -1,7 +1,7 @@
 import { PrismaClient } from '@prisma/client';
-import { AuthorProfileService } from '../../src/services/AuthorProfileService';
+import { AuthorProfileService } from '../../services/AuthorProfileService';
 
-jest.mock('../../src/services/FileUrlService', () => ({
+jest.mock('../../services/FileUrlService', () => ({
    fileUrlService: {
       resolveAuthorProfileMedia: jest.fn(async (dto: unknown) => dto),
    },

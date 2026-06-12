@@ -201,7 +201,7 @@ describe('AudioBookController', () => {
             'book-123',
             null,
             'auth-user-1',
-            null
+            'test-token'
          );
          expect(mockAudioBookService.getUserReviewRatingForAudiobook).toHaveBeenCalledWith(
             'book-123',
