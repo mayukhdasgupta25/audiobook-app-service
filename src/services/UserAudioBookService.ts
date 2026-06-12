@@ -205,8 +205,6 @@ export class UserAudioBookService {
                      id: true,
                      userId: true,
                      username: true,
-                     firstName: true,
-                     lastName: true
                   }
                },
                audiobook: {

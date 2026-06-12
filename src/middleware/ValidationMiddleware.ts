@@ -384,24 +384,13 @@ export class ValidationMiddleware {
   static validateUserProfileUpdate(req: Request, res: Response, next: NextFunction): void {
     const {
       username,
-      firstName,
-      lastName,
       avatar,
-      gender,
-      location,
-      age,
       preferences,
     } = req.body;
 
-    // Ensure only expected fields are present
     const allowedFields = [
       'username',
-      'firstName',
-      'lastName',
       'avatar',
-      'gender',
-      'location',
-      'age',
       'preferences',
     ];
     const extraFields = Object.keys(req.body).filter(k => !allowedFields.includes(k));
@@ -410,7 +399,6 @@ export class ValidationMiddleware {
       return;
     }
 
-    // Validate username
     if (username !== undefined) {
       if (typeof username !== 'string') {
         ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.username_type'));
@@ -429,83 +417,8 @@ export class ValidationMiddleware {
       req.body.username = trimmed;
     }
 
-    // Validate firstName and lastName
-    if (firstName !== undefined) {
-      if (typeof firstName !== 'string' || firstName.trim().length === 0 || firstName.length > 50) {
-        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.first_name'));
-        return;
-      }
-      req.body.firstName = firstName.trim();
-    }
-
-    if (lastName !== undefined) {
-      if (typeof lastName !== 'string' || lastName.trim().length === 0 || lastName.length > 50) {
-        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.last_name'));
-        return;
-      }
-      req.body.lastName = lastName.trim();
-    }
-
-    // Validate gender if provided (null clears the field)
-    if (gender !== undefined) {
-      if (gender !== null && typeof gender !== 'string') {
-        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.gender_invalid'));
-        return;
-      }
-      const validGenders = ['MALE', 'FEMALE', 'NON_BINARY', 'OTHER', 'PREFER_NOT_TO_SAY'];
-      if (gender !== null && !validGenders.includes(gender)) {
-        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.gender_invalid'));
-        return;
-      }
-    }
-
-    // Validate location coordinates (resolved to a location string in controller); null clears the field
-    if (location !== undefined) {
-      if (location === null) {
-        // pass through — clears stored location
-      } else if (typeof location === 'object' && !Array.isArray(location)) {
-        const { latitude, longitude } = location as { latitude?: unknown; longitude?: unknown };
-        const hasLatitude = latitude !== undefined && latitude !== null && latitude !== '';
-        const hasLongitude = longitude !== undefined && longitude !== null && longitude !== '';
-
-        if (hasLatitude !== hasLongitude) {
-          ResponseHandler.validationError(
-            res,
-            MessageHandler.getErrorMessage('validation.coordinates_required_together')
-          );
-          return;
-        }
-
-        const parsedLatitude = ValidationMiddleware.parseCoordinate(latitude);
-        if (parsedLatitude === null || parsedLatitude < -90 || parsedLatitude > 90) {
-          ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.latitude_invalid'));
-          return;
-        }
-
-        const parsedLongitude = ValidationMiddleware.parseCoordinate(longitude);
-        if (parsedLongitude === null || parsedLongitude < -180 || parsedLongitude > 180) {
-          ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.longitude_invalid'));
-          return;
-        }
-
-        req.body.location = { latitude: parsedLatitude, longitude: parsedLongitude };
-      } else {
-        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.location_invalid'));
-        return;
-      }
-    }
-
-    // Validate age if provided (null clears the field)
-    if (age !== undefined) {
-      if (age !== null && (!Number.isInteger(age) || age < 1 || age > 150)) {
-        ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.age_invalid'));
-        return;
-      }
-    }
-
     const hasAvatarUpload = Boolean((req as any).avatarFile);
 
-    // Validate avatar URL if provided (skip when multipart file is uploaded)
     if (avatar !== undefined && !hasAvatarUpload) {
       if (typeof avatar !== 'string' || avatar.length > 500) {
         ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.avatar_url'));
@@ -519,7 +432,6 @@ export class ValidationMiddleware {
       }
     }
 
-    // Validate preferences object
     if (preferences !== undefined) {
       if (typeof preferences !== 'object' || Array.isArray(preferences)) {
         ResponseHandler.validationError(res, MessageHandler.getErrorMessage('validation.preferences_object'));
@@ -527,9 +439,8 @@ export class ValidationMiddleware {
       }
     }
 
-    // Must have at least one updatable field (including optional avatar file upload)
     if (
-      [username, firstName, lastName, avatar, gender, location, age, preferences].every(
+      [username, avatar, preferences].every(
         v => v === undefined
       ) && !hasAvatarUpload
     ) {
@@ -538,22 +449,6 @@ export class ValidationMiddleware {
     }
 
     next();
-  }
-
-  /** Parses latitude/longitude sent as string or number; returns null when invalid. */
-  private static parseCoordinate(value: unknown): number | null {
-    if (typeof value === 'number') {
-      return Number.isFinite(value) ? value : null;
-    }
-    if (typeof value === 'string') {
-      const trimmed = value.trim();
-      if (trimmed.length === 0) {
-        return null;
-      }
-      const parsed = Number(trimmed);
-      return Number.isFinite(parsed) ? parsed : null;
-    }
-    return null;
   }
 
   /**
