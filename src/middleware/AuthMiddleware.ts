@@ -162,7 +162,7 @@ export async function authenticateJWT(
          (req as AuthenticatedRequest).user = {
             id: userId,
             email: email,
-            role: role || AuthRole.USER
+            role: role || AuthRole.LISTENER
          };
 
          next();

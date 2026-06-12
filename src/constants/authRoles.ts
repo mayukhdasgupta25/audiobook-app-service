@@ -1,15 +1,24 @@
 export const AuthRole = {
-   USER: 'USER',
-   ADMIN: 'ADMIN',
+   LISTENER: 'LISTENER',
+   GLOBAL_ADMIN: 'GLOBAL_ADMIN',
+   ORG_ADMIN: 'ORG_ADMIN',
+   ORG_COORDINATOR: 'ORG_COORDINATOR',
    AUTHOR: 'AUTHOR',
 } as const;
 
 export type AuthRoleValue = (typeof AuthRole)[keyof typeof AuthRole];
 
 export const AuthRoleGroups = {
-   ADMIN_ONLY: [AuthRole.ADMIN],
-   ADMIN_OR_AUTHOR: [AuthRole.ADMIN, AuthRole.AUTHOR],
-   USER_ADMIN_AUTHOR: [AuthRole.USER, AuthRole.ADMIN, AuthRole.AUTHOR],
+   GLOBAL_ADMIN_ONLY: [AuthRole.GLOBAL_ADMIN],
+   GLOBAL_ADMIN_OR_AUTHOR: [AuthRole.GLOBAL_ADMIN, AuthRole.AUTHOR],
+   ORG_STAFF: [AuthRole.ORG_ADMIN, AuthRole.ORG_COORDINATOR],
+   ALL_AUTHENTICATED: [
+      AuthRole.LISTENER,
+      AuthRole.GLOBAL_ADMIN,
+      AuthRole.ORG_ADMIN,
+      AuthRole.ORG_COORDINATOR,
+      AuthRole.AUTHOR,
+   ],
 } as const;
 
 export function normalizeAuthRole(role: string | undefined): string {
@@ -17,7 +26,15 @@ export function normalizeAuthRole(role: string | undefined): string {
 }
 
 export function isGlobalAdminRole(role: string | undefined): boolean {
-   return normalizeAuthRole(role) === normalizeAuthRole(AuthRole.ADMIN);
+   return normalizeAuthRole(role) === normalizeAuthRole(AuthRole.GLOBAL_ADMIN);
+}
+
+export function isOrgAdminRole(role: string | undefined): boolean {
+   return normalizeAuthRole(role) === normalizeAuthRole(AuthRole.ORG_ADMIN);
+}
+
+export function isOrgCoordinatorRole(role: string | undefined): boolean {
+   return normalizeAuthRole(role) === normalizeAuthRole(AuthRole.ORG_COORDINATOR);
 }
 
 export function isGlobalAuthorRole(role: string | undefined): boolean {

@@ -41,25 +41,31 @@ export function requireRole(allowedRoles: string[]) {
 }
 
 /**
- * Require Admin role only
- * Convenience middleware for admin-only routes
+ * Require GLOBAL_ADMIN role only
  */
-export function requireAdmin() {
-   return requireRole([...AuthRoleGroups.ADMIN_ONLY]);
+export function requireGlobalAdmin() {
+   return requireRole([...AuthRoleGroups.GLOBAL_ADMIN_ONLY]);
 }
 
 /**
- * Require User or Admin role
- * Convenience middleware for routes accessible to both users and admins
+ * Require any authenticated role (listener, staff, or author)
  */
-export function requireUserOrAdmin() {
-   return requireRole([...AuthRoleGroups.USER_ADMIN_AUTHOR]);
+export function requireAuthenticated() {
+   return requireRole([...AuthRoleGroups.ALL_AUTHENTICATED]);
 }
 
 /**
- * Require Admin or Author role
- * Convenience middleware for content creation routes
+ * Require GLOBAL_ADMIN or AUTHOR role
  */
-export function requireAdminOrAuthor() {
-   return requireRole([...AuthRoleGroups.ADMIN_OR_AUTHOR]);
+export function requireGlobalAdminOrAuthor() {
+   return requireRole([...AuthRoleGroups.GLOBAL_ADMIN_OR_AUTHOR]);
 }
+
+/** @deprecated Use requireGlobalAdmin */
+export const requireAdmin = requireGlobalAdmin;
+
+/** @deprecated Use requireAuthenticated */
+export const requireUserOrAdmin = requireAuthenticated;
+
+/** @deprecated Use requireGlobalAdminOrAuthor */
+export const requireAdminOrAuthor = requireGlobalAdminOrAuthor;

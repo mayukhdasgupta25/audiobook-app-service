@@ -52,8 +52,8 @@ describe('AudioBookController', () => {
          files: undefined,
          file: undefined,
          originalUrl: '/api/v1/audiobooks',
-         // Default the test user to a global ADMIN for flows that branch on role.
-         user: { id: 'auth-user-1', role: AuthRole.ADMIN },
+         // Default the test user to a global admin for flows that branch on role.
+         user: { id: 'auth-user-1', role: AuthRole.GLOBAL_ADMIN },
       } as any;
       mockRes = {
          status: jest.fn().mockReturnThis(),

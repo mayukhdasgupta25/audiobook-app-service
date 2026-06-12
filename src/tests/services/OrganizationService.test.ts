@@ -431,7 +431,7 @@ describe('OrganizationService', () => {
    });
 
    describe('addMember', () => {
-      it('adds a member as MEMBER by default', async () => {
+      it('adds a member as ADMIN by default', async () => {
          mockPrisma.organization.findUnique.mockResolvedValue({ id: 'o' });
          mockPrisma.userProfile.findUnique.mockResolvedValue({ id: 'u' });
          mockPrisma.organizationMember.findUnique.mockResolvedValue(null);
@@ -439,14 +439,14 @@ describe('OrganizationService', () => {
             id: 'm',
             organizationId: 'o',
             userProfileId: 'u',
-            role: OrganizationRole.MEMBER,
+            role: OrganizationRole.ADMIN,
             joinedAt: new Date(),
             createdAt: new Date(),
             updatedAt: new Date(),
          });
 
          const result = await service.addMember('o', 'u');
-         expect(result.role).toBe(OrganizationRole.MEMBER);
+         expect(result.role).toBe(OrganizationRole.ADMIN);
       });
 
       it('throws conflict when membership already exists', async () => {
@@ -478,7 +478,7 @@ describe('OrganizationService', () => {
          mockPrisma.organizationMember.count.mockResolvedValue(1);
 
          await expect(
-            service.updateMemberRole('o', 'u', OrganizationRole.MEMBER)
+            service.updateMemberRole('o', 'u', OrganizationRole.ADMIN)
          ).rejects.toBeInstanceOf(ApiError);
       });
 
@@ -529,7 +529,7 @@ describe('OrganizationService', () => {
             id: 'm',
             organizationId: 'o',
             userProfileId: 'u',
-            role: OrganizationRole.MEMBER,
+            role: OrganizationRole.ADMIN,
          });
          mockPrisma.organizationMember.delete.mockResolvedValue({});
          await service.removeMember('o', 'u');
@@ -540,7 +540,7 @@ describe('OrganizationService', () => {
    describe('access checks', () => {
       it('isMember returns true when membership exists', async () => {
          mockPrisma.organizationMember.findUnique.mockResolvedValue({
-            role: OrganizationRole.MEMBER,
+            role: OrganizationRole.ADMIN,
          });
          expect(await service.isMember('o', 'u')).toBe(true);
       });
@@ -550,21 +550,23 @@ describe('OrganizationService', () => {
          expect(await service.isMember('o', 'u')).toBe(false);
       });
 
-      it('isAdmin returns true for OWNER and ADMIN only', async () => {
+      it('hasOrgStaffAccess matches JWT role with membership tier', async () => {
          mockPrisma.organizationMember.findUnique.mockResolvedValueOnce({
             role: OrganizationRole.OWNER,
          });
-         expect(await service.isAdmin('o', 'u')).toBe(true);
+         expect(await service.hasOrgStaffAccess('o', 'u', 'ORG_ADMIN')).toBe(true);
+         expect(await service.hasOrgStaffAccess('o', 'u', 'LISTENER')).toBe(false);
 
          mockPrisma.organizationMember.findUnique.mockResolvedValueOnce({
             role: OrganizationRole.ADMIN,
          });
-         expect(await service.isAdmin('o', 'u')).toBe(true);
+         expect(await service.hasOrgStaffAccess('o', 'u', 'ORG_COORDINATOR')).toBe(true);
+         expect(await service.hasOrgStaffAccess('o', 'u', 'ORG_ADMIN')).toBe(false);
 
          mockPrisma.organizationMember.findUnique.mockResolvedValueOnce({
-            role: OrganizationRole.MEMBER,
+            role: OrganizationRole.ADMIN,
          });
-         expect(await service.isAdmin('o', 'u')).toBe(false);
+         expect(await service.hasOrgStaffAccess('o', 'u', 'GLOBAL_ADMIN')).toBe(true);
       });
 
       it('getOrganizationIdsForUser returns all org ids the user belongs to', async () => {
@@ -594,7 +596,7 @@ describe('OrganizationService', () => {
 
       it('canCreateAudiobook allows global admin without org membership', async () => {
          expect(
-            await service.canCreateAudiobook('auth-user-1', undefined, 'org-1', 'ADMIN'),
+            await service.canCreateAudiobook('auth-user-1', undefined, 'org-1', 'GLOBAL_ADMIN'),
          ).toBe(true);
       });
 
@@ -618,7 +620,7 @@ describe('OrganizationService', () => {
 
       it('canCreateAudiobook allows any authenticated user when organizationId is omitted', async () => {
          expect(
-            await service.canCreateAudiobook('auth-user-1', 'profile-1', undefined, 'USER'),
+            await service.canCreateAudiobook('auth-user-1', 'profile-1', undefined, 'LISTENER'),
          ).toBe(true);
       });
 
@@ -632,7 +634,7 @@ describe('OrganizationService', () => {
          mockPrisma.audioBook.findUnique.mockResolvedValue({ organizationId: 'org-1' });
 
          expect(
-            await service.canCreateChapter('auth-user-1', undefined, 'audiobook-1', 'ADMIN'),
+            await service.canCreateChapter('auth-user-1', undefined, 'audiobook-1', 'GLOBAL_ADMIN'),
          ).toEqual({ audiobookExists: true, allowed: true, organizationId: 'org-1' });
       });
 
@@ -660,7 +662,7 @@ describe('OrganizationService', () => {
          mockPrisma.audioBook.findUnique.mockResolvedValue({ organizationId: null });
 
          expect(
-            await service.canCreateChapter('auth-user-1', 'profile-1', 'audiobook-1', 'USER'),
+            await service.canCreateChapter('auth-user-1', 'profile-1', 'audiobook-1', 'LISTENER'),
          ).toEqual({ audiobookExists: true, allowed: true, organizationId: null });
       });
 

@@ -109,7 +109,7 @@ describe('OrganizationDto', () => {
             id: 'm-1',
             organizationId: 'o-1',
             userProfileId: 'u-1',
-            role: OrganizationRole.MEMBER,
+            role: OrganizationRole.ADMIN,
             joinedAt: new Date('2024-01-01'),
             createdAt: new Date('2024-01-01'),
             updatedAt: new Date('2024-01-01'),
@@ -118,7 +118,7 @@ describe('OrganizationDto', () => {
          expect(result.id).toBe('m-1');
          expect(result.organizationId).toBe('o-1');
          expect(result.userProfileId).toBe('u-1');
-         expect(result.role).toBe(OrganizationRole.MEMBER);
+         expect(result.role).toBe(OrganizationRole.ADMIN);
          expect(result.organization).toBeUndefined();
       });
 
