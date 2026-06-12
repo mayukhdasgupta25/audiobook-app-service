@@ -14,6 +14,7 @@ import { ResponseHandler } from '../utils/ResponseHandler';
 import { ErrorHandler } from '../middleware/ErrorHandler';
 import { MessageHandler } from '../utils/MessageHandler';
 import { isGlobalAdminRole } from '../constants/authRoles';
+import { hasOwnerTierOrgAccess } from '../services/OrganizationService';
 import { ApiError } from '../types/ApiError';
 import { AuthenticatedRequest } from '../types/auth';
 import { AudioBookQueryParams } from '../models/AudioBookDto';
@@ -104,12 +105,14 @@ export class OrganizationController {
       organizationId: string
    ): Promise<void> {
       if (isGlobalAdmin(req)) return;
+      const authReq = req as AuthenticatedRequest;
       const userProfileId = await resolveUserProfileId(this.prisma, req);
-      const isAdmin = await this.organizationService.isAdmin(
+      const hasAccess = await this.organizationService.hasOrgStaffAccess(
          organizationId,
-         userProfileId
+         userProfileId,
+         authReq.user?.role,
       );
-      if (!isAdmin) {
+      if (!hasAccess) {
          throw ApiError.forbidden(
             MessageHandler.getErrorMessage('organizations.admin_required')
          );
@@ -383,12 +386,15 @@ export class OrganizationController {
          const { id } = req.params as { id: string };
 
          if (!isGlobalAdmin(req)) {
+            const authReq = req as AuthenticatedRequest;
             const userProfileId = await resolveUserProfileId(this.prisma, req);
-            const role = await this.organizationService.getMemberRole(
+            const membershipRole = await this.organizationService.getMemberRole(
                id,
                userProfileId
             );
-            if (role !== OrganizationRole.OWNER) {
+            if (
+               !hasOwnerTierOrgAccess(authReq.user?.role, membershipRole)
+            ) {
                throw ApiError.forbidden(
                   MessageHandler.getErrorMessage('organizations.owner_required')
                );
@@ -442,7 +448,7 @@ export class OrganizationController {
     *             required: [userProfileId]
     *             properties:
     *               userProfileId: { type: string }
-    *               role: { type: string, enum: [OWNER, ADMIN, MEMBER] }
+    *               role: { type: string, enum: [OWNER, ADMIN] }
     */
    addMember = ErrorHandler.asyncHandler(
       async (req: Request, res: Response): Promise<void> => {
@@ -474,7 +480,7 @@ export class OrganizationController {
          const member = await this.organizationService.addMember(
             id,
             userProfileId,
-            (role as OrganizationRole) || OrganizationRole.MEMBER
+            (role as OrganizationRole) || OrganizationRole.ADMIN
          );
          ResponseHandler.success(
             res,

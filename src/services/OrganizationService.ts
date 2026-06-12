@@ -23,13 +23,45 @@ import {
 import { ApiError } from '../types/ApiError';
 import { MessageHandler } from '../utils/MessageHandler';
 import { fileUrlService } from './FileUrlService';
-import { isGlobalAdminRole, isGlobalAuthorRole } from '../constants/authRoles';
+import {
+   isContentCreatorRole,
+   isGlobalAdminRole,
+   isGlobalAuthorRole,
+   isOrgAdminRole,
+   isOrgCoordinatorRole,
+} from '../constants/authRoles';
 
-// Roles that may administer (rename / delete / manage members) an org.
-const ADMIN_ROLES: OrganizationRole[] = [
-   OrganizationRole.OWNER,
-   OrganizationRole.ADMIN,
-];
+export function hasOwnerTierOrgAccess(
+   jwtRole: string | undefined,
+   membershipRole: OrganizationRole | null,
+): boolean {
+   if (isGlobalAdminRole(jwtRole)) {
+      return true;
+   }
+   return isOrgAdminRole(jwtRole) && membershipRole === OrganizationRole.OWNER;
+}
+
+export function hasCoordinatorTierOrgAccess(
+   jwtRole: string | undefined,
+   membershipRole: OrganizationRole | null,
+): boolean {
+   if (isGlobalAdminRole(jwtRole)) {
+      return true;
+   }
+   return (
+      isOrgCoordinatorRole(jwtRole) && membershipRole === OrganizationRole.ADMIN
+   );
+}
+
+export function hasOrgStaffAccess(
+   jwtRole: string | undefined,
+   membershipRole: OrganizationRole | null,
+): boolean {
+   return (
+      hasOwnerTierOrgAccess(jwtRole, membershipRole) ||
+      hasCoordinatorTierOrgAccess(jwtRole, membershipRole)
+   );
+}
 
 export class OrganizationService {
    private prisma: PrismaClient;
@@ -336,12 +368,12 @@ export class OrganizationService {
    }
 
    /**
-    * Add a user to an organization. The optional `role` defaults to MEMBER.
+    * Add a user to an organization. The optional `role` defaults to ADMIN.
     */
    async addMember(
       organizationId: string,
       userProfileId: string,
-      role: OrganizationRole = OrganizationRole.MEMBER
+      role: OrganizationRole = OrganizationRole.ADMIN
    ): Promise<OrganizationMemberDto> {
       try {
          const [organization, userProfile] = await Promise.all([
@@ -568,11 +600,27 @@ export class OrganizationService {
    }
 
    /**
-    * Check whether the user has admin-or-owner privileges in an org.
+    * Check whether the user has org staff privileges (owner or coordinator tier).
     */
-   async isAdmin(organizationId: string, userProfileId: string): Promise<boolean> {
-      const role = await this.getMemberRole(organizationId, userProfileId);
-      return role !== null && ADMIN_ROLES.includes(role);
+   async hasOrgStaffAccess(
+      organizationId: string,
+      userProfileId: string,
+      jwtRole: string | undefined,
+   ): Promise<boolean> {
+      const membershipRole = await this.getMemberRole(organizationId, userProfileId);
+      return hasOrgStaffAccess(jwtRole, membershipRole);
+   }
+
+   /**
+    * Check whether the user has owner-tier privileges in an org.
+    */
+   async hasOwnerTierAccess(
+      organizationId: string,
+      userProfileId: string,
+      jwtRole: string | undefined,
+   ): Promise<boolean> {
+      const membershipRole = await this.getMemberRole(organizationId, userProfileId);
+      return hasOwnerTierOrgAccess(jwtRole, membershipRole);
    }
 
    /**
@@ -610,19 +658,21 @@ export class OrganizationService {
       organizationId: string | null | undefined,
       jwtRole: string | undefined,
    ): Promise<boolean> {
+      if (!authUserId || !isContentCreatorRole(jwtRole)) {
+         return false;
+      }
+
       if (!organizationId) {
-         return Boolean(authUserId);
-      }
-
-      if (isGlobalAdminRole(jwtRole)) {
          return true;
       }
 
-      if (userProfileId && (await this.isAdmin(organizationId, userProfileId))) {
-         return true;
+      if (isOrgAdminRole(jwtRole) || isOrgCoordinatorRole(jwtRole)) {
+         return userProfileId
+            ? await this.hasOrgStaffAccess(organizationId, userProfileId, jwtRole)
+            : false;
       }
 
-      if (authUserId && isGlobalAuthorRole(jwtRole)) {
+      if (isGlobalAuthorRole(jwtRole)) {
          return this.isAuthorLinkedToOrganization(authUserId, organizationId);
       }
 
@@ -651,7 +701,7 @@ export class OrganizationService {
       if (audiobook.organizationId === null) {
          return {
             audiobookExists: true,
-            allowed: Boolean(authUserId),
+            allowed: Boolean(authUserId) && isContentCreatorRole(jwtRole),
             organizationId: null,
          };
       }

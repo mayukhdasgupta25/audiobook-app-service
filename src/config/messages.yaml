@@ -378,7 +378,7 @@ errors:
     slug_invalid: "Invalid organization slug"
     name_required: "Organization name is required"
     name_too_long: "Organization name must be less than 100 characters"
-    role_invalid: "Role must be one of: OWNER, ADMIN, MEMBER"
+    role_invalid: "Role must be one of: OWNER, ADMIN"
     member_exists: "User is already a member of this organization"
     last_owner: "Cannot demote or remove the last owner of the organization"
     access_denied: "You do not have access to this organization"

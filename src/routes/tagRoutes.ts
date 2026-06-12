@@ -6,6 +6,7 @@ import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { TagController } from '../controllers/TagController';
 import { ValidationMiddleware } from '../middleware/ValidationMiddleware';
+import { requireGlobalAdmin } from '../middleware/RoleMiddleware';
 
 export function createTagRoutes(prisma: PrismaClient): Router {
    const router = Router();
@@ -73,7 +74,7 @@ export function createTagRoutes(prisma: PrismaClient): Router {
     * /api/v1/tags:
     *   post:
     *     summary: Create a new tag
-    *     description: Create a new global tag (requires authentication)
+    *     description: Create a new global tag (requires GLOBAL_ADMIN role)
     *     tags: [Tags]
     *     security:
     *       - bearerAuth: []
@@ -103,6 +104,7 @@ export function createTagRoutes(prisma: PrismaClient): Router {
     */
    router.post(
       '/',
+      requireGlobalAdmin(),
       ValidationMiddleware.validateCreateTag,
       tagController.createTag
    );
@@ -112,7 +114,7 @@ export function createTagRoutes(prisma: PrismaClient): Router {
     * /api/v1/tags/{id}:
     *   put:
     *     summary: Update a tag
-    *     description: Update an existing global tag (requires authentication)
+    *     description: Update an existing global tag (requires GLOBAL_ADMIN role)
     *     tags: [Tags]
     *     security:
     *       - bearerAuth: []
@@ -148,6 +150,7 @@ export function createTagRoutes(prisma: PrismaClient): Router {
     */
    router.put(
       '/:id',
+      requireGlobalAdmin(),
       ValidationMiddleware.validateId,
       ValidationMiddleware.validateUpdateTag,
       tagController.updateTag
@@ -158,7 +161,7 @@ export function createTagRoutes(prisma: PrismaClient): Router {
     * /api/v1/tags/{id}:
     *   delete:
     *     summary: Delete a tag
-    *     description: Delete an existing global tag and all associated audiobook-tag relationships (requires authentication)
+    *     description: Delete an existing global tag and all associated audiobook-tag relationships (requires GLOBAL_ADMIN role)
     *     tags: [Tags]
     *     security:
     *       - bearerAuth: []
@@ -178,7 +181,7 @@ export function createTagRoutes(prisma: PrismaClient): Router {
     *       500:
     *         $ref: '#/components/responses/InternalServerError'
     */
-   router.delete('/:id', ValidationMiddleware.validateId, tagController.deleteTag);
+   router.delete('/:id', requireGlobalAdmin(), ValidationMiddleware.validateId, tagController.deleteTag);
 
    return router;
 }

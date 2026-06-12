@@ -549,7 +549,7 @@ model OrganizationMember {
   id             String           @id @default(cuid())
   userProfileId  String
   organizationId String
-  role           OrganizationRole @default(MEMBER)
+  role           OrganizationRole @default(ADMIN)
 
   // Timestamps
   joinedAt  DateTime @default(now())
@@ -574,7 +574,6 @@ enum UserAudioBookType {
 enum OrganizationRole {
   OWNER
   ADMIN
-  MEMBER
 }
 
 enum OrganizationTeamSize {

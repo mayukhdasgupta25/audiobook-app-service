@@ -48,7 +48,7 @@ describe('AudioBookController subscription gating', () => {
          query: {},
          body: {},
          headers: { authorization: `Bearer ${accessToken}` },
-         user: { id: authUserId, role: AuthRole.ADMIN },
+         user: { id: authUserId, role: AuthRole.GLOBAL_ADMIN },
       };
       mockReq.next = jest.fn();
       controller = new AudioBookController(mockPrisma);
