@@ -158,7 +158,8 @@ describe('AudioBookController', () => {
                isActive: true,
                isPublic: false,
                search: 'test query',
-            })
+            }),
+            'test-token',
          );
       });
 
@@ -434,7 +435,8 @@ describe('AudioBookController', () => {
          await audioBookController.searchAudioBooks(mockReq, mockRes, mockReq.next);
 
          expect(mockAudioBookService.getAllAudioBooks).toHaveBeenCalledWith(
-            expect.objectContaining({ search: 'test search' })
+            expect.objectContaining({ search: 'test search' }),
+            'test-token',
          );
       });
 
@@ -467,7 +469,8 @@ describe('AudioBookController', () => {
          await audioBookController.getAudioBooksByGenre(mockReq, mockRes, mockReq.next);
 
          expect(mockAudioBookService.getAllAudioBooks).toHaveBeenCalledWith(
-            expect.objectContaining({ genreIds: ['genre-123'] })
+            expect.objectContaining({ genreIds: ['genre-123'] }),
+            'test-token',
          );
       });
    });
@@ -487,7 +490,8 @@ describe('AudioBookController', () => {
          await audioBookController.getAudioBooksByAuthor(mockReq, mockRes, mockReq.next);
 
          expect(mockAudioBookService.getAllAudioBooks).toHaveBeenCalledWith(
-            expect.objectContaining({ author: 'Author Name' })
+            expect.objectContaining({ author: 'Author Name' }),
+            'test-token',
          );
       });
    });
