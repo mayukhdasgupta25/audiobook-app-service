@@ -3,7 +3,7 @@
  * Provides role-based access control for protected routes
  */
 import { Response, NextFunction } from 'express';
-import { AuthRoleGroups, normalizeAuthRole } from '../constants/authRoles';
+import { AuthRole, AuthRoleGroups, normalizeAuthRole } from '../constants/authRoles';
 import { AuthenticatedRequest } from '../types/auth';
 
 /**
@@ -59,6 +59,13 @@ export function requireAuthenticated() {
  */
 export function requireGlobalAdminOrAuthor() {
    return requireRole([...AuthRoleGroups.GLOBAL_ADMIN_OR_AUTHOR]);
+}
+
+/**
+ * Require AUTHOR role only
+ */
+export function requireAuthor() {
+   return requireRole([AuthRole.AUTHOR]);
 }
 
 /**

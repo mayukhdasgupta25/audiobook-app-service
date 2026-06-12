@@ -71,7 +71,6 @@ export class AudioBookService {
                 tag: true
               }
             },
-            organization: true,
             audioBookGenres: {
               include: {
                 genre: true,
@@ -134,7 +133,6 @@ export class AudioBookService {
                 tag: true
               }
             },
-            organization: true,
             audioBookGenres: {
               include: {
                 genre: true,
@@ -233,7 +231,6 @@ export class AudioBookService {
               tag: true
             }
           },
-          organization: true,
           audioBookGenres: {
             include: {
               genre: true,
@@ -271,7 +268,6 @@ export class AudioBookService {
               tag: true
             }
           },
-          organization: true,
           audioBookGenres: {
             include: {
               genre: true,
@@ -388,7 +384,6 @@ export class AudioBookService {
               tag: true
             }
           },
-          organization: true,
           audioBookGenres: {
             include: {
               genre: true,
@@ -536,7 +531,6 @@ export class AudioBookService {
               tag: true
             }
           },
-          organization: true,
           audioBookGenres: {
             include: {
               genre: true,
@@ -714,7 +708,6 @@ export class AudioBookService {
                 tag: true
               }
             },
-            organization: true,
             audioBookGenres: {
               include: {
                 genre: true,

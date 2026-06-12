@@ -46,6 +46,11 @@ success:
     updated: "Author updated successfully"
     deleted: "Author deleted successfully"
 
+  author_profiles:
+    retrieved: "Author profile retrieved successfully"
+    updated: "Author profile updated successfully"
+    deleted: "Author profile deleted successfully"
+
   user_audiobooks:
     retrieved: "User-audiobook relationships retrieved successfully"
     retrieved_by_id: "User-audiobook relationship retrieved successfully"
@@ -362,6 +367,12 @@ errors:
     delete_failed: "Failed to delete author"
     user_id_exists: "An author with this user ID already exists"
     organization_not_found: "One or more organizations were not found"
+
+  author_profiles:
+    not_found: "Author profile not found"
+    fetch_failed: "Failed to fetch author profile"
+    update_failed: "Failed to update author profile"
+    delete_failed: "Failed to delete author profile"
 
   organizations:
     not_found: "Organization not found"

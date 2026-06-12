@@ -121,7 +121,6 @@ export interface AudioBookQueryParams {
 export function toAudioBookDto(audiobook: PrismaAudioBook & {
   audiobookTags?: Array<{ id: string; audiobookId: string; tagId: string; createdAt: Date; tag: { id: string; name: string; createdAt: Date; updatedAt: Date } }>;
   audioBookGenres?: Array<{ id: string; audiobookId: string; genreId: string; createdAt: Date; genre: { id: string; name: string; createdAt: Date; updatedAt: Date } }>;
-  organization?: { id: string; name: string; slug: string } | null;
 }): AudioBookDto {
   return {
     id: audiobook.id,
@@ -149,12 +148,5 @@ export function toAudioBookDto(audiobook: PrismaAudioBook & {
       name: abg.genre.name
     })) || undefined,
     organizationId: audiobook.organizationId ?? null,
-    organization: audiobook.organization
-      ? {
-        id: audiobook.organization.id,
-        name: audiobook.organization.name,
-        slug: audiobook.organization.slug,
-      }
-      : undefined,
   };
 }
