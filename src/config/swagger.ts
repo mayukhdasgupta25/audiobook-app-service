@@ -486,6 +486,34 @@ const options: swaggerJsdoc.Options = {
                   }
                }
             },
+            Chapter: {
+               type: 'object',
+               properties: {
+                  id: { type: 'string' },
+                  audiobookId: { type: 'string' },
+                  title: { type: 'string' },
+                  description: { type: 'string', nullable: true },
+                  chapterNumber: { type: 'integer' },
+                  duration: { type: 'integer' },
+                  filePath: { type: 'string' },
+                  fileSize: { type: 'integer' },
+                  coverImage: { type: 'string' },
+                  isActive: { type: 'boolean' },
+                  sourceUploadStatus: {
+                     type: 'string',
+                     enum: ['pending', 'ready', 'failed'],
+                     description: 'Source audio upload lifecycle status',
+                  },
+                  sourceUploadError: {
+                     type: 'string',
+                     nullable: true,
+                     description: 'Error when sourceUploadStatus is failed',
+                  },
+                  scheduledAt: { type: 'string', format: 'date-time', nullable: true },
+                  createdAt: { type: 'string', format: 'date-time' },
+                  updatedAt: { type: 'string', format: 'date-time' },
+               },
+            },
             PaginationInfo: {
                type: 'object',
                properties: {

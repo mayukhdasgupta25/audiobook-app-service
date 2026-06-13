@@ -310,6 +310,12 @@ model Favorite {
   @@map("favorites")
 }
 
+enum SourceUploadStatus {
+  pending
+  ready
+  failed
+}
+
 // Chapter model for audiobook chapters
 model Chapter {
   id          String  @id @default(cuid())
@@ -334,7 +340,9 @@ model Chapter {
   endPosition   Int // End position in seconds within main audiobook
 
   // Status
-  isActive Boolean @default(true)
+  isActive             Boolean            @default(true)
+  sourceUploadStatus   SourceUploadStatus @default(ready)
+  sourceUploadError    String?
 
   // Timestamps
   createdAt   DateTime  @default(now())

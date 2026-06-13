@@ -9,7 +9,7 @@ import { config } from '../config/env';
 import { ResponseHandler } from '../utils/ResponseHandler';
 import { MessageHandler } from '../utils/MessageHandler';
 
-export function createStreamingRoutes(_prisma: PrismaClient): Router {
+export function createStreamingRoutes(prisma: PrismaClient): Router {
    const router = Router();
 
    /**
@@ -42,6 +42,80 @@ export function createStreamingRoutes(_prisma: PrismaClient): Router {
       }
 
       next();
+   };
+
+   const proxyStreamToStreamingService = async (req: Request, res: Response): Promise<void> => {
+      try {
+         const authHeader = req.headers.authorization;
+         const userId = req.query['user'] as string;
+         if (!authHeader && !userId) {
+            ResponseHandler.unauthorized(res, MessageHandler.getErrorMessage('unauthorized.not_authenticated'));
+            return;
+         }
+
+         const externalUrl = `${config.STREAMING_SERVICE_URL}${req.path}${req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : ''}`;
+         const headers: Record<string, string> = {
+            ...(authHeader ? { Authorization: authHeader } : { user_id: userId }),
+         };
+
+         const response = await axios.get(externalUrl, {
+            headers,
+            responseType: 'stream',
+            timeout: 0,
+         });
+
+         res.setHeader('Content-Type', 'text/event-stream');
+         res.setHeader('Cache-Control', 'no-cache');
+         res.setHeader('Connection', 'keep-alive');
+         response.data.pipe(res);
+      } catch (error) {
+         if (axios.isAxiosError(error) && error.response) {
+            res.status(error.response.status).send(error.response.data);
+         } else {
+            ResponseHandler.internalError(res, MessageHandler.getErrorMessage('error.internal.streaming_service_unavailable'));
+         }
+      }
+   };
+
+   const proxyPostToStreamingService = async (req: Request, res: Response): Promise<void> => {
+      try {
+         const authHeader = req.headers.authorization;
+         const userId = req.query['user'] as string;
+         if (!authHeader && !userId) {
+            ResponseHandler.unauthorized(res, MessageHandler.getErrorMessage('unauthorized.not_authenticated'));
+            return;
+         }
+
+         const chapterId = req.params['chapterId'] as string;
+         const chapter = await prisma.chapter.findUnique({ where: { id: chapterId } });
+         if (!chapter?.filePath) {
+            ResponseHandler.notFound(res, MessageHandler.getErrorMessage('error.chapter_not_found'));
+            return;
+         }
+
+         const externalUrl = `${config.STREAMING_SERVICE_URL}${req.path}`;
+         const headers: Record<string, string> = {
+            'Content-Type': 'application/json',
+            ...(authHeader ? { Authorization: authHeader } : { user_id: userId }),
+         };
+
+         const response = await axios.post(
+            externalUrl,
+            { ...req.body, inputPath: chapter.filePath },
+            { headers, timeout: 30000 }
+         );
+
+         Object.keys(response.headers).forEach(key => {
+            res.setHeader(key, response.headers[key] as string);
+         });
+         res.status(response.status).send(response.data);
+      } catch (error) {
+         if (axios.isAxiosError(error) && error.response) {
+            res.status(error.response.status).send(error.response.data);
+         } else {
+            ResponseHandler.internalError(res, MessageHandler.getErrorMessage('error.internal.default'));
+         }
+      }
    };
 
    /**
@@ -311,6 +385,126 @@ export function createStreamingRoutes(_prisma: PrismaClient): Router {
       '/chapters/:chapterId/status',
       validateStreamingParams,
       proxyToStreamingService
+   );
+
+   /**
+    * @swagger
+    * /api/v1/stream/chapters/{chapterId}/transcoding:
+    *   get:
+    *     summary: Detailed per-bitrate transcoding status (proxied)
+    *     tags: [Streaming]
+    *     security:
+    *       - bearerAuth: []
+    *     parameters:
+    *       - name: chapterId
+    *         in: path
+    *         required: true
+    *         schema: { type: string }
+    *       - $ref: '#/components/parameters/StreamingUserQueryParam'
+    *     responses:
+    *       200:
+    *         description: Detailed transcoding status with per-bitrate progress
+    *       401:
+    *         $ref: '#/components/responses/UnauthorizedError'
+    */
+   router.get(
+      '/chapters/:chapterId/transcoding',
+      validateStreamingParams,
+      proxyToStreamingService
+   );
+
+   /**
+    * @swagger
+    * /api/v1/stream/chapters/{chapterId}/transcoding/events:
+    *   get:
+    *     summary: SSE live transcoding events for one chapter (proxied)
+    *     tags: [Streaming]
+    *     security:
+    *       - bearerAuth: []
+    *     parameters:
+    *       - name: chapterId
+    *         in: path
+    *         required: true
+    *         schema: { type: string }
+    *       - $ref: '#/components/parameters/StreamingUserQueryParam'
+    *     responses:
+    *       200:
+    *         description: text/event-stream with snapshot and transcoding events
+    *         content:
+    *           text/event-stream:
+    *             schema: { type: string }
+    *       401:
+    *         $ref: '#/components/responses/UnauthorizedError'
+    */
+   router.get(
+      '/chapters/:chapterId/transcoding/events',
+      validateStreamingParams,
+      proxyStreamToStreamingService
+   );
+
+   /**
+    * @swagger
+    * /api/v1/stream/transcoding/events:
+    *   get:
+    *     summary: Multiplexed SSE for chapter list (proxied)
+    *     tags: [Streaming]
+    *     security:
+    *       - bearerAuth: []
+    *     parameters:
+    *       - name: chapterIds
+    *         in: query
+    *         required: true
+    *         schema: { type: string, example: 'ch1,ch2' }
+    *       - $ref: '#/components/parameters/StreamingUserQueryParam'
+    *     responses:
+    *       200:
+    *         description: text/event-stream
+    *         content:
+    *           text/event-stream:
+    *             schema: { type: string }
+    *       401:
+    *         $ref: '#/components/responses/UnauthorizedError'
+    */
+   router.get(
+      '/transcoding/events',
+      proxyStreamToStreamingService
+   );
+
+   /**
+    * @swagger
+    * /api/v1/stream/chapters/{chapterId}/transcode/retry:
+    *   post:
+    *     summary: Retry failed bitrates (proxied; inputPath resolved server-side)
+    *     tags: [Streaming]
+    *     security:
+    *       - bearerAuth: []
+    *     parameters:
+    *       - name: chapterId
+    *         in: path
+    *         required: true
+    *         schema: { type: string }
+    *       - $ref: '#/components/parameters/StreamingUserQueryParam'
+    *     requestBody:
+    *       content:
+    *         application/json:
+    *           schema:
+    *             type: object
+    *             properties:
+    *               bitrates:
+    *                 type: array
+    *                 items: { type: integer }
+    *     responses:
+    *       200:
+    *         description: Retry initiated
+    *       401:
+    *         $ref: '#/components/responses/UnauthorizedError'
+    *       404:
+    *         $ref: '#/components/responses/NotFoundError'
+    */
+   router.post(
+      '/chapters/:chapterId/transcode/retry',
+      validateStreamingParams,
+      proxyPostToStreamingService
    );
 
    /**
