@@ -8,6 +8,7 @@ import path from 'path';
 import fs from 'fs';
 import { config } from '../config/env';
 import { StorageFactory } from './storage/StorageFactory';
+import { resolveFfmpegPath } from '../utils/ffmpegPath';
 
 const execAsync = promisify(exec);
 
@@ -161,9 +162,8 @@ export class ImageProcessingService {
          }
 
          // Use ffmpeg to resize the cover image to the required dimensions
-         // -vf scale=width:height:force_original_aspect_ratio=decrease,pad=width:height:(ow-iw)/2:(oh-ih)/2
-         // This will maintain aspect ratio and pad if necessary
-         const resizeCommand = `ffmpeg -i "${coverImagePath}" -vf "scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2:color=black" "${outputPath}" -y`;
+         const ffmpegPath = resolveFfmpegPath();
+         const resizeCommand = `"${ffmpegPath}" -i "${coverImagePath}" -vf "scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2:color=black" "${outputPath}" -y`;
 
          await execAsync(resizeCommand, { timeout: 30000 }); // 30 second timeout
 

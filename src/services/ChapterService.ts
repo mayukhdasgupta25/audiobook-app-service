@@ -23,6 +23,7 @@ import { ImageProcessingService } from './ImageProcessingService';
 import { validateChapterCoverImageOrThrow } from '../utils/ImageValidator';
 import path from 'path';
 import { fileUrlService } from './FileUrlService';
+import { mediaCleanupService } from './MediaCleanupService';
 
 export class ChapterService {
    private fileUploadService: FileUploadService;
@@ -514,6 +515,14 @@ export class ChapterService {
          }
 
          const audiobookId = chapter.audiobookId;
+
+         await mediaCleanupService.deleteStoredFiles([
+            chapter.filePath,
+            chapter.coverImage,
+            chapter.chapterCardCoverImage,
+            chapter.maximizedChapterCoverImage,
+            chapter.minimizedChapterCoverImage,
+         ]);
 
          await this.prisma.chapter.delete({
             where: { id: chapterId },

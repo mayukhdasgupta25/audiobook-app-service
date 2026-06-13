@@ -47,8 +47,22 @@ describe('AudiobookMediaCleanupService', () => {
          id: 'book-1',
          coverImage: 'uploads/images/audiobooks/cover.jpg',
          chapters: [
-            { id: 'ch-1', filePath: 'uploads/audio/ch1.mp3', coverImage: 'uploads/images/chapters/ch1.jpg' },
-            { id: 'ch-2', filePath: 'uploads/audio/ch2.mp3', coverImage: 'uploads/images/chapters/ch2.jpg' },
+            {
+               id: 'ch-1',
+               filePath: 'uploads/audio/ch1.mp3',
+               coverImage: 'uploads/images/chapters/ch1.jpg',
+               chapterCardCoverImage: 'uploads/images/chapters/ch1-card.jpg',
+               maximizedChapterCoverImage: 'uploads/images/chapters/ch1-max.jpg',
+               minimizedChapterCoverImage: 'uploads/images/chapters/ch1-min.jpg',
+            },
+            {
+               id: 'ch-2',
+               filePath: 'uploads/audio/ch2.mp3',
+               coverImage: 'uploads/images/chapters/ch2.jpg',
+               chapterCardCoverImage: null,
+               maximizedChapterCoverImage: null,
+               minimizedChapterCoverImage: null,
+            },
          ],
          offlineDownloads: [{ filePath: 'uploads/downloads/book-1.mp3' }],
       });
@@ -58,7 +72,20 @@ describe('AudiobookMediaCleanupService', () => {
       expect(publishChapterDeletion).toHaveBeenCalledTimes(2);
       expect(publishChapterDeletion).toHaveBeenCalledWith('ch-1');
       expect(publishChapterDeletion).toHaveBeenCalledWith('ch-2');
-      expect(mediaCleanupService.deleteStoredFiles).toHaveBeenCalled();
+      expect(mediaCleanupService.deleteStoredFiles).toHaveBeenCalledWith([
+         'uploads/audio/ch1.mp3',
+         'uploads/images/chapters/ch1.jpg',
+         'uploads/images/chapters/ch1-card.jpg',
+         'uploads/images/chapters/ch1-max.jpg',
+         'uploads/images/chapters/ch1-min.jpg',
+      ]);
+      expect(mediaCleanupService.deleteStoredFiles).toHaveBeenCalledWith([
+         'uploads/audio/ch2.mp3',
+         'uploads/images/chapters/ch2.jpg',
+         null,
+         null,
+         null,
+      ]);
       expect(mockPrisma.audioBook.delete).toHaveBeenCalledWith({ where: { id: 'book-1' } });
    });
 

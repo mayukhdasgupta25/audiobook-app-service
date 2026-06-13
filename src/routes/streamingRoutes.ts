@@ -72,7 +72,7 @@ export function createStreamingRoutes(prisma: PrismaClient): Router {
          if (axios.isAxiosError(error) && error.response) {
             res.status(error.response.status).send(error.response.data);
          } else {
-            ResponseHandler.internalError(res, MessageHandler.getErrorMessage('error.internal.streaming_service_unavailable'));
+            ResponseHandler.internalError(res, MessageHandler.getErrorMessage('internal.streaming_service_unavailable'));
          }
       }
    };
@@ -89,7 +89,7 @@ export function createStreamingRoutes(prisma: PrismaClient): Router {
          const chapterId = req.params['chapterId'] as string;
          const chapter = await prisma.chapter.findUnique({ where: { id: chapterId } });
          if (!chapter?.filePath) {
-            ResponseHandler.notFound(res, MessageHandler.getErrorMessage('error.chapter_not_found'));
+            ResponseHandler.notFound(res, MessageHandler.getErrorMessage('not_found.chapter'));
             return;
          }
 
@@ -113,7 +113,7 @@ export function createStreamingRoutes(prisma: PrismaClient): Router {
          if (axios.isAxiosError(error) && error.response) {
             res.status(error.response.status).send(error.response.data);
          } else {
-            ResponseHandler.internalError(res, MessageHandler.getErrorMessage('error.internal.default'));
+            ResponseHandler.internalError(res, MessageHandler.getErrorMessage('internal.default'));
          }
       }
    };
@@ -165,13 +165,13 @@ export function createStreamingRoutes(prisma: PrismaClient): Router {
                res.status(error.response.status).send(error.response.data);
             } else if (error.request) {
                // Network error
-               ResponseHandler.internalError(res, MessageHandler.getErrorMessage('error.internal.streaming_service_unavailable'));
+               ResponseHandler.internalError(res, MessageHandler.getErrorMessage('internal.streaming_service_unavailable'));
             } else {
                // Other error
-               ResponseHandler.internalError(res, MessageHandler.getErrorMessage('error.internal.default'));
+               ResponseHandler.internalError(res, MessageHandler.getErrorMessage('internal.default'));
             }
          } else {
-            ResponseHandler.internalError(res, MessageHandler.getErrorMessage('error.internal_server_error'));
+            ResponseHandler.internalError(res, MessageHandler.getErrorMessage('internal.default'));
          }
       }
    };

@@ -108,7 +108,7 @@ export class AudioBookService {
         audiobooks: await this.hydrateOwners(resolved, accessToken),
         totalCount
       };
-    } catch (_error) {
+    } catch (error) {
       throw ApiError.internalError(MessageHandler.getErrorMessage('internal.fetch_audiobooks'));
     }
   }
