@@ -146,8 +146,8 @@ export class ChapterService {
          }
 
          // Defer audio upload until after DB commit when a new file is attached
-         let filePath = chapterData.filePath || '';
-         let fileSize = chapterData.fileSize || 0;
+         const filePath = chapterData.filePath || '';
+         const fileSize = chapterData.fileSize || 0;
          const hasAudioUpload = Boolean(uploadedFile);
 
          // Handle coverImage - it's required, so it must be provided via upload or in chapterData
@@ -318,8 +318,8 @@ export class ChapterService {
          }
 
          // Defer audio upload until after DB commit when replacing audio
-         let filePath = updateData.filePath;
-         let fileSize = updateData.fileSize;
+         const filePath = updateData.filePath;
+         const fileSize = updateData.fileSize;
          const hasAudioUpload = Boolean(uploadedFile);
          const oldFilePath = existingChapter.filePath;
 
