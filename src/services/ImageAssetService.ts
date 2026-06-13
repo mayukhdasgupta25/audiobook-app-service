@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
+import axios from 'axios';
 import { ImageCategory, PrismaClient } from '@prisma/client';
 import { config } from '../config/env';
 import { ImageSpecService } from './ImageSpecService';
@@ -147,11 +148,11 @@ export class ImageAssetService {
             if (fs.existsSync(localPath)) {
                return localPath;
             }
-            const response = await fetch(`${config.AUTH_SERVICE_URL.replace(/\/$/, '')}${trimmed}`);
-            if (!response.ok) {
-               throw new Error(`Failed to fetch source image from auth-service: ${response.status}`);
-            }
-            const buffer = Buffer.from(await response.arrayBuffer());
+            const response = await axios.get<ArrayBuffer>(
+               `${config.AUTH_SERVICE_URL.replace(/\/$/, '')}${trimmed}`,
+               { responseType: 'arraybuffer' },
+            );
+            const buffer = Buffer.from(response.data);
             return writeBufferToTempFile(buffer, path.extname(trimmed) || '.jpg');
          }
 
