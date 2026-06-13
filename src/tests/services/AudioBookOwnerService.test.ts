@@ -13,6 +13,7 @@ jest.mock('../../clients/AuthClient', () => ({
 jest.mock('../../services/FileUrlService', () => ({
    fileUrlService: {
       resolveForClient: jest.fn(async (path: string) => `https://cdn.example.com/${path}`),
+      resolveImageAssetsForEntity: jest.fn(async () => ({})),
    },
 }));
 

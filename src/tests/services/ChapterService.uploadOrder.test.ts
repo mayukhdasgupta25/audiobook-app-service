@@ -8,6 +8,26 @@ import { RabbitMQFactory } from '../../config/rabbitmq';
 
 jest.mock('../../services/FileUploadService');
 jest.mock('../../config/rabbitmq');
+jest.mock('../../services/FileUrlService', () => ({
+   fileUrlService: {
+      resolveChapterMedia: jest.fn(async (chapter: Record<string, unknown>) => ({
+         ...chapter,
+         imageAssets: {},
+      })),
+      resolveChapterMediaList: jest.fn(async (chapters: Record<string, unknown>[]) =>
+         chapters.map((chapter) => ({ ...chapter, imageAssets: {} })),
+      ),
+   },
+}));
+jest.mock('../../services/ImageAssetService', () => ({
+   ImageAssetService: jest.fn().mockImplementation(() => ({
+      deleteAssetsForEntity: jest.fn().mockResolvedValue(undefined),
+      generateAndStoreVariants: jest.fn().mockResolvedValue({
+         primaryStorageKey: 'uploads/images/chapters/chapter-1/portrait_7_10.jpg',
+         variants: {},
+      }),
+   })),
+}));
 
 describe('ChapterService.createChapter upload order', () => {
    const mockCreate = jest.fn();

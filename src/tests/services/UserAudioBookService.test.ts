@@ -43,6 +43,15 @@ jest.mock('../../utils/MessageHandler', () => ({
    }
 }));
 
+jest.mock('../../services/FileUrlService', () => ({
+   fileUrlService: {
+      resolveNestedAudiobookMedia: jest.fn(async (audiobook: { coverImage?: string | null }) => ({
+         coverImage: audiobook.coverImage,
+         imageAssets: {},
+      })),
+   },
+}));
+
 describe('UserAudioBookService', () => {
    let userAudioBookService: UserAudioBookService;
 

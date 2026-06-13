@@ -7,12 +7,23 @@ jest.mock('../../services/FileUrlService', () => ({
    },
 }));
 
+jest.mock('../../services/ImageAssetService', () => ({
+   ImageAssetService: jest.fn().mockImplementation(() => ({
+      resolveSourceImageToLocalPath: jest.fn().mockResolvedValue('/tmp/source-image.jpg'),
+      generateAndStoreVariants: jest.fn().mockResolvedValue({
+         primaryStorageKey: 'uploads/images/authors/author-1/square_512.jpg',
+         variants: {},
+      }),
+   })),
+}));
+
 describe('AuthorProfileService', () => {
    let service: AuthorProfileService;
    let mockPrisma: {
       authorProfile: {
          findUnique: jest.Mock;
          create: jest.Mock;
+         update: jest.Mock;
       };
    };
 
@@ -21,6 +32,7 @@ describe('AuthorProfileService', () => {
          authorProfile: {
             findUnique: jest.fn(),
             create: jest.fn(),
+            update: jest.fn(),
          },
       };
       service = new AuthorProfileService(mockPrisma as unknown as PrismaClient);
@@ -31,7 +43,14 @@ describe('AuthorProfileService', () => {
       mockPrisma.authorProfile.create.mockResolvedValue({
          id: 'profile-1',
          authorId: 'author-1',
-         avatar: '/uploads/avatar.jpg',
+         avatar: null,
+         createdAt: new Date(),
+         updatedAt: new Date(),
+      });
+      mockPrisma.authorProfile.update.mockResolvedValue({
+         id: 'profile-1',
+         authorId: 'author-1',
+         avatar: 'uploads/images/authors/author-1/square_512.jpg',
          createdAt: new Date(),
          updatedAt: new Date(),
       });

@@ -89,7 +89,7 @@ describe('UserProfileController', () => {
 
          await controller.updateProfile(mockReq, mockRes, mockReq.next);
 
-         expect(mockService.updateUserProfile).toHaveBeenCalledWith('user-123', mockReq.body);
+         expect(mockService.updateUserProfile).toHaveBeenCalledWith('user-123', mockReq.body, undefined);
          expect(ResponseHandler.success).toHaveBeenCalledWith(
             mockRes,
             updated,

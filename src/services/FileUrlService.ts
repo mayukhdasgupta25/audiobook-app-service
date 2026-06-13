@@ -23,7 +23,14 @@ export type ImageKeyDirectory =
    | 'uploads/images/organizations';
 
 export class FileUrlService {
-   private imageAssetService = new ImageAssetService(prisma);
+   private _imageAssetService: ImageAssetService | undefined;
+
+   private get imageAssetService(): ImageAssetService {
+      if (!this._imageAssetService) {
+         this._imageAssetService = new ImageAssetService(prisma);
+      }
+      return this._imageAssetService;
+   }
 
    shouldSignUrls(): boolean {
       return config.NODE_ENV !== 'development';

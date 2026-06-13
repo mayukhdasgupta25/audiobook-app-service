@@ -14,6 +14,15 @@ const mockPrisma = {
    },
 } as any;
 
+jest.mock('../../services/FileUrlService', () => ({
+   fileUrlService: {
+      resolveNestedAudiobookMedia: jest.fn(async (audiobook: { coverImage?: string | null }) => ({
+         coverImage: audiobook.coverImage,
+         imageAssets: {},
+      })),
+   },
+}));
+
 describe('ListeningHistoryService', () => {
    let service: ListeningHistoryService;
 
