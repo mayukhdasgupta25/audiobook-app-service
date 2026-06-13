@@ -22,6 +22,8 @@ export interface ChapterData {
    startPosition: number;
    endPosition: number;
    isActive: boolean;
+   sourceUploadStatus?: 'pending' | 'ready' | 'failed';
+   sourceUploadError?: string | null;
    createdAt: Date;
    updatedAt: Date;
    scheduledAt?: Date | null;

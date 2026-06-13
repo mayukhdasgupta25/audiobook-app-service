@@ -145,18 +145,10 @@ export class ChapterService {
             throw new ApiError('Chapter number already exists for this audiobook', 400);
          }
 
-         // Upload audio file if provided
+         // Defer audio upload until after DB commit when a new file is attached
          let filePath = chapterData.filePath || '';
          let fileSize = chapterData.fileSize || 0;
-
-         if (uploadedFile) {
-            const uploadResult = await this.fileUploadService.uploadFile(
-               uploadedFile,
-               '/uploads/chapters'
-            );
-            filePath = uploadResult.filePath;
-            fileSize = uploadResult.fileSize;
-         }
+         const hasAudioUpload = Boolean(uploadedFile);
 
          // Handle coverImage - it's required, so it must be provided via upload or in chapterData
          let coverImage = chapterData.coverImage;
@@ -194,9 +186,10 @@ export class ChapterService {
          // Handle scheduledAt: if provided, set isActive=false
          const createData: any = {
             ...chapterData,
-            filePath,
-            fileSize: BigInt(fileSize),
+            filePath: hasAudioUpload ? '' : filePath,
+            fileSize: BigInt(hasAudioUpload ? 0 : fileSize),
             coverImage,
+            sourceUploadStatus: hasAudioUpload ? 'pending' : (filePath ? 'ready' : 'pending'),
          };
 
          // Generate thumbnails from cover image if provided
@@ -220,42 +213,40 @@ export class ChapterService {
             createData.isActive = chapterData.isActive ?? true; // Default to true if not provided
          }
 
-         const chapter = await this.prisma.chapter.create({
+         let chapter = await this.prisma.chapter.create({
             data: createData,
          });
 
-         // Publish transcoding job to RabbitMQ
-         try {
-            const jobData: TranscodingJobData = {
-               chapter: {
-                  id: chapter.id,
-                  audiobookId: chapter.audiobookId,
-                  title: chapter.title,
-                  ...(chapter.description && { description: chapter.description }),
-                  chapterNumber: chapter.chapterNumber,
-                  duration: chapter.duration,
-                  filePath: chapter.filePath,
-                  fileSize: Number(chapter.fileSize),
-                  startPosition: chapter.startPosition,
-                  endPosition: chapter.endPosition,
-                  createdAt: chapter.createdAt,
-                  updatedAt: chapter.updatedAt,
-               },
-               bitrates: config.TRANSCODING_BITRATES,
-               priority: 'normal'
-            };
-
-            const rabbitMQ = RabbitMQFactory.getConnection();
-            const published = await rabbitMQ.publishTranscodingJob(jobData, 'normal');
-
-            if (published) {
-               console.log(`Transcoding job published for new chapter ${chapter.id}`);
-            } else {
-               // console.error(`Failed to publish transcoding job for chapter ${chapter.id}`);
+         if (hasAudioUpload && uploadedFile) {
+            try {
+               const uploadResult = await this.fileUploadService.uploadFile(
+                  uploadedFile,
+                  '/uploads/chapters'
+               );
+               chapter = await this.prisma.chapter.update({
+                  where: { id: chapter.id },
+                  data: {
+                     filePath: uploadResult.filePath,
+                     fileSize: BigInt(uploadResult.fileSize),
+                     sourceUploadStatus: 'ready',
+                     sourceUploadError: null,
+                  },
+               });
+            } catch (uploadError: unknown) {
+               const message = uploadError instanceof Error ? uploadError.message : 'Upload failed';
+               await this.prisma.chapter.update({
+                  where: { id: chapter.id },
+                  data: {
+                     sourceUploadStatus: 'failed',
+                     sourceUploadError: message,
+                  },
+               });
+               throw new ApiError(`Failed to upload chapter audio: ${message}`, 500);
             }
-         } catch (_error) {
-            // Log error but don't fail chapter creation
-            // console.error(`Error publishing transcoding job for chapter ${chapter.id}:`, error);
+         }
+
+         if (chapter.sourceUploadStatus === 'ready' && chapter.filePath) {
+            await this.publishChapterTranscodingJob(chapter);
          }
 
          // Schedule audiobook duration calculation job
@@ -326,31 +317,11 @@ export class ChapterService {
             }
          }
 
-         // Upload audio file if provided
+         // Defer audio upload until after DB commit when replacing audio
          let filePath = updateData.filePath;
          let fileSize = updateData.fileSize;
-
-         if (uploadedFile) {
-            // Delete old file if it exists
-            if (existingChapter.filePath) {
-               try {
-                  const fs = require('fs');
-                  if (fs.existsSync(existingChapter.filePath)) {
-                     fs.unlinkSync(existingChapter.filePath);
-                  }
-               } catch (_error) {
-                  // Log error but don't fail update
-                  console.error(`Error deleting old file for chapter ${chapterId}:`, _error);
-               }
-            }
-
-            const uploadResult = await this.fileUploadService.uploadFile(
-               uploadedFile,
-               '/uploads/chapters'
-            );
-            filePath = uploadResult.filePath;
-            fileSize = uploadResult.fileSize;
-         }
+         const hasAudioUpload = Boolean(uploadedFile);
+         const oldFilePath = existingChapter.filePath;
 
          // Handle coverImage upload if provided
          let coverImage = updateData.coverImage;
@@ -451,15 +422,54 @@ export class ChapterService {
             }
          }
 
+         if (hasAudioUpload) {
+            updatePayload.sourceUploadStatus = 'pending';
+            updatePayload.sourceUploadError = null;
+         }
+
          // Handle scheduledAt: if provided, set isActive=false
          if (updateData.scheduledAt !== undefined) {
             updatePayload.isActive = false;
          }
 
-         const chapter = await this.prisma.chapter.update({
+         let chapter = await this.prisma.chapter.update({
             where: { id: chapterId },
             data: updatePayload,
          });
+
+         if (hasAudioUpload && uploadedFile) {
+            try {
+               const uploadResult = await this.fileUploadService.uploadFile(
+                  uploadedFile,
+                  '/uploads/chapters'
+               );
+               chapter = await this.prisma.chapter.update({
+                  where: { id: chapterId },
+                  data: {
+                     filePath: uploadResult.filePath,
+                     fileSize: BigInt(uploadResult.fileSize),
+                     sourceUploadStatus: 'ready',
+                     sourceUploadError: null,
+                  },
+               });
+
+               if (oldFilePath && oldFilePath !== chapter.filePath) {
+                  await this.fileUploadService.deleteFile(oldFilePath);
+               }
+
+               await this.publishChapterTranscodingJob(chapter, { forceRetranscode: true });
+            } catch (uploadError: unknown) {
+               const message = uploadError instanceof Error ? uploadError.message : 'Upload failed';
+               chapter = await this.prisma.chapter.update({
+                  where: { id: chapterId },
+                  data: {
+                     sourceUploadStatus: 'failed',
+                     sourceUploadError: message,
+                  },
+               });
+               throw new ApiError(`Failed to upload chapter audio: ${message}`, 500);
+            }
+         }
 
          // Schedule activation job if scheduledAt was provided
          if (updateData.scheduledAt !== undefined && this.backgroundJobService) {
@@ -747,6 +757,51 @@ export class ChapterService {
       }
    }
 
+   private async publishChapterTranscodingJob(
+      chapter: {
+         id: string;
+         audiobookId: string;
+         title: string;
+         description: string | null;
+         chapterNumber: number;
+         duration: number;
+         filePath: string;
+         fileSize: bigint;
+         startPosition: number;
+         endPosition: number;
+         createdAt: Date;
+         updatedAt: Date;
+      },
+      options?: { forceRetranscode?: boolean }
+   ): Promise<void> {
+      try {
+         const jobData: TranscodingJobData = {
+            chapter: {
+               id: chapter.id,
+               audiobookId: chapter.audiobookId,
+               title: chapter.title,
+               ...(chapter.description && { description: chapter.description }),
+               chapterNumber: chapter.chapterNumber,
+               duration: chapter.duration,
+               filePath: chapter.filePath,
+               fileSize: Number(chapter.fileSize),
+               startPosition: chapter.startPosition,
+               endPosition: chapter.endPosition,
+               createdAt: chapter.createdAt,
+               updatedAt: chapter.updatedAt,
+            },
+            bitrates: config.TRANSCODING_BITRATES,
+            priority: 'normal',
+            ...(options?.forceRetranscode && { forceRetranscode: true }),
+         };
+
+         const rabbitMQ = RabbitMQFactory.getConnection();
+         await rabbitMQ.publishTranscodingJob(jobData, 'normal');
+      } catch (_error) {
+         console.error(`Error publishing transcoding job for chapter ${chapter.id}:`, _error);
+      }
+   }
+
    private mapChapterRecord(chapter: {
       id: string;
       audiobookId: string;
@@ -763,6 +818,8 @@ export class ChapterService {
       startPosition: number;
       endPosition: number;
       isActive: boolean;
+      sourceUploadStatus?: 'pending' | 'ready' | 'failed';
+      sourceUploadError?: string | null;
       scheduledAt: Date | null;
       createdAt: Date;
       updatedAt: Date;
@@ -787,6 +844,8 @@ export class ChapterService {
          startPosition: chapter.startPosition,
          endPosition: chapter.endPosition,
          isActive: chapter.isActive,
+         sourceUploadStatus: chapter.sourceUploadStatus ?? 'ready',
+         ...(chapter.sourceUploadError ? { sourceUploadError: chapter.sourceUploadError } : {}),
          scheduledAt: chapter.scheduledAt ?? null,
          createdAt: chapter.createdAt,
          updatedAt: chapter.updatedAt,
@@ -815,6 +874,8 @@ export class ChapterService {
       startPosition: number;
       endPosition: number;
       isActive: boolean;
+      sourceUploadStatus?: 'pending' | 'ready' | 'failed';
+      sourceUploadError?: string | null;
       scheduledAt: Date | null;
       createdAt: Date;
       updatedAt: Date;
