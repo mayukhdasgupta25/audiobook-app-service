@@ -26,7 +26,13 @@ export class AudiobookMediaCleanupService {
       const rabbitMQ = RabbitMQFactory.getConnection();
 
       for (const chapter of audiobook.chapters) {
-         await mediaCleanupService.deleteStoredFiles([chapter.filePath, chapter.coverImage]);
+         await mediaCleanupService.deleteStoredFiles([
+            chapter.filePath,
+            chapter.coverImage,
+            chapter.chapterCardCoverImage,
+            chapter.maximizedChapterCoverImage,
+            chapter.minimizedChapterCoverImage,
+         ]);
 
          try {
             await rabbitMQ.publishChapterDeletion(chapter.id);

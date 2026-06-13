@@ -259,6 +259,7 @@ errors:
 
   not_found:
     audiobook: "AudioBook not found"
+    chapter: "Chapter not found"
     resource: "Resource not found"
     route: "Route {route} not found"
     user: "User not found"
@@ -416,6 +417,7 @@ errors:
     create_user_audiobook: "Failed to create user-audiobook relationship"
     update_user_audiobook: "Failed to update user-audiobook relationship"
     delete_user_audiobook: "Failed to delete user-audiobook relationship"
+    streaming_service_unavailable: "Streaming service is currently unavailable"
 
 # API Information
 api:

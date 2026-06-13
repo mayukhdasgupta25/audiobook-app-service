@@ -120,6 +120,30 @@ function validateNoLocalhostInStagingOrProduction(
    assertNoLocalhost('JWKS_ENDPOINT', values.JWKS_ENDPOINT, nodeEnv);
 }
 
+function resolveStreamingServiceStoragePath(currentNodeEnv: string): string {
+   const raw = process.env['STREAMING_SERVICE_STORAGE_PATH'];
+   const siblingFallback = path.resolve(process.cwd(), '../streaming-service/storage');
+
+   if (currentNodeEnv === 'development') {
+      if (!raw) {
+         return siblingFallback;
+      }
+      const resolved = path.isAbsolute(raw) ? raw : path.resolve(process.cwd(), raw);
+      if (!fs.existsSync(resolved) && fs.existsSync(siblingFallback)) {
+         console.warn(
+            `[config] STREAMING_SERVICE_STORAGE_PATH not found at ${resolved}; using ${siblingFallback}`,
+         );
+         return siblingFallback;
+      }
+      return resolved;
+   }
+
+   if (!raw) {
+      throw new Error('Missing required environment variable: STREAMING_SERVICE_STORAGE_PATH');
+   }
+   return path.isAbsolute(raw) ? raw : path.resolve(process.cwd(), raw);
+}
+
 loadEnvFiles();
 
 const nodeEnv = requireEnv('NODE_ENV');
@@ -171,7 +195,7 @@ export const config = {
 
    TRANSCODING_BITRATES: parseTranscodingBitrates(requireEnv('TRANSCODING_BITRATES')),
    STREAMING_CACHE_TTL: requireIntEnv('STREAMING_CACHE_TTL'),
-   STREAMING_SERVICE_STORAGE_PATH: requireEnv('STREAMING_SERVICE_STORAGE_PATH'),
+   STREAMING_SERVICE_STORAGE_PATH: resolveStreamingServiceStoragePath(nodeEnv),
 
    AWS_S3_BUCKET: requireEnv('AWS_S3_BUCKET'),
    AWS_S3_REGION: requireEnv('AWS_S3_REGION'),
@@ -194,4 +218,6 @@ export const config = {
 
    HEALTH_SUPPORT_EMAIL,
    HEALTH_SUPPORT_PASSWORD,
+
+   FFMPEG_PATH: process.env['FFMPEG_PATH'] ?? 'ffmpeg',
 };
