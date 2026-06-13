@@ -73,12 +73,12 @@ export class ListeningHistoryService {
          listeningHistory: await Promise.all(
             rows.map(async row => {
                const dto = toListeningHistoryWithAudiobookDto(row);
-               const resolvedCover = await fileUrlService.resolveNestedAudiobookCoverImage(dto.audiobook);
+               const resolvedMedia = await fileUrlService.resolveNestedAudiobookMedia(dto.audiobook);
                return {
                   ...dto,
                   audiobook: {
                      ...dto.audiobook,
-                     ...resolvedCover,
+                     ...resolvedMedia,
                   },
                };
             })

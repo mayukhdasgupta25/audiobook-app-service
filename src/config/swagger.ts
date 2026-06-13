@@ -55,6 +55,15 @@ const options: swaggerJsdoc.Options = {
             }
          },
          schemas: {
+            ImageAssetsMap: {
+               type: 'object',
+               additionalProperties: { type: 'string' },
+               description: 'Map of image variantKey to resolved URL',
+               example: {
+                  portrait_7_10: 'https://cdn.example.com/uploads/images/audiobook/ab1/portrait_7_10.jpg',
+                  square_64: 'https://cdn.example.com/uploads/images/audiobook/ab1/square_64.jpg',
+               },
+            },
             AudioBookOwnerType: {
                type: 'string',
                enum: ['AUTHOR', 'ORGANIZATION'],
@@ -89,6 +98,7 @@ const options: swaggerJsdoc.Options = {
                         firstName: { type: 'string', nullable: true },
                         lastName: { type: 'string', nullable: true },
                         avatar: { type: 'string', nullable: true },
+                        imageAssets: { $ref: '#/components/schemas/ImageAssetsMap' },
                      },
                   },
                   organization: {
@@ -100,6 +110,7 @@ const options: swaggerJsdoc.Options = {
                         slug: { type: 'string' },
                         description: { type: 'string', nullable: true },
                         image: { type: 'string', nullable: true },
+                        imageAssets: { $ref: '#/components/schemas/ImageAssetsMap' },
                         preferredGenre: { type: 'string', nullable: true },
                         websiteUrl: { type: 'string', nullable: true },
                         teamSize: { type: 'string', nullable: true },
@@ -158,10 +169,11 @@ const options: swaggerJsdoc.Options = {
                   },
                   coverImage: {
                      type: 'string',
-                     description: 'URL to the cover image',
+                     description: 'Primary cover image URL (default portrait_7_10 variant)',
                      example: 'https://example.com/covers/great-gatsby.jpg',
                      nullable: true
                   },
+                  imageAssets: { $ref: '#/components/schemas/ImageAssetsMap' },
                   genre: {
                      type: 'string',
                      description: 'Genre of the audiobook',
@@ -216,6 +228,12 @@ const options: swaggerJsdoc.Options = {
                      format: 'date-time',
                      description: 'Last update timestamp',
                      example: '2024-01-15T10:30:00Z'
+                  },
+                  chapterCount: {
+                     type: 'integer',
+                     description: 'Number of chapters in this audiobook',
+                     example: 12,
+                     minimum: 0,
                   }
                }
             },
@@ -497,7 +515,8 @@ const options: swaggerJsdoc.Options = {
                   duration: { type: 'integer' },
                   filePath: { type: 'string' },
                   fileSize: { type: 'integer' },
-                  coverImage: { type: 'string' },
+                  coverImage: { type: 'string', description: 'Primary cover image (square_960 variant)' },
+                  imageAssets: { $ref: '#/components/schemas/ImageAssetsMap' },
                   isActive: { type: 'boolean' },
                   sourceUploadStatus: {
                      type: 'string',
@@ -553,7 +572,8 @@ const options: swaggerJsdoc.Options = {
                type: 'object',
                properties: {
                   username: { type: 'string', nullable: true },
-                  avatar: { type: 'string', nullable: true, description: 'URL to profile picture' }
+                  avatar: { type: 'string', nullable: true, description: 'Primary avatar URL (square_120 variant)' },
+                  imageAssets: { $ref: '#/components/schemas/ImageAssetsMap' },
                }
             },
             CommentMeta: {
@@ -823,7 +843,8 @@ const options: swaggerJsdoc.Options = {
                properties: {
                   id: { type: 'string' },
                   authorId: { type: 'string', example: 'cauthor1234567890abcdefgh' },
-                  avatar: { type: 'string', nullable: true, example: 'https://cdn.example.com/avatar.jpg' },
+                  avatar: { type: 'string', nullable: true, example: 'https://cdn.example.com/avatar.jpg', description: 'Primary avatar (square_120 variant)' },
+                  imageAssets: { $ref: '#/components/schemas/ImageAssetsMap' },
                   createdAt: { type: 'string', format: 'date-time' },
                   updatedAt: { type: 'string', format: 'date-time' },
                },

@@ -6,6 +6,7 @@ import {
    CommentDto,
    CommentQueryParams,
    CommentWithReplies,
+   CommentWithUserProfile,
    CreateCommentRequest,
    UpdateCommentRequest,
    commentUserInclude,
@@ -15,6 +16,7 @@ import {
 import { ApiError } from '../types/ApiError';
 import { MessageHandler } from '../utils/MessageHandler';
 import { HttpStatusCode, ErrorType } from '../types/common';
+import { fileUrlService } from './FileUrlService';
 
 export class CommentService {
    constructor(private prisma: PrismaClient) {}
@@ -79,7 +81,7 @@ export class CommentService {
          include: commentUserInclude,
       });
 
-      return toCommentDto(comment);
+      return this.hydrateCommentRecord(comment);
    }
 
    async getComments(query: CommentQueryParams): Promise<{ comments: CommentDto[]; totalCount: number }> {
@@ -111,7 +113,7 @@ export class CommentService {
       ]);
 
       return {
-         comments: comments.map(toCommentDto),
+         comments: await Promise.all(comments.map(c => this.hydrateCommentRecord(c))),
          totalCount,
       };
    }
@@ -136,9 +138,10 @@ export class CommentService {
          );
       }
 
+      const hydrated = await this.hydrateCommentRecord(comment);
       return {
-         ...toCommentDto(comment),
-         replies: comment.replies.map(toCommentDto),
+         ...hydrated,
+         replies: await Promise.all(comment.replies.map(r => this.hydrateCommentRecord(r))),
       };
    }
 
@@ -194,7 +197,7 @@ export class CommentService {
          include: commentUserInclude,
       });
 
-      return toCommentDto(updated);
+      return this.hydrateCommentRecord(updated);
    }
 
    async deleteComment(id: string, userProfileId: string): Promise<void> {
@@ -211,5 +214,13 @@ export class CommentService {
       }
 
       await this.prisma.comment.delete({ where: { id } });
+   }
+
+   private async hydrateCommentRecord(comment: CommentWithUserProfile): Promise<CommentDto> {
+      const dto = toCommentDto(comment);
+      if (comment.userProfile) {
+         dto.user = await fileUrlService.resolveCommentUserMedia(comment.userProfile);
+      }
+      return dto;
    }
 }

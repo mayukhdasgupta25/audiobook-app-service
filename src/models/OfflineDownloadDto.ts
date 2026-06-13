@@ -30,6 +30,7 @@ export interface OfflineDownloadWithRelations extends OfflineDownloadData {
       duration: number;
       fileSize: bigint;
       coverImage?: string;
+      imageAssets?: Record<string, string>;
    };
 }
 

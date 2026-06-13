@@ -8,9 +8,12 @@ import path from 'path';
 import { config } from '../config/env';
 import { getFileUrl } from '../middleware/UploadMiddleware';
 import { StorageFactory } from './storage/StorageFactory';
+import { ImageCategory } from '@prisma/client';
 import { AudioBookDto } from '../models/AudioBookDto';
 import { UserProfileDto } from '../models/UserDto';
 import { ChapterWithRelations } from '../models/ChapterDto';
+import { prisma } from '../lib/prisma';
+import { ImageAssetService } from './ImageAssetService';
 
 export type ImageKeyDirectory =
    | 'uploads/images/audiobooks'
@@ -20,6 +23,8 @@ export type ImageKeyDirectory =
    | 'uploads/images/organizations';
 
 export class FileUrlService {
+   private imageAssetService = new ImageAssetService(prisma);
+
    shouldSignUrls(): boolean {
       return config.NODE_ENV !== 'development';
    }
@@ -169,47 +174,52 @@ export class FileUrlService {
       return this.processUploadedImageFile(localPath, keyDirectory, contentType, 'cover');
    }
 
-   async resolveAudioBookMedia<T extends AudioBookDto>(dto: T): Promise<T> {
+   async resolveAudioBookMedia<T extends AudioBookDto>(dto: T): Promise<T & { imageAssets: Record<string, string> }> {
       const coverImage = await this.resolveForClient(dto.coverImage);
+      const imageAssets = await this.resolveImageAssets('audiobook', dto.id);
       return {
          ...dto,
          coverImage,
+         imageAssets,
       };
    }
 
-   async resolveAudioBookMediaList<T extends AudioBookDto>(dtos: T[]): Promise<T[]> {
+   async resolveAudioBookMediaList<T extends AudioBookDto>(dtos: T[]): Promise<(T & { imageAssets: Record<string, string> })[]> {
       return Promise.all(dtos.map(dto => this.resolveAudioBookMedia(dto)));
    }
 
-   async resolveChapterMedia(chapter: ChapterWithRelations): Promise<ChapterWithRelations> {
-      const [
-         filePath,
-         coverImage,
-         chapterCardCoverImage,
-         maximizedChapterCoverImage,
-         minimizedChapterCoverImage,
-      ] = await this.resolveManyForClient([
+   async resolveChapterMedia(chapter: ChapterWithRelations): Promise<ChapterWithRelations & { imageAssets: Record<string, string> }> {
+      const [filePath, coverImage] = await this.resolveManyForClient([
          chapter.filePath,
          chapter.coverImage,
-         chapter.chapterCardCoverImage,
-         chapter.maximizedChapterCoverImage,
-         chapter.minimizedChapterCoverImage,
       ]);
+
+      const imageAssets = await this.resolveImageAssets('chapter', chapter.id);
 
       return {
          ...chapter,
          filePath: filePath ?? chapter.filePath,
          coverImage: coverImage ?? chapter.coverImage,
-         ...(chapterCardCoverImage !== undefined && { chapterCardCoverImage }),
-         ...(maximizedChapterCoverImage !== undefined && { maximizedChapterCoverImage }),
-         ...(minimizedChapterCoverImage !== undefined && { minimizedChapterCoverImage }),
+         imageAssets,
       };
    }
 
-   async resolveChapterMediaList(chapters: ChapterWithRelations[]): Promise<ChapterWithRelations[]> {
+   async resolveChapterMediaList(chapters: ChapterWithRelations[]): Promise<(ChapterWithRelations & { imageAssets: Record<string, string> })[]> {
       return Promise.all(chapters.map(chapter => this.resolveChapterMedia(chapter)));
    }
 
+   async resolveNestedAudiobookMedia(
+      audiobook: { id: string; coverImage?: string | null }
+   ): Promise<{ coverImage?: string | null; imageAssets: Record<string, string> }> {
+      const coverImage = await this.resolveForClient(audiobook.coverImage);
+      const imageAssets = await this.resolveImageAssets('audiobook', audiobook.id);
+      return {
+         ...(coverImage !== undefined ? { coverImage } : {}),
+         imageAssets,
+      };
+   }
+
+   /** @deprecated Use resolveNestedAudiobookMedia */
    async resolveNestedAudiobookCoverImage(
       audiobook: { coverImage?: string | null }
    ): Promise<{ coverImage?: string | null }> {
@@ -220,12 +230,44 @@ export class FileUrlService {
       return { coverImage };
    }
 
-   async resolveUserMedia<T extends Pick<UserProfileDto, 'avatar'>>(dto: T): Promise<T> {
+   async resolveUserMedia<T extends Pick<UserProfileDto, 'avatar' | 'id'>>(
+      dto: T,
+   ): Promise<T & { imageAssets: Record<string, string> }> {
       const avatar = await this.resolveForClient(dto.avatar);
+      const imageAssets = await this.resolveImageAssets('user', dto.id);
       return {
          ...dto,
          avatar,
+         imageAssets,
       };
+   }
+
+   async resolveCommentUserMedia(profile: {
+      id: string;
+      username: string;
+      avatar: string | null;
+   }): Promise<{ username: string; avatar: string | null; imageAssets: Record<string, string> }> {
+      const avatar = (await this.resolveForClient(profile.avatar)) ?? profile.avatar;
+      const imageAssets = await this.resolveImageAssets('user', profile.id);
+      return {
+         username: profile.username,
+         avatar,
+         imageAssets,
+      };
+   }
+
+   private async resolveImageAssets(
+      category: ImageCategory,
+      entityId: string,
+   ): Promise<Record<string, string>> {
+      return this.imageAssetService.resolveAssetsForClient(category, entityId);
+   }
+
+   async resolveImageAssetsForEntity(
+      category: ImageCategory,
+      entityId: string,
+   ): Promise<Record<string, string>> {
+      return this.resolveImageAssets(category, entityId);
    }
 
    private resolveDevAuthorProfileImage(stored: string): string {
@@ -248,7 +290,9 @@ export class FileUrlService {
       return `${config.AUTH_SERVICE_URL.replace(/\/$/, '')}${urlPath}`;
    }
 
-   async resolveAuthorProfileMedia<T extends { avatar?: string | null }>(dto: T): Promise<T> {
+   async resolveAuthorProfileMedia<T extends { avatar?: string | null; authorId: string }>(
+      dto: T,
+   ): Promise<T & { imageAssets: Record<string, string> }> {
       let avatar: string | undefined;
 
       if (dto.avatar) {
@@ -257,9 +301,12 @@ export class FileUrlService {
             : this.resolveDevAuthorProfileImage(dto.avatar);
       }
 
+      const imageAssets = await this.resolveImageAssets('author', dto.authorId);
+
       return {
          ...dto,
          avatar: avatar ?? dto.avatar ?? null,
+         imageAssets,
       };
    }
 }

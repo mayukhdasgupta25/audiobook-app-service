@@ -223,9 +223,9 @@ export class OfflineDownloadService {
          };
       }
    ): Promise<OfflineDownloadWithRelations> {
-      const [filePath, coverImage] = await fileUrlService.resolveManyForClient([
-         download.filePath,
-         download.audiobook.coverImage,
+      const [filePath, resolvedMedia] = await Promise.all([
+         fileUrlService.resolveForClient(download.filePath),
+         fileUrlService.resolveNestedAudiobookMedia(download.audiobook),
       ]);
 
       return {
@@ -247,7 +247,8 @@ export class OfflineDownloadService {
             duration: download.audiobook.duration,
             fileSize: download.audiobook.fileSize,
             author: download.audiobook.author,
-            coverImage,
+            coverImage: resolvedMedia.coverImage ?? download.audiobook.coverImage,
+            imageAssets: resolvedMedia.imageAssets,
          },
       } as OfflineDownloadWithRelations;
    }

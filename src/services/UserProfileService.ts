@@ -6,14 +6,18 @@ import { PrismaClient } from '@prisma/client';
 import { UsernameGenerator } from '../utils/UsernameGenerator';
 import { UserProfileCreationResult } from '../types/user-events';
 import { fileUrlService } from './FileUrlService';
+import { ImageAssetService } from './ImageAssetService';
+import { mediaCleanupService } from './MediaCleanupService';
 
 export class UserProfileService {
    private prisma: PrismaClient;
    private usernameGenerator: UsernameGenerator;
+   private imageAssetService: ImageAssetService;
 
    constructor(prisma: PrismaClient) {
       this.prisma = prisma;
       this.usernameGenerator = new UsernameGenerator(prisma);
+      this.imageAssetService = new ImageAssetService(prisma);
    }
 
    /**
@@ -112,11 +116,7 @@ export class UserProfileService {
             return userProfile;
          }
 
-         const avatar = await fileUrlService.resolveForClient(userProfile.avatar);
-         return {
-            ...userProfile,
-            ...(avatar !== undefined ? { avatar } : {}),
-         };
+         return this.resolveProfileForClient(userProfile);
       } catch (error: any) {
          throw error;
       }
@@ -125,15 +125,38 @@ export class UserProfileService {
    /**
     * Update user profile
     */
-   async updateUserProfile(userId: string, updateData: {
-      username?: string;
-      avatar?: string;
-      preferences?: any;
-   }): Promise<any> {
+   async updateUserProfile(
+      userId: string,
+      updateData: {
+         username?: string;
+         avatar?: string;
+         preferences?: any;
+      },
+      avatarSourcePath?: string,
+   ): Promise<any> {
       try {
-         const userProfile = await this.prisma.userProfile.update({
+         const existing = await this.prisma.userProfile.findUnique({
             where: { userId },
-            data: updateData,
+            select: { id: true, avatar: true },
+         });
+
+         if (!existing) {
+            throw new Error('User profile not found');
+         }
+
+         const data: {
+            username?: string;
+            avatar?: string;
+            preferences?: any;
+         } = { ...updateData };
+
+         if (avatarSourcePath) {
+            delete data.avatar;
+         }
+
+         let userProfile = await this.prisma.userProfile.update({
+            where: { userId },
+            data,
             select: {
                id: true,
                userId: true,
@@ -144,11 +167,30 @@ export class UserProfileService {
             }
          });
 
-         const avatar = await fileUrlService.resolveForClient(userProfile.avatar);
-         return {
-            ...userProfile,
-            ...(avatar !== undefined ? { avatar } : {}),
-         };
+         if (avatarSourcePath) {
+            const { primaryStorageKey } = await this.imageAssetService.generateAndStoreVariants(
+               'user',
+               existing.id,
+               avatarSourcePath,
+            );
+            userProfile = await this.prisma.userProfile.update({
+               where: { userId },
+               data: { avatar: primaryStorageKey },
+               select: {
+                  id: true,
+                  userId: true,
+                  username: true,
+                  avatar: true,
+                  preferences: true,
+                  updatedAt: true
+               }
+            });
+         } else if (updateData.avatar !== undefined && updateData.avatar !== existing.avatar) {
+            await this.imageAssetService.deleteAssetsForEntity('user', existing.id);
+            await mediaCleanupService.deleteStoredFile(existing.avatar);
+         }
+
+         return this.resolveProfileForClient(userProfile);
       } catch (error: any) {
          throw error;
       }
@@ -159,11 +201,36 @@ export class UserProfileService {
     */
    async deleteUserProfile(userId: string): Promise<void> {
       try {
+         const existing = await this.prisma.userProfile.findUnique({
+            where: { userId },
+            select: { id: true, avatar: true },
+         });
+
+         if (existing) {
+            await this.imageAssetService.deleteAssetsForEntity('user', existing.id);
+            await mediaCleanupService.deleteStoredFile(existing.avatar);
+         }
+
          await this.prisma.userProfile.delete({
             where: { userId }
          });
       } catch (error: any) {
          throw error;
       }
+   }
+
+   private async resolveProfileForClient(profile: {
+      id: string;
+      userId: string;
+      username: string;
+      avatar: string | null;
+      preferences: unknown;
+      createdAt?: Date;
+      updatedAt?: Date;
+   }) {
+      return fileUrlService.resolveUserMedia({
+         ...profile,
+         avatar: profile.avatar ?? undefined,
+      });
    }
 }

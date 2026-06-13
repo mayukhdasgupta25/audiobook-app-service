@@ -10,6 +10,7 @@ export interface CommentMeta {
 export interface CommentUserDto {
    username?: string | null;
    avatar?: string | null;
+   imageAssets?: Record<string, string>;
 }
 
 export interface CommentDto {
@@ -50,15 +51,17 @@ export interface CommentQueryParams {
 }
 
 type CommentUserProfileSelect = {
+   id: string;
    username: string;
    avatar: string | null;
 };
 
-type CommentWithUserProfile = PrismaComment & {
+export type CommentWithUserProfile = PrismaComment & {
    userProfile?: CommentUserProfileSelect;
 };
 
 export const commentUserProfileSelect = {
+   id: true,
    username: true,
    avatar: true,
 } as const;

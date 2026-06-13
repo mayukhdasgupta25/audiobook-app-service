@@ -9,6 +9,7 @@ export interface ListeningHistoryAudiobookSummary {
    author: string;
    narrator?: string | null;
    coverImage?: string | null;
+   imageAssets?: Record<string, string>;
    duration?: number | null;
 }
 

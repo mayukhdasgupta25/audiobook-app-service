@@ -5,7 +5,6 @@ import { ResponseHandler } from '../utils/ResponseHandler';
 import { MessageHandler } from '../utils/MessageHandler';
 import { UserProfileService } from '../services/UserProfileService';
 import { UpdateUserProfileDto } from '../models/UserDto';
-import { fileUrlService } from '../services/FileUrlService';
 
 export class UserProfileController {
    private userProfileService: UserProfileService;
@@ -78,16 +77,12 @@ export class UserProfileController {
       };
 
       const avatarFile = (req as Request & { avatarFile?: Express.Multer.File }).avatarFile;
-      if (avatarFile) {
-         updateData.avatar = await fileUrlService.processUploadedImageFile(
-            avatarFile.path,
-            'uploads/images/users',
-            avatarFile.mimetype,
-            'avatar',
-         );
-      }
 
-      const updated = await this.userProfileService.updateUserProfile(userId, updateData);
+      const updated = await this.userProfileService.updateUserProfile(
+         userId,
+         updateData,
+         avatarFile?.path,
+      );
 
       ResponseHandler.success(res, updated, MessageHandler.getSuccessMessage('auth.profile_updated'));
    });

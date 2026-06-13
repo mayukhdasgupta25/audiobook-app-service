@@ -10,6 +10,7 @@ export interface UserProfileDto {
    userId: string;
    username: string;
    avatar?: string | undefined;
+   imageAssets?: Record<string, string>;
    preferences?: any | undefined;
    createdAt: Date;
    updatedAt: Date;

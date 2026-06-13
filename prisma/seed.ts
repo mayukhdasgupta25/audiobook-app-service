@@ -2,6 +2,7 @@ import '../src/config/env';
 import fs from 'fs';
 import path from 'path';
 import { PrismaClient } from '@prisma/client';
+import { seedImagePlaceholderSpecs } from './imagePlaceholderSpecs.seed';
 
 const prisma = new PrismaClient();
 
@@ -341,6 +342,7 @@ async function main(): Promise<void> {
    await seedGenres();
    await seedMoods();
    await seedMoodAssets();
+   await seedImagePlaceholderSpecs(prisma);
 
    console.log('Database seeding completed.');
 }

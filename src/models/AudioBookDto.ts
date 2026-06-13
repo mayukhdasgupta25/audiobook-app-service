@@ -27,6 +27,7 @@ export interface AudioBookOwnerAuthorDetails {
   firstName?: string | null;
   lastName?: string | null;
   avatar?: string | null;
+  imageAssets?: Record<string, string>;
 }
 
 export interface AudioBookOwnerOrganizationDetails {
@@ -35,6 +36,7 @@ export interface AudioBookOwnerOrganizationDetails {
   slug: string;
   description?: string | null;
   image?: string | null;
+  imageAssets?: Record<string, string>;
   preferredGenre?: string | null;
   websiteUrl?: string | null;
   teamSize?: string | null;
@@ -56,6 +58,7 @@ export interface AudioBookDto {
   duration?: number | undefined;
   fileSize?: number | undefined;
   coverImage?: string | undefined;
+  imageAssets?: Record<string, string>;
   language: string;
   publisher?: string | undefined;
   publishDate?: Date | undefined;
@@ -72,6 +75,8 @@ export interface AudioBookDto {
   subscriptionAccess?: AudiobookSubscriptionAccessDto;
   /** Current user's star rating (1–5) for this audiobook; null if not reviewed. */
   rating?: number | null;
+  /** Number of chapters belonging to this audiobook (list responses). */
+  chapterCount?: number;
 }
 
 export interface AudioBookTagDto {
