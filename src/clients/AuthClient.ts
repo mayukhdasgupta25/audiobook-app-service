@@ -26,6 +26,7 @@ export interface AuthOrganizationCatalogInfo {
    slug: string;
    description?: string | null;
    image?: string | null;
+   imageAssets?: Record<string, string>;
    preferredGenre?: string | null;
    websiteUrl?: string | null;
    teamSize?: string | null;

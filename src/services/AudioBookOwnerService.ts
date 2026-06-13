@@ -77,6 +77,7 @@ export class AudioBookOwnerService {
             const avatar = avatarStored
                ? await fileUrlService.resolveForClient(avatarStored)
                : undefined;
+            const imageAssets = await fileUrlService.resolveImageAssetsForEntity('author', dto.owner.id);
 
             const authorDetails: AudioBookOwnerAuthorDetails = {
                id: author.id,
@@ -85,6 +86,7 @@ export class AudioBookOwnerService {
                firstName: author.firstName ?? null,
                lastName: author.lastName ?? null,
                ...(avatar !== undefined ? { avatar: avatar ?? null } : {}),
+               imageAssets,
             };
 
             return {
@@ -142,6 +144,7 @@ export class AudioBookOwnerService {
          websiteUrl: org.websiteUrl ?? null,
          teamSize: org.teamSize ?? null,
          ...(image !== undefined ? { image: image ?? null } : {}),
+         imageAssets: org.imageAssets ?? {},
       };
    }
 }

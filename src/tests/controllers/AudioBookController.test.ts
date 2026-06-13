@@ -8,7 +8,6 @@ import { AudioBookController } from '../../controllers/AudioBookController';
 import { AudioBookService } from '../../services/AudioBookService';
 import { ResponseHandler } from '../../utils/ResponseHandler';
 import { MessageHandler } from '../../utils/MessageHandler';
-import { fileUrlService } from '../../services/FileUrlService';
 import { ApiError } from '../../types/ApiError';
 import { HttpStatusCode } from '../../types/common';
 import { AuthRole } from '../../constants/authRoles';
@@ -251,15 +250,10 @@ describe('AudioBookController', () => {
                author: 'Author Name',
                owner: { type: 'ORGANIZATION', id: 'org-1' },
                genreIds: ['genre-123'],
-               coverImage: 'https://example.com/uploads/covers/cover.jpg',
             }),
             'profile-1',
             'test-token',
-         );
-         expect(fileUrlService.processUploadedCoverFile).toHaveBeenCalledWith(
             '/uploads/covers/cover.jpg',
-            'uploads/images/audiobooks',
-            'image/jpeg'
          );
          expect(ResponseHandler.success).toHaveBeenCalledWith(
             mockRes,
@@ -298,15 +292,13 @@ describe('AudioBookController', () => {
 
          expect(mockAudioBookService.createAudioBook).toHaveBeenCalledWith(
             expect.objectContaining({
-               coverImage: 'https://example.com/uploads/covers/cover.jpg',
+               title: 'Book with Cover',
+               author: 'Author Name',
+               owner: { type: 'ORGANIZATION', id: 'org-1' },
             }),
             'profile-1',
             'test-token',
-         );
-         expect(fileUrlService.processUploadedCoverFile).toHaveBeenCalledWith(
             '/uploads/covers/cover.jpg',
-            'uploads/images/audiobooks',
-            'image/jpeg'
          );
       });
 
@@ -354,6 +346,7 @@ describe('AudioBookController', () => {
             expect.objectContaining({ owner: { type: 'AUTHOR', id: 'author-1' } }),
             'profile-1',
             'test-token',
+            '/uploads/covers/cover.jpg',
          );
       });
 

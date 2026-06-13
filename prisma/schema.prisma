@@ -330,11 +330,6 @@ model Chapter {
   fileSize      BigInt // File size in bytes
   coverImage    String // URL to chapter cover image (required)
 
-  // Chapter thumbnail images for different display contexts
-  chapterCardCoverImage      String? // URL to chapter card cover image (240×360px, 2:3 aspect ratio)
-  maximizedChapterCoverImage String? // URL to maximized player cover image (600×600px, 1:1 aspect ratio)
-  minimizedChapterCoverImage String? // URL to minimized player cover image (150×150px, 1:1 aspect ratio)
-
   // Chapter start/end positions in main audiobook file
   startPosition Int // Start position in seconds within main audiobook
   endPosition   Int // End position in seconds within main audiobook
@@ -519,4 +514,42 @@ enum DownloadStatus {
   COMPLETED
   FAILED
   CANCELLED
+}
+
+enum ImageCategory {
+  audiobook
+  chapter
+  user
+  author
+}
+
+model ImagePlaceholderSpec {
+  id                   String        @id @default(cuid())
+  category             ImageCategory
+  variantKey           String
+  actualWidth          Int
+  actualHeight         Int
+  aspectRatioWidth     Int
+  aspectRatioHeight    Int
+  recommendedMaxWidth  Int
+  recommendedMaxHeight Int
+
+  @@unique([category, variantKey])
+  @@map("image_placeholder_specs")
+}
+
+model ImageAsset {
+  id          String        @id @default(cuid())
+  category    ImageCategory
+  entityId    String
+  variantKey  String
+  storageKey  String
+  width       Int
+  height      Int
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@unique([category, entityId, variantKey])
+  @@index([category, entityId])
+  @@map("image_assets")
 }

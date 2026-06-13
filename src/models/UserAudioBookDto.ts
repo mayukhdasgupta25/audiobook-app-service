@@ -27,6 +27,7 @@ export interface UserAudioBookWithRelations extends UserAudioBookDto {
       author: string;
       narrator?: string | null;
       coverImage?: string | null;
+      imageAssets?: Record<string, string>;
    };
 }
 

@@ -2,6 +2,7 @@ export interface AuthorProfileDto {
    id: string;
    authorId: string;
    avatar?: string | null;
+   imageAssets?: Record<string, string>;
    createdAt: Date;
    updatedAt: Date;
 }

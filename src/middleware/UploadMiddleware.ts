@@ -7,7 +7,6 @@ import path from 'path';
 import fs from 'fs';
 import { Request, Response, NextFunction } from 'express';
 import { config } from '../config/env';
-import { validateCoverImageOrThrow, validateChapterCoverImageOrThrow } from '../utils/ImageValidator';
 
 // Ensure upload directories exist
 const ensureUploadDirs = (): void => {
@@ -439,30 +438,7 @@ export class UploadMiddleware {
             return;
          }
 
-         // Validate cover image dimensions and aspect ratio
-         const isChapterRoute = req.path?.includes('/chapters') || req.originalUrl?.includes('/chapters');
-         if (coverImageFiles[0]) {
-            try {
-               if (isChapterRoute) {
-                  // Validate chapter cover image (1200x1200px, 1:1 aspect ratio)
-                  validateChapterCoverImageOrThrow(coverImageFiles[0].path);
-               } else {
-                  // Validate audiobook cover image (2568x3600px, 5:7 aspect ratio)
-                  validateCoverImageOrThrow(coverImageFiles[0].path);
-               }
-            } catch (error: any) {
-               // Delete the uploaded file if validation fails
-               if (coverImageFiles[0] && fs.existsSync(coverImageFiles[0].path)) {
-                  fs.unlinkSync(coverImageFiles[0].path);
-               }
-               res.status(400).json({
-                  success: false,
-                  message: error.message || 'Invalid cover image dimensions',
-                  error: 'INVALID_IMAGE_DIMENSIONS'
-               });
-               return;
-            }
-         }
+         // Cover image validation is performed spec-driven in ImageAssetService
 
          // Store files in convenient properties for controllers
          (req as any).coverImageFile = coverImageFiles[0];
@@ -490,30 +466,6 @@ export class UploadMiddleware {
          // Store image file in custom property to avoid conflict with audio file
          // This allows both image and audio files to be uploaded in the same request
          if (req.file) {
-            // Validate cover image dimensions and aspect ratio
-            const isChapterRoute = req.path?.includes('/chapters') || req.originalUrl?.includes('/chapters');
-            if (isChapterRoute || !isChapterRoute) {
-               try {
-                  if (isChapterRoute) {
-                     // Validate chapter cover image (1200x1200px, 1:1 aspect ratio)
-                     validateChapterCoverImageOrThrow(req.file.path);
-                  } else {
-                     // Validate audiobook cover image (2568x3600px, 5:7 aspect ratio)
-                     validateCoverImageOrThrow(req.file.path);
-                  }
-               } catch (error: any) {
-                  // Delete the uploaded file if validation fails
-                  if (fs.existsSync(req.file.path)) {
-                     fs.unlinkSync(req.file.path);
-                  }
-                  res.status(400).json({
-                     success: false,
-                     message: error.message || 'Invalid cover image dimensions',
-                     error: 'INVALID_IMAGE_DIMENSIONS'
-                  });
-                  return;
-               }
-            }
             (req as any).coverImageFile = req.file;
             // Clear req.file so audio middleware can use it
             delete (req as any).file;

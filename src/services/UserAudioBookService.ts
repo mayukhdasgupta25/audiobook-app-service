@@ -312,12 +312,12 @@ export class UserAudioBookService {
       userAudioBook: Parameters<typeof toUserAudioBookWithRelations>[0]
    ): Promise<UserAudioBookWithRelations> {
       const dto = toUserAudioBookWithRelations(userAudioBook);
-      const resolvedCover = await fileUrlService.resolveNestedAudiobookCoverImage(dto.audiobook);
+      const resolvedMedia = await fileUrlService.resolveNestedAudiobookMedia(dto.audiobook);
       return {
          ...dto,
          audiobook: {
             ...dto.audiobook,
-            ...resolvedCover,
+            ...resolvedMedia,
          },
       };
    }

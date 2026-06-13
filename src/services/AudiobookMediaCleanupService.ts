@@ -6,9 +6,14 @@ import { RabbitMQFactory } from '../config/rabbitmq';
 import { ApiError } from '../types/ApiError';
 import { MessageHandler } from '../utils/MessageHandler';
 import { mediaCleanupService } from './MediaCleanupService';
+import { ImageAssetService } from './ImageAssetService';
 
 export class AudiobookMediaCleanupService {
-   constructor(private prisma: PrismaClient) {}
+   private imageAssetService: ImageAssetService;
+
+   constructor(private prisma: PrismaClient) {
+      this.imageAssetService = new ImageAssetService(prisma);
+   }
 
    async deleteAudiobookWithChapters(audiobookId: string): Promise<void> {
       const audiobook = await this.prisma.audioBook.findUnique({
@@ -26,13 +31,9 @@ export class AudiobookMediaCleanupService {
       const rabbitMQ = RabbitMQFactory.getConnection();
 
       for (const chapter of audiobook.chapters) {
-         await mediaCleanupService.deleteStoredFiles([
-            chapter.filePath,
-            chapter.coverImage,
-            chapter.chapterCardCoverImage,
-            chapter.maximizedChapterCoverImage,
-            chapter.minimizedChapterCoverImage,
-         ]);
+         await this.imageAssetService.deleteAssetsForEntity('chapter', chapter.id);
+         await mediaCleanupService.deleteStoredFile(chapter.coverImage);
+         await mediaCleanupService.deleteStoredFile(chapter.filePath);
 
          try {
             await rabbitMQ.publishChapterDeletion(chapter.id);
@@ -41,6 +42,7 @@ export class AudiobookMediaCleanupService {
          }
       }
 
+      await this.imageAssetService.deleteAssetsForEntity('audiobook', audiobookId);
       await mediaCleanupService.deleteStoredFiles([
          audiobook.coverImage,
          ...audiobook.offlineDownloads.map((d) => d.filePath),

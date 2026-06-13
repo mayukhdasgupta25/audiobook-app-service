@@ -7,6 +7,11 @@ import { UserProfileService } from '../../services/UserProfileService';
 jest.mock('../../services/FileUrlService', () => ({
    fileUrlService: {
       resolveForClient: jest.fn(async (value?: string | null) => value ?? undefined),
+      resolveUserMedia: jest.fn(async (profile: { id: string; avatar?: string | null }) => ({
+         ...profile,
+         avatar: profile.avatar ?? undefined,
+         imageAssets: {},
+      })),
    },
 }));
 
@@ -50,7 +55,7 @@ describe('UserProfileService', () => {
 
          const result = await userProfileService.getUserProfile(userId);
 
-         expect(result).toEqual(mockProfile);
+         expect(result).toEqual({ ...mockProfile, imageAssets: {} });
          expect(mockPrisma.userProfile.findUnique).toHaveBeenCalledWith({
             where: { userId },
             select: {
@@ -87,7 +92,11 @@ describe('UserProfileService', () => {
 
          const result = await userProfileService.updateUserProfile(userId, updateData);
 
-         expect(result).toEqual(updatedProfile);
+         expect(result).toEqual({
+            ...updatedProfile,
+            avatar: undefined,
+            imageAssets: {},
+         });
       });
    });
 

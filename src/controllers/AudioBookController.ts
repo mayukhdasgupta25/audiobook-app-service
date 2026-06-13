@@ -10,7 +10,6 @@ import { ResponseHandler } from '../utils/ResponseHandler';
 import { AudioBookQueryParams, CreateAudioBookDto } from '../models/AudioBookDto';
 import { ErrorHandler } from '../middleware/ErrorHandler';
 import { MessageHandler } from '../utils/MessageHandler';
-import { fileUrlService } from '../services/FileUrlService';
 import { ContentAuthorizationService } from '../services/ContentAuthorizationService';
 import { AuthenticatedRequest } from '../types/auth';
 import { parseAudioBookOwnerFromBody } from '../utils/parseAudioBookOwner';
@@ -206,19 +205,12 @@ export class AudioBookController {
       }
     }
 
-    const coverImage = uploadedCoverImage
-      ? await fileUrlService.processUploadedCoverFile(
-         uploadedCoverImage.path,
-         'uploads/images/audiobooks',
-         uploadedCoverImage.mimetype || 'image/jpeg'
-      )
-      : undefined;
+    const coverImageSourcePath = uploadedCoverImage?.path;
 
     const audiobookData: Record<string, unknown> = {
       ...req.body,
       owner,
       scheduledAt: req.body.scheduledAt ? new Date(req.body.scheduledAt) : undefined,
-      coverImage,
       tagIds,
       genreIds,
     };
@@ -227,6 +219,7 @@ export class AudioBookController {
       audiobookData as unknown as CreateAudioBookDto & { tagIds?: string[]; genreIds?: string[] },
       creatorProfile?.id,
       accessToken,
+      coverImageSourcePath,
     );
 
     ResponseHandler.success(res, audiobook, MessageHandler.getSuccessMessage('audiobooks.created'), 201);
@@ -327,15 +320,8 @@ export class AudioBookController {
     delete updateData.genreIds;
     delete updateData.audiobookId;
 
-    // Handle uploaded file - use req.file (singular) for single file upload
-    // The middleware uploadSingleImage populates req.file, not req.files
-    if (req.file) {
-      updateData.coverImage = await fileUrlService.processUploadedCoverFile(
-         req.file.path,
-         'uploads/images/audiobooks',
-         req.file.mimetype || 'image/jpeg'
-      );
-    }
+    const uploadedCoverImage = (req as any).coverImageFile as Express.Multer.File | undefined;
+    const coverImageSourcePath = uploadedCoverImage?.path;
 
     const audiobook = await this.audioBookService.updateAudioBook(
       id as string,
@@ -343,6 +329,7 @@ export class AudioBookController {
       tagIds,
       genreIds,
       accessToken,
+      coverImageSourcePath,
     );
 
     ResponseHandler.success(res, audiobook, MessageHandler.getSuccessMessage('audiobooks.updated'));

@@ -19,6 +19,12 @@ jest.mock('../../middleware/UploadMiddleware', () => ({
    getFileUrl: (filePath: string) => `/uploads${filePath.replace('./src/uploads', '')}`,
 }));
 
+jest.mock('../../services/ImageAssetService', () => ({
+   ImageAssetService: jest.fn().mockImplementation(() => ({
+      resolveAssetsForClient: jest.fn().mockResolvedValue({}),
+   })),
+}));
+
 describe('FileUrlService', () => {
    let service: FileUrlService;
    const mockGetFileUrl = jest.fn();
@@ -103,6 +109,7 @@ describe('FileUrlService', () => {
    describe('resolveUserMedia', () => {
       it('resolves avatar on user profile DTOs', async () => {
          const result = await fileUrlService.resolveUserMedia({
+            id: 'user-1',
             avatar: 'uploads/images/users/avatar-1.jpg',
          });
 

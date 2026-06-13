@@ -5,12 +5,17 @@ import { ApiError } from '../types/ApiError';
 import { MessageHandler } from '../utils/MessageHandler';
 import { HttpStatusCode, ErrorType } from '../types/common';
 import { fileUrlService } from './FileUrlService';
+import { ImageAssetService } from './ImageAssetService';
+import { mediaCleanupService } from './MediaCleanupService';
+import fs from 'fs';
 
 export class AuthorProfileService {
    private prisma: PrismaClient;
+   private imageAssetService: ImageAssetService;
 
    constructor(prisma: PrismaClient) {
       this.prisma = prisma;
+      this.imageAssetService = new ImageAssetService(prisma);
    }
 
    async createFromEvent(message: AuthorCreationMessage): Promise<AuthorProfileDto | null> {
@@ -23,18 +28,36 @@ export class AuthorProfileService {
       });
 
       if (existing) {
-         return toAuthorProfileDto(existing);
+         return fileUrlService.resolveAuthorProfileMedia(toAuthorProfileDto(existing));
       }
 
       const profile = await this.prisma.authorProfile.create({
          data: {
             authorId: message.authorId,
-            avatar:
-               message.avatar !== undefined && message.avatar.trim().length > 0
-                  ? message.avatar.trim()
-                  : null,
+            avatar: null,
          },
       });
+
+      if (message.avatar !== undefined && message.avatar.trim().length > 0) {
+         let tempPath: string | undefined;
+         try {
+            tempPath = await this.imageAssetService.resolveSourceImageToLocalPath(message.avatar.trim());
+            const { primaryStorageKey } = await this.imageAssetService.generateAndStoreVariants(
+               'author',
+               message.authorId,
+               tempPath,
+            );
+            const updated = await this.prisma.authorProfile.update({
+               where: { authorId: message.authorId },
+               data: { avatar: primaryStorageKey },
+            });
+            return fileUrlService.resolveAuthorProfileMedia(toAuthorProfileDto(updated));
+         } finally {
+            if (tempPath && fs.existsSync(tempPath) && tempPath.includes('source-image-')) {
+               fs.unlinkSync(tempPath);
+            }
+         }
+      }
 
       return fileUrlService.resolveAuthorProfileMedia(toAuthorProfileDto(profile));
    }
@@ -55,7 +78,11 @@ export class AuthorProfileService {
       return fileUrlService.resolveAuthorProfileMedia(toAuthorProfileDto(profile));
    }
 
-   async updateByAuthorId(authorId: string, data: UpdateAuthorProfileDto): Promise<AuthorProfileDto> {
+   async updateByAuthorId(
+      authorId: string,
+      data: UpdateAuthorProfileDto,
+      avatarSourcePath?: string,
+   ): Promise<AuthorProfileDto> {
       const existing = await this.prisma.authorProfile.findUnique({
          where: { authorId },
       });
@@ -68,12 +95,28 @@ export class AuthorProfileService {
          );
       }
 
-      const updated = await this.prisma.authorProfile.update({
-         where: { authorId },
-         data: {
-            ...(data.avatar !== undefined ? { avatar: data.avatar } : {}),
-         },
-      });
+      let updated = existing;
+
+      if (avatarSourcePath) {
+         const { primaryStorageKey } = await this.imageAssetService.generateAndStoreVariants(
+            'author',
+            authorId,
+            avatarSourcePath,
+         );
+         updated = await this.prisma.authorProfile.update({
+            where: { authorId },
+            data: { avatar: primaryStorageKey },
+         });
+      } else if (data.avatar !== undefined) {
+         if (data.avatar !== existing.avatar) {
+            await this.imageAssetService.deleteAssetsForEntity('author', authorId);
+            await mediaCleanupService.deleteStoredFile(existing.avatar);
+         }
+         updated = await this.prisma.authorProfile.update({
+            where: { authorId },
+            data: { avatar: data.avatar },
+         });
+      }
 
       return fileUrlService.resolveAuthorProfileMedia(toAuthorProfileDto(updated));
    }
@@ -91,6 +134,8 @@ export class AuthorProfileService {
          );
       }
 
+      await this.imageAssetService.deleteAssetsForEntity('author', authorId);
+      await mediaCleanupService.deleteStoredFile(existing.avatar);
       await this.prisma.authorProfile.delete({ where: { authorId } });
    }
 }

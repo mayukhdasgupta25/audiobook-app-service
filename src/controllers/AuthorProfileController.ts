@@ -7,7 +7,6 @@ import { MessageHandler } from '../utils/MessageHandler';
 import { AuthenticatedRequest } from '../types/auth';
 import { UpdateAuthorProfileDto } from '../models/AuthorProfileDto';
 import { authClient } from '../clients/AuthClient';
-import { fileUrlService } from '../services/FileUrlService';
 
 function getBearerToken(req: Request): string | undefined {
    const authorization = req.headers.authorization;
@@ -59,11 +58,17 @@ export class AuthorProfileController {
       const updateData: UpdateAuthorProfileDto = {};
 
       if (uploadedAvatar) {
-         updateData.avatar = await fileUrlService.processUploadedImageFile(
+         const profile = await this.authorProfileService.updateByAuthorId(
+            authorId,
+            {},
             uploadedAvatar.path,
-            'uploads/images/authors',
-            uploadedAvatar.mimetype || 'image/jpeg',
          );
+         ResponseHandler.success(
+            res,
+            profile,
+            MessageHandler.getSuccessMessage('author_profiles.updated'),
+         );
+         return;
       } else if (req.body.avatar !== undefined) {
          updateData.avatar = typeof req.body.avatar === 'string' && req.body.avatar.trim().length > 0
             ? req.body.avatar.trim()

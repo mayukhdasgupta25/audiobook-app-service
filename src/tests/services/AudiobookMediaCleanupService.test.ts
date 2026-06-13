@@ -1,6 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import { AudiobookMediaCleanupService } from '../../services/AudiobookMediaCleanupService';
 import { mediaCleanupService } from '../../services/MediaCleanupService';
+import { ImageAssetService } from '../../services/ImageAssetService';
 
 const mockPublishChapterDeletion = jest.fn().mockResolvedValue(true);
 
@@ -17,6 +18,11 @@ jest.mock('../../services/MediaCleanupService', () => ({
       deleteStoredFiles: jest.fn().mockResolvedValue(undefined),
       deleteStoredFile: jest.fn().mockResolvedValue(undefined),
    },
+}));
+jest.mock('../../services/ImageAssetService', () => ({
+   ImageAssetService: jest.fn().mockImplementation(() => ({
+      deleteAssetsForEntity: jest.fn().mockResolvedValue(undefined),
+   })),
 }));
 
 describe('AudiobookMediaCleanupService', () => {
@@ -51,17 +57,11 @@ describe('AudiobookMediaCleanupService', () => {
                id: 'ch-1',
                filePath: 'uploads/audio/ch1.mp3',
                coverImage: 'uploads/images/chapters/ch1.jpg',
-               chapterCardCoverImage: 'uploads/images/chapters/ch1-card.jpg',
-               maximizedChapterCoverImage: 'uploads/images/chapters/ch1-max.jpg',
-               minimizedChapterCoverImage: 'uploads/images/chapters/ch1-min.jpg',
             },
             {
                id: 'ch-2',
                filePath: 'uploads/audio/ch2.mp3',
                coverImage: 'uploads/images/chapters/ch2.jpg',
-               chapterCardCoverImage: null,
-               maximizedChapterCoverImage: null,
-               minimizedChapterCoverImage: null,
             },
          ],
          offlineDownloads: [{ filePath: 'uploads/downloads/book-1.mp3' }],
@@ -72,20 +72,15 @@ describe('AudiobookMediaCleanupService', () => {
       expect(publishChapterDeletion).toHaveBeenCalledTimes(2);
       expect(publishChapterDeletion).toHaveBeenCalledWith('ch-1');
       expect(publishChapterDeletion).toHaveBeenCalledWith('ch-2');
+      expect(mediaCleanupService.deleteStoredFile).toHaveBeenCalledWith('uploads/images/chapters/ch1.jpg');
+      expect(mediaCleanupService.deleteStoredFile).toHaveBeenCalledWith('uploads/audio/ch1.mp3');
+      expect(mediaCleanupService.deleteStoredFile).toHaveBeenCalledWith('uploads/images/chapters/ch2.jpg');
+      expect(mediaCleanupService.deleteStoredFile).toHaveBeenCalledWith('uploads/audio/ch2.mp3');
       expect(mediaCleanupService.deleteStoredFiles).toHaveBeenCalledWith([
-         'uploads/audio/ch1.mp3',
-         'uploads/images/chapters/ch1.jpg',
-         'uploads/images/chapters/ch1-card.jpg',
-         'uploads/images/chapters/ch1-max.jpg',
-         'uploads/images/chapters/ch1-min.jpg',
+         'uploads/images/audiobooks/cover.jpg',
+         'uploads/downloads/book-1.mp3',
       ]);
-      expect(mediaCleanupService.deleteStoredFiles).toHaveBeenCalledWith([
-         'uploads/audio/ch2.mp3',
-         'uploads/images/chapters/ch2.jpg',
-         null,
-         null,
-         null,
-      ]);
+      expect(ImageAssetService).toHaveBeenCalled();
       expect(mockPrisma.audioBook.delete).toHaveBeenCalledWith({ where: { id: 'book-1' } });
    });
 

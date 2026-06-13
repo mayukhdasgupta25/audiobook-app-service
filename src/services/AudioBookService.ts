@@ -22,12 +22,14 @@ import { ChapterService } from './ChapterService';
 import { HttpStatusCode, ErrorType } from '../types/common';
 import { AudiobookMediaCleanupService } from './AudiobookMediaCleanupService';
 import { AudioBookOwnerService } from './AudioBookOwnerService';
+import { ImageAssetService } from './ImageAssetService';
 
 export class AudioBookService {
   private prisma: PrismaClient;
   private backgroundJobService: BackgroundJobService | undefined;
   private subscriptionClient: SubscriptionClient;
   private audioBookOwnerService: AudioBookOwnerService;
+  private imageAssetService: ImageAssetService;
 
   constructor(
     prisma: PrismaClient,
@@ -38,6 +40,7 @@ export class AudioBookService {
     this.backgroundJobService = backgroundJobService;
     this.subscriptionClient = subscriptionClientInstance;
     this.audioBookOwnerService = new AudioBookOwnerService(prisma);
+    this.imageAssetService = new ImageAssetService(prisma);
   }
 
   private async hydrateOwner(
@@ -85,69 +88,10 @@ export class AudioBookService {
           skip,
           take: limit,
           include: {
-            audiobookTags: {
-              include: {
-                tag: true
-              }
-            },
-            audioBookGenres: {
-              include: {
-                genre: true,
-              }
-            }
-          }
-        }),
-        this.prisma.audioBook.count({ where })
-      ]);
-
-      const resolved = await fileUrlService.resolveAudioBookMediaList(
-        audiobooks.map(toAudioBookDto)
-      );
-
-      return {
-        audiobooks: await this.hydrateOwners(resolved, accessToken),
-        totalCount
-      };
-    } catch (_error) {
-      throw ApiError.internalError(MessageHandler.getErrorMessage('internal.fetch_audiobooks'));
-    }
-  }
-
-  /**
-   * Get all audiobooks with chapter counts
-   */
-  async getAllAudioBooksWithChapterCounts(params: AudioBookQueryParams, accessToken?: string): Promise<{
-    audiobooks: (AudioBookDto & { chapterCount: number })[];
-    totalCount: number;
-  }> {
-    try {
-      const where = this.buildWhereClause(params);
-
-      const {
-        page = 1,
-        limit = 10,
-        sortBy = 'createdAt',
-        sortOrder = 'desc',
-      } = params;
-
-      // Build orderBy clause
-      const orderBy: Prisma.AudioBookOrderByWithRelationInput = {
-        [sortBy]: sortOrder
-      };
-
-      const skip = (page - 1) * limit;
-
-      const [audiobooks, totalCount] = await Promise.all([
-        this.prisma.audioBook.findMany({
-          where,
-          orderBy,
-          skip,
-          take: limit,
-          include: {
             _count: {
               select: {
-                chapters: true
-              }
+                chapters: true,
+              },
             },
             audiobookTags: {
               include: {
@@ -165,19 +109,14 @@ export class AudioBookService {
       ]);
 
       const resolved = await Promise.all(
-        audiobooks.map(async audiobook => ({
+        audiobooks.map(async (audiobook) => ({
           ...(await fileUrlService.resolveAudioBookMedia(toAudioBookDto(audiobook))),
-          chapterCount: audiobook._count.chapters
+          chapterCount: audiobook._count.chapters,
         }))
       );
 
-      const hydrated = await this.hydrateOwners(resolved, accessToken);
-
       return {
-        audiobooks: hydrated.map((dto, index) => ({
-          ...dto,
-          chapterCount: resolved[index]?.chapterCount ?? 0,
-        })),
+        audiobooks: await this.hydrateOwners(resolved, accessToken),
         totalCount
       };
     } catch (_error) {
@@ -317,9 +256,31 @@ export class AudioBookService {
         await fileUrlService.resolveAudioBookMedia(toAudioBookDto(audiobook)),
         accessToken,
       );
+      const { chapters: rawChapters } = audiobook;
+      const chapters = await fileUrlService.resolveChapterMediaList(
+        rawChapters.map(ch => ({
+          id: ch.id,
+          audiobookId: ch.audiobookId,
+          title: ch.title,
+          ...(ch.description ? { description: ch.description } : {}),
+          chapterNumber: ch.chapterNumber,
+          duration: ch.duration,
+          filePath: ch.filePath,
+          fileSize: Number(ch.fileSize),
+          coverImage: ch.coverImage,
+          startPosition: ch.startPosition,
+          endPosition: ch.endPosition,
+          isActive: ch.isActive,
+          sourceUploadStatus: ch.sourceUploadStatus ?? 'ready',
+          ...(ch.sourceUploadError ? { sourceUploadError: ch.sourceUploadError } : {}),
+          scheduledAt: ch.scheduledAt ?? null,
+          createdAt: ch.createdAt,
+          updatedAt: ch.updatedAt,
+        }))
+      );
       return {
         ...dto,
-        chapters: audiobook.chapters
+        chapters,
       };
     } catch (error) {
       if (error instanceof ApiError) {
@@ -336,6 +297,7 @@ export class AudioBookService {
     data: CreateAudioBookDto & { tagIds?: string[]; genreIds?: string[] },
     ownerUserProfileId?: string,
     accessToken?: string,
+    coverImageSourcePath?: string,
   ): Promise<AudioBookDto> {
     try {
       // Extract tagIds and genreIds from data before validation
@@ -367,7 +329,9 @@ export class AudioBookService {
       if (audiobookData.description !== undefined) createData.description = audiobookData.description;
       if (audiobookData.duration !== undefined) createData.duration = audiobookData.duration;
       if (audiobookData.fileSize !== undefined) createData.fileSize = BigInt(audiobookData.fileSize);
-      if (audiobookData.coverImage !== undefined) createData.coverImage = audiobookData.coverImage;
+      if (audiobookData.coverImage !== undefined && !coverImageSourcePath) {
+        createData.coverImage = audiobookData.coverImage;
+      }
       if (audiobookData.publisher !== undefined) createData.publisher = audiobookData.publisher;
       if (audiobookData.publishDate !== undefined) createData.publishDate = audiobookData.publishDate;
       if (audiobookData.isbn !== undefined) createData.isbn = audiobookData.isbn;
@@ -375,9 +339,21 @@ export class AudioBookService {
         createData.minSubscriptionTier = this.validateMinSubscriptionTier(audiobookData.minSubscriptionTier);
       }
 
-      const audiobook = await this.prisma.audioBook.create({
+      let audiobook = await this.prisma.audioBook.create({
         data: createData
       });
+
+      if (coverImageSourcePath) {
+        const { primaryStorageKey } = await this.imageAssetService.generateAndStoreVariants(
+          'audiobook',
+          audiobook.id,
+          coverImageSourcePath,
+        );
+        audiobook = await this.prisma.audioBook.update({
+          where: { id: audiobook.id },
+          data: { coverImage: primaryStorageKey },
+        });
+      }
 
       // Create AudioBookGenre records if genreIds are provided
       // Ensure genreIds is an array before using map
@@ -473,6 +449,7 @@ export class AudioBookService {
     tagIds?: string[],
     genreIds?: string[],
     accessToken?: string,
+    coverImageSourcePath?: string,
   ): Promise<AudioBookDto> {
     try {
       // Check if audiobook exists
@@ -491,6 +468,9 @@ export class AudioBookService {
 
       // Handle scheduledAt: if provided, set isActive=false and schedule activation job
       const updateData: Prisma.AudioBookUncheckedUpdateInput = { ...data };
+      if (coverImageSourcePath) {
+        delete updateData.coverImage;
+      }
       if (data.scheduledAt !== undefined) {
         updateData.isActive = false;
       }
@@ -510,6 +490,18 @@ export class AudioBookService {
         where: { id },
         data: updateData
       });
+
+      if (coverImageSourcePath) {
+        const { primaryStorageKey } = await this.imageAssetService.generateAndStoreVariants(
+          'audiobook',
+          id,
+          coverImageSourcePath,
+        );
+        await this.prisma.audioBook.update({
+          where: { id },
+          data: { coverImage: primaryStorageKey },
+        });
+      }
 
       // Update AudioBookGenre records if genreIds are provided
       if (genreIds !== undefined) {
