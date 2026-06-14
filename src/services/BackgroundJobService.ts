@@ -7,6 +7,7 @@ import { PrismaClient, UserAudioBookType } from '@prisma/client';
 import { ChapterService } from './ChapterService';
 import { ApiError } from '../types/ApiError';
 import { RedisConfigHelper } from '../config/redis';
+import { EntityDeletionCleanupService } from './EntityDeletionCleanupService';
 
 // Job data interfaces
 export interface ProgressCalculationJobData {
@@ -24,7 +25,16 @@ export interface OfflineDownloadJobData {
 }
 
 export interface CleanupJobData {
-   type: 'inactive_sessions' | 'expired_downloads' | 'old_progress_data';
+   type:
+      | 'inactive_sessions'
+      | 'expired_downloads'
+      | 'old_progress_data'
+      | 'user_deletion'
+      | 'author_deletion'
+      | 'organization_deletion';
+   userId?: string;
+   authorId?: string;
+   organizationId?: string;
 }
 
 export interface DurationCalculationJobData {
@@ -43,6 +53,7 @@ export class BackgroundJobService {
    private durationQueue: Bull.Queue<DurationCalculationJobData>;
    private activationQueue: Bull.Queue<ScheduledActivationJobData>;
    private chapterService: ChapterService;
+   private entityDeletionCleanup: EntityDeletionCleanupService;
 
    constructor(private prisma: PrismaClient) {
       const redisUrl = RedisConfigHelper.getRedisUrl();
@@ -71,6 +82,7 @@ export class BackgroundJobService {
       // Initialize ChapterService with reference to this BackgroundJobService
       // This allows ChapterService to schedule duration calculation jobs
       this.chapterService = new ChapterService(prisma, this);
+      this.entityDeletionCleanup = new EntityDeletionCleanupService(prisma);
 
       this.setupJobProcessors();
       this.setupScheduledJobs();
@@ -154,6 +166,21 @@ export class BackgroundJobService {
                   break;
                case 'old_progress_data':
                   await this.cleanupOldProgressData();
+                  break;
+               case 'user_deletion':
+                  if (job.data.userId) {
+                     await this.entityDeletionCleanup.cleanupUser(job.data.userId, job.data.authorId);
+                  }
+                  break;
+               case 'author_deletion':
+                  if (job.data.authorId && job.data.userId) {
+                     await this.entityDeletionCleanup.cleanupAuthor(job.data.authorId, job.data.userId);
+                  }
+                  break;
+               case 'organization_deletion':
+                  if (job.data.organizationId) {
+                     await this.entityDeletionCleanup.cleanupOrganization(job.data.organizationId);
+                  }
                   break;
             }
 
@@ -242,6 +269,18 @@ export class BackgroundJobService {
       this.cleanupQueue.add('cleanup-data', { type: 'old_progress_data' } as CleanupJobData, {
          repeat: { cron: '0 3 * * 0' }, // Weekly on Sunday at 3 AM
          jobId: 'scheduled-cleanup-progress',
+      });
+   }
+
+   /**
+    * Schedule entity deletion cleanup (user, author, or organization)
+    */
+   async scheduleEntityDeletion(data: CleanupJobData): Promise<void> {
+      await this.cleanupQueue.add('cleanup-data', data, {
+         attempts: 3,
+         backoff: { type: 'exponential', delay: 5000 },
+         removeOnComplete: true,
+         removeOnFail: false,
       });
    }
 

@@ -7,7 +7,6 @@ import path from 'path';
 import fs from 'fs';
 import { Request, Response, NextFunction } from 'express';
 import { config } from '../config/env';
-import { validateCoverImageOrThrow, validateChapterCoverImageOrThrow } from '../utils/ImageValidator';
 
 // Ensure upload directories exist
 const ensureUploadDirs = (): void => {
@@ -15,6 +14,9 @@ const ensureUploadDirs = (): void => {
       config.DEV_UPLOAD_DIR,
       config.DEV_AUDIOBOOK_IMAGE_DIR,
       config.DEV_CHAPTER_IMAGE_DIR,
+      config.DEV_AUTHOR_IMAGE_DIR,
+      config.DEV_USER_AVATAR_DIR,
+      config.DEV_ORGANIZATION_IMAGE_DIR,
       config.DEV_AUDIO_DIR
    ];
 
@@ -255,8 +257,77 @@ export const handleUploadError = (_error: any, _req: Request, res: Response, nex
    next(_error);
 };
 
+// Storage for author profile images
+const authorImageStorage = multer.diskStorage({
+   destination: (_req, _file, cb) => {
+      cb(null, config.DEV_AUTHOR_IMAGE_DIR);
+   },
+   filename: (_req, file, cb) => {
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+      const ext = path.extname(file.originalname);
+      cb(null, `image-${uniqueSuffix}${ext}`);
+   }
+});
+
+// Storage for user avatar images
+const userAvatarStorage = multer.diskStorage({
+   destination: (_req, _file, cb) => {
+      cb(null, config.DEV_USER_AVATAR_DIR);
+   },
+   filename: (_req, file, cb) => {
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+      const ext = path.extname(file.originalname);
+      cb(null, `image-${uniqueSuffix}${ext}`);
+   }
+});
+
+// Storage for organization images
+const organizationImageStorage = multer.diskStorage({
+   destination: (_req, _file, cb) => {
+      cb(null, config.DEV_ORGANIZATION_IMAGE_DIR);
+   },
+   filename: (_req, file, cb) => {
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+      const ext = path.extname(file.originalname);
+      cb(null, `image-${uniqueSuffix}${ext}`);
+   }
+});
+
+const profileImageUpload = multer({
+   storage: authorImageStorage,
+   fileFilter: imageFilter,
+   limits: {
+      fileSize: config.MAX_FILE_SIZE,
+      files: 1
+   }
+});
+
+const avatarUpload = multer({
+   storage: userAvatarStorage,
+   fileFilter: imageFilter,
+   limits: {
+      fileSize: config.MAX_FILE_SIZE,
+      files: 1
+   }
+});
+
+const organizationImageUpload = multer({
+   storage: organizationImageStorage,
+   fileFilter: imageFilter,
+   limits: {
+      fileSize: config.MAX_FILE_SIZE,
+      files: 1
+   }
+});
+
 // Middleware for single image upload
 export const uploadSingleImage = imageUpload.single('coverImage');
+
+export const uploadProfileImage = profileImageUpload.single('profileImage');
+
+export const uploadAvatar = avatarUpload.single('avatar');
+
+export const uploadOrganizationImage = organizationImageUpload.single('image');
 
 // Middleware for single audio upload
 // Accepts both 'audio' and 'file' field names for flexibility
@@ -367,30 +438,7 @@ export class UploadMiddleware {
             return;
          }
 
-         // Validate cover image dimensions and aspect ratio
-         const isChapterRoute = req.path?.includes('/chapters') || req.originalUrl?.includes('/chapters');
-         if (coverImageFiles[0]) {
-            try {
-               if (isChapterRoute) {
-                  // Validate chapter cover image (1200x1200px, 1:1 aspect ratio)
-                  validateChapterCoverImageOrThrow(coverImageFiles[0].path);
-               } else {
-                  // Validate audiobook cover image (2568x3600px, 5:7 aspect ratio)
-                  validateCoverImageOrThrow(coverImageFiles[0].path);
-               }
-            } catch (error: any) {
-               // Delete the uploaded file if validation fails
-               if (coverImageFiles[0] && fs.existsSync(coverImageFiles[0].path)) {
-                  fs.unlinkSync(coverImageFiles[0].path);
-               }
-               res.status(400).json({
-                  success: false,
-                  message: error.message || 'Invalid cover image dimensions',
-                  error: 'INVALID_IMAGE_DIMENSIONS'
-               });
-               return;
-            }
-         }
+         // Cover image validation is performed spec-driven in ImageAssetService
 
          // Store files in convenient properties for controllers
          (req as any).coverImageFile = coverImageFiles[0];
@@ -418,30 +466,6 @@ export class UploadMiddleware {
          // Store image file in custom property to avoid conflict with audio file
          // This allows both image and audio files to be uploaded in the same request
          if (req.file) {
-            // Validate cover image dimensions and aspect ratio
-            const isChapterRoute = req.path?.includes('/chapters') || req.originalUrl?.includes('/chapters');
-            if (isChapterRoute || !isChapterRoute) {
-               try {
-                  if (isChapterRoute) {
-                     // Validate chapter cover image (1200x1200px, 1:1 aspect ratio)
-                     validateChapterCoverImageOrThrow(req.file.path);
-                  } else {
-                     // Validate audiobook cover image (2568x3600px, 5:7 aspect ratio)
-                     validateCoverImageOrThrow(req.file.path);
-                  }
-               } catch (error: any) {
-                  // Delete the uploaded file if validation fails
-                  if (fs.existsSync(req.file.path)) {
-                     fs.unlinkSync(req.file.path);
-                  }
-                  res.status(400).json({
-                     success: false,
-                     message: error.message || 'Invalid cover image dimensions',
-                     error: 'INVALID_IMAGE_DIMENSIONS'
-                  });
-                  return;
-               }
-            }
             (req as any).coverImageFile = req.file;
             // Clear req.file so audio middleware can use it
             delete (req as any).file;
@@ -478,6 +502,48 @@ export class UploadMiddleware {
       uploadMultipleAudio(req, res, (err) => {
          if (err) {
             return handleUploadError(err, req, res, next);
+         }
+         next();
+      });
+   };
+
+   // Optional author profile image upload (field: profileImage)
+   static handleOptionalProfileImageUpload = (req: Request, res: Response, next: NextFunction): void => {
+      uploadProfileImage(req, res, (err) => {
+         if (err) {
+            return handleUploadError(err, req, res, next);
+         }
+         if (req.file) {
+            (req as any).profileImageFile = req.file;
+            delete (req as any).file;
+         }
+         next();
+      });
+   };
+
+   // Optional user avatar upload (field: avatar)
+   static handleOptionalAvatarUpload = (req: Request, res: Response, next: NextFunction): void => {
+      uploadAvatar(req, res, (err) => {
+         if (err) {
+            return handleUploadError(err, req, res, next);
+         }
+         if (req.file) {
+            (req as any).avatarFile = req.file;
+            delete (req as any).file;
+         }
+         next();
+      });
+   };
+
+   // Optional organization image upload (field: image)
+   static handleOptionalOrganizationImageUpload = (req: Request, res: Response, next: NextFunction): void => {
+      uploadOrganizationImage(req, res, (err) => {
+         if (err) {
+            return handleUploadError(err, req, res, next);
+         }
+         if (req.file) {
+            (req as any).organizationImageFile = req.file;
+            delete (req as any).file;
          }
          next();
       });

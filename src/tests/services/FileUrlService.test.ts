@@ -11,11 +11,18 @@ jest.mock('../../config/env', () => ({
       AWS_S3_ENDPOINT: '',
       AWS_SIGNED_URL_EXPIRES_IN: 3600,
       DEV_UPLOAD_DIR: './src/uploads',
+      AUTH_SERVICE_URL: 'http://localhost:8080',
    },
 }));
 
 jest.mock('../../middleware/UploadMiddleware', () => ({
    getFileUrl: (filePath: string) => `/uploads${filePath.replace('./src/uploads', '')}`,
+}));
+
+jest.mock('../../services/ImageAssetService', () => ({
+   ImageAssetService: jest.fn().mockImplementation(() => ({
+      resolveAssetsForClient: jest.fn().mockResolvedValue({}),
+   })),
 }));
 
 describe('FileUrlService', () => {
@@ -89,13 +96,135 @@ describe('FileUrlService', () => {
             isActive: true,
             isPublic: true,
             minSubscriptionTier: null,
-            organizationId: 'org-1',
+            owner: { type: 'ORGANIZATION', id: 'org-1' },
             createdAt: new Date(),
             updatedAt: new Date(),
             coverImage: 'uploads/images/audiobooks/cover-1.jpg',
          });
 
          expect(result.coverImage).toBe('https://signed.example/object');
+      });
+   });
+
+   describe('resolveUserMedia', () => {
+      it('resolves avatar on user profile DTOs', async () => {
+         const result = await fileUrlService.resolveUserMedia({
+            id: 'user-1',
+            avatar: 'uploads/images/users/avatar-1.jpg',
+         });
+
+         expect(result.avatar).toBe('https://signed.example/object');
+      });
+   });
+
+   describe('resolveAuthorProfileMedia', () => {
+      it('resolves avatar on author profile DTOs', async () => {
+         const result = await fileUrlService.resolveAuthorProfileMedia({
+            id: 'profile-1',
+            authorId: 'author-1',
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            avatar: 'uploads/images/authors/image-1.jpg',
+         });
+
+         expect(result.avatar).toBe('https://signed.example/object');
+      });
+   });
+
+   describe('resolveAuthorProfileMedia development mode', () => {
+      let existsSyncSpy: jest.SpyInstance;
+
+      afterEach(() => {
+         existsSyncSpy?.mockRestore();
+         jest.resetModules();
+      });
+
+      it('returns local /uploads path when author image exists in app-service storage', async () => {
+         jest.resetModules();
+
+         jest.doMock('../../config/env', () => ({
+            config: {
+               NODE_ENV: 'development',
+               AWS_S3_BUCKET: 'test-bucket',
+               AWS_S3_ENDPOINT: '',
+               AWS_SIGNED_URL_EXPIRES_IN: 3600,
+               DEV_UPLOAD_DIR: './src/uploads',
+               AUTH_SERVICE_URL: 'http://localhost:8080',
+            },
+         }));
+
+         jest.doMock('../../middleware/UploadMiddleware', () => ({
+            getFileUrl: (filePath: string) => `/uploads${filePath.replace('./src/uploads', '')}`,
+         }));
+
+         existsSyncSpy = jest.spyOn(require('fs'), 'existsSync').mockReturnValue(true);
+
+         const { FileUrlService: DevFileUrlService } = require('../../services/FileUrlService');
+         const devFileUrlService = new DevFileUrlService();
+         const result = await devFileUrlService.resolveAuthorProfileMedia({
+            id: 'profile-1',
+            authorId: 'author-1',
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            avatar: '/uploads/images/authors/image-1.jpg',
+         });
+
+         expect(result.avatar).toBe('/uploads/images/authors/image-1.jpg');
+      });
+
+      it('returns AUTH_SERVICE_URL path when image is stored in auth-service only', async () => {
+         jest.resetModules();
+
+         jest.doMock('../../config/env', () => ({
+            config: {
+               NODE_ENV: 'development',
+               AWS_S3_BUCKET: 'test-bucket',
+               AWS_S3_ENDPOINT: '',
+               AWS_SIGNED_URL_EXPIRES_IN: 3600,
+               DEV_UPLOAD_DIR: './src/uploads',
+               AUTH_SERVICE_URL: 'http://localhost:8080',
+            },
+         }));
+
+         jest.doMock('../../middleware/UploadMiddleware', () => ({
+            getFileUrl: (filePath: string) => `/uploads${filePath.replace('./src/uploads', '')}`,
+         }));
+
+         existsSyncSpy = jest.spyOn(require('fs'), 'existsSync').mockReturnValue(false);
+
+         const { FileUrlService: DevFileUrlService } = require('../../services/FileUrlService');
+         const devFileUrlService = new DevFileUrlService();
+         const result = await devFileUrlService.resolveAuthorProfileMedia({
+            id: 'profile-1',
+            authorId: 'author-1',
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            avatar: '/uploads/images/authors/image-1.jpg',
+         });
+
+         expect(result.avatar).toBe('http://localhost:8080/uploads/images/authors/image-1.jpg');
+         expect(existsSyncSpy).toHaveBeenCalled();
+      });
+   });
+
+   describe('processUploadedImageFile', () => {
+      it('uploads to S3 with custom key directory in non-development', async () => {
+         const mockUploadFile = jest.fn().mockResolvedValue('uploads/images/authors/image-1.jpg');
+         jest.spyOn(StorageFactory, 'getStorageProvider').mockReturnValue({
+            uploadFile: mockUploadFile,
+            getFileUrl: mockGetFileUrl,
+         } as never);
+
+         jest.spyOn(require('fs'), 'readFileSync').mockReturnValue(Buffer.from('data'));
+
+         const result = await service.processUploadedImageFile(
+            '/tmp/image.jpg',
+            'uploads/images/authors',
+            'image/jpeg'
+         );
+
+         expect(mockUploadFile).toHaveBeenCalled();
+         expect(result).toMatch(/^uploads\/images\/authors\/image-/);
       });
    });
 });

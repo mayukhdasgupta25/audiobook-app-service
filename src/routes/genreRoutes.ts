@@ -6,6 +6,7 @@ import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { GenreController } from '../controllers/GenreController';
 import { ValidationMiddleware } from '../middleware/ValidationMiddleware';
+import { requireGlobalAdmin } from '../middleware/RoleMiddleware';
 
 export function createGenreRoutes(prisma: PrismaClient): Router {
    const router = Router();
@@ -72,16 +73,16 @@ export function createGenreRoutes(prisma: PrismaClient): Router {
    };
 
    // Create genre
-   router.post('/', validateGenreBody, genreController.createGenre);
+   router.post('/', requireGlobalAdmin(), validateGenreBody, genreController.createGenre);
 
    // Get genre by id
    router.get('/:id', ValidationMiddleware.validateId, genreController.getGenreById);
 
    // Update genre
-   router.put('/:id', ValidationMiddleware.validateId, validateGenreBody, genreController.updateGenre);
+   router.put('/:id', requireGlobalAdmin(), ValidationMiddleware.validateId, validateGenreBody, genreController.updateGenre);
 
    // Delete genre
-   router.delete('/:id', ValidationMiddleware.validateId, genreController.deleteGenre);
+   router.delete('/:id', requireGlobalAdmin(), ValidationMiddleware.validateId, genreController.deleteGenre);
 
    return router;
 }

@@ -46,6 +46,11 @@ success:
     updated: "Author updated successfully"
     deleted: "Author deleted successfully"
 
+  author_profiles:
+    retrieved: "Author profile retrieved successfully"
+    updated: "Author profile updated successfully"
+    deleted: "Author profile deleted successfully"
+
   user_audiobooks:
     retrieved: "User-audiobook relationships retrieved successfully"
     retrieved_by_id: "User-audiobook relationship retrieved successfully"
@@ -254,6 +259,7 @@ errors:
 
   not_found:
     audiobook: "AudioBook not found"
+    chapter: "Chapter not found"
     resource: "Resource not found"
     route: "Route {route} not found"
     user: "User not found"
@@ -363,6 +369,12 @@ errors:
     user_id_exists: "An author with this user ID already exists"
     organization_not_found: "One or more organizations were not found"
 
+  author_profiles:
+    not_found: "Author profile not found"
+    fetch_failed: "Failed to fetch author profile"
+    update_failed: "Failed to update author profile"
+    delete_failed: "Failed to delete author profile"
+
   organizations:
     not_found: "Organization not found"
     member_not_found: "Organization member not found"
@@ -378,12 +390,17 @@ errors:
     slug_invalid: "Invalid organization slug"
     name_required: "Organization name is required"
     name_too_long: "Organization name must be less than 100 characters"
-    role_invalid: "Role must be one of: OWNER, ADMIN, MEMBER"
+    role_invalid: "Role must be one of: OWNER, ADMIN"
     member_exists: "User is already a member of this organization"
+    listener_member_not_allowed: "Organization members must use a separate account with ORG_ADMIN or ORG_COORDINATOR role; listener accounts cannot be added"
+    member_role_mismatch: "Organization membership role does not match the user's auth role (OWNER requires ORG_ADMIN, ADMIN requires ORG_COORDINATOR)"
     last_owner: "Cannot demote or remove the last owner of the organization"
     access_denied: "You do not have access to this organization"
     admin_required: "Organization admin access required"
     owner_required: "Organization owner access required"
+    preferred_genre_not_found: "Preferred genre not found"
+    website_url_invalid: "Website URL must be a valid http or https URL"
+    team_size_invalid: "Team size must be one of: 1-10, 11-50, 51-200, 200+"
 
   internal:
     default: "Internal server error"
@@ -400,6 +417,7 @@ errors:
     create_user_audiobook: "Failed to create user-audiobook relationship"
     update_user_audiobook: "Failed to update user-audiobook relationship"
     delete_user_audiobook: "Failed to delete user-audiobook relationship"
+    streaming_service_unavailable: "Streaming service is currently unavailable"
 
 # API Information
 api:

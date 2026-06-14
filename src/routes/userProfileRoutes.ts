@@ -6,6 +6,7 @@ import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { UserProfileController } from '../controllers/UserProfileController';
 import { ValidationMiddleware } from '../middleware/ValidationMiddleware';
+import { UploadMiddleware } from '../middleware/UploadMiddleware';
 
 export function createUserProfileRoutes(prisma: PrismaClient): Router {
    const router = Router();
@@ -20,6 +21,7 @@ export function createUserProfileRoutes(prisma: PrismaClient): Router {
    // Update current user's profile
    router.put(
       '/user/profile',
+      UploadMiddleware.handleOptionalAvatarUpload,
       ValidationMiddleware.validateUserProfileUpdate,
       userProfileController.updateProfile
    );

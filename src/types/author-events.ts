@@ -1,11 +1,12 @@
 /**
- * Type definitions for author events and messages
+ * Author profile events from auth-service
  */
-
 export interface AuthorCreationMessage {
+   authorId: string;
+   avatar?: string;
+}
+
+export interface AuthorDeletionMessage {
+   authorId: string;
    userId: string;
-   firstName: string;
-   lastName: string;
-   address: string;
-   contact?: string;
 }

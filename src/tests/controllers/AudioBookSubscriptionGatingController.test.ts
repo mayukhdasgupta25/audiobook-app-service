@@ -1,6 +1,7 @@
 import { AudioBookController } from '../../controllers/AudioBookController';
 import { AudioBookService } from '../../services/AudioBookService';
 import { ResponseHandler } from '../../utils/ResponseHandler';
+import { AuthRole } from '../../constants/authRoles';
 
 jest.mock('../../services/AudioBookService');
 jest.mock('../../middleware/UploadMiddleware', () => ({
@@ -47,7 +48,7 @@ describe('AudioBookController subscription gating', () => {
          query: {},
          body: {},
          headers: { authorization: `Bearer ${accessToken}` },
-         user: { id: authUserId, role: 'ADMIN' },
+         user: { id: authUserId, role: AuthRole.GLOBAL_ADMIN },
       };
       mockReq.next = jest.fn();
       controller = new AudioBookController(mockPrisma);
@@ -61,7 +62,7 @@ describe('AudioBookController subscription gating', () => {
       const mockBook = {
          id: audiobookId,
          title: 'Gated Book',
-         organizationId: orgId,
+         owner: { type: 'ORGANIZATION', id: orgId },
          minSubscriptionTier: 2,
          isPublic: false,
       };

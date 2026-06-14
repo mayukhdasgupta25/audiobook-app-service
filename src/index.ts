@@ -13,11 +13,14 @@ import { ErrorHandler } from './middleware/ErrorHandler';
 import { MessageHandler } from './utils/MessageHandler';
 import { setupSwagger } from './config/swagger';
 import { BullBoardConfig, BullBoardAPI } from './config/bullBoard';
+import { authenticateJWT } from './middleware/AuthMiddleware';
+import { requireGlobalAdmin } from './middleware/RoleMiddleware';
 import { QueueFactory } from './config/queue';
 import { RabbitMQFactory } from './config/rabbitmq';
 import { TranscodingWorkerFactory } from './workers/TranscodingWorker';
 import { UserConsumerWorkerFactory } from './workers/UserConsumerWorker';
 import { AuthorConsumerWorkerFactory } from './workers/AuthorConsumerWorker';
+import { EntityDeletionConsumerWorkerFactory } from './workers/EntityDeletionConsumerWorker';
 import { prisma } from './lib/prisma';
 
 const app = express();
@@ -72,23 +75,25 @@ queueManager.createCleanupQueue();
 
       // Start author consumer worker
       await AuthorConsumerWorkerFactory.startWorker(prisma);
+
+      // Start entity deletion consumer worker
+      await EntityDeletionConsumerWorkerFactory.startWorker(prisma);
    } catch (error) {
-      logger.error({ err: error }, 'Failed to initialize RabbitMQ, transcoding worker, or user consumer worker');
+      logger.error({ err: error }, 'Failed to initialize RabbitMQ, transcoding worker, or consumer workers');
    }
 })();
 
 // Initialize Bull Board
 const bullBoardConfig = BullBoardConfig.getInstance();
 
-// Bull Board UI (publicly accessible)
-app.use('/admin/queues', bullBoardConfig.getRouter());
+// Bull Board UI and control endpoints (GLOBAL_ADMIN only)
+app.use('/admin/queues', authenticateJWT, requireGlobalAdmin(), bullBoardConfig.getRouter());
 
-// Bull Board API endpoints (publicly accessible)
-app.get('/admin/queues/stats', BullBoardAPI.getQueueStats);
-app.post('/admin/queues/:queueName/pause', BullBoardAPI.pauseQueue);
-app.post('/admin/queues/:queueName/resume', BullBoardAPI.resumeQueue);
-app.post('/admin/queues/:queueName/clean', BullBoardAPI.cleanQueue);
-app.post('/admin/queues/:queueName/empty', BullBoardAPI.emptyQueue);
+app.get('/admin/queues/stats', authenticateJWT, requireGlobalAdmin(), BullBoardAPI.getQueueStats);
+app.post('/admin/queues/:queueName/pause', authenticateJWT, requireGlobalAdmin(), BullBoardAPI.pauseQueue);
+app.post('/admin/queues/:queueName/resume', authenticateJWT, requireGlobalAdmin(), BullBoardAPI.resumeQueue);
+app.post('/admin/queues/:queueName/clean', authenticateJWT, requireGlobalAdmin(), BullBoardAPI.cleanQueue);
+app.post('/admin/queues/:queueName/empty', authenticateJWT, requireGlobalAdmin(), BullBoardAPI.emptyQueue);
 
 // Static file serving for uploads (development only)
 if (config.NODE_ENV === 'development') {

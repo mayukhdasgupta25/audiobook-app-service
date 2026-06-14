@@ -6,6 +6,7 @@ import { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { ChapterService } from '../services/ChapterService';
 import { BackgroundJobService } from '../services/BackgroundJobService';
+import { ContentAuthorizationService } from '../services/ContentAuthorizationService';
 import { ResponseHandler } from '../utils/ResponseHandler';
 import { ChapterQueryParams } from '../models/ChapterDto';
 import { ErrorHandler } from '../middleware/ErrorHandler';
@@ -16,11 +17,22 @@ import { AuthenticatedRequest } from '../types/auth';
 
 export class ChapterController {
    private chapterService: ChapterService;
+   private contentAuthorizationService: ContentAuthorizationService;
    private prisma: PrismaClient;
 
    constructor(prisma: PrismaClient, backgroundJobService?: BackgroundJobService) {
       this.prisma = prisma;
       this.chapterService = new ChapterService(prisma, backgroundJobService);
+      this.contentAuthorizationService = new ContentAuthorizationService(prisma);
+   }
+
+   private getBearerToken(req: Request): string | undefined {
+      const authorization = req.headers.authorization;
+      if (!authorization || !authorization.startsWith('Bearer ')) {
+         return undefined;
+      }
+      const token = authorization.slice(7).trim();
+      return token.length > 0 ? token : undefined;
    }
 
    /** Map JWT auth user id to local UserProfile.id */
@@ -265,6 +277,30 @@ export class ChapterController {
          chapterData.scheduledAt = new Date(req.body.scheduledAt);
       }
 
+      const authReq = req as AuthenticatedRequest;
+      const externalUserId = authReq.user?.id;
+      const accessToken = this.getBearerToken(req);
+
+      const { audiobookExists, allowed } = await this.contentAuthorizationService.canCreateChapter(
+         externalUserId,
+         chapterData.audiobookId,
+         authReq.user?.role,
+         accessToken,
+      );
+
+      if (!audiobookExists) {
+         ResponseHandler.notFound(res, MessageHandler.getErrorMessage('not_found.audiobook'));
+         return;
+      }
+
+      if (!allowed) {
+         ResponseHandler.forbidden(
+            res,
+            MessageHandler.getErrorMessage('organizations.admin_required'),
+         );
+         return;
+      }
+
       const chapter = await this.chapterService.createChapter(chapterData, uploadedFile, uploadedCoverImage);
 
       ResponseHandler.success(res, chapter, MessageHandler.getSuccessMessage('chapters.created'), 201);
@@ -355,6 +391,31 @@ export class ChapterController {
     */
    updateChapter = ErrorHandler.asyncHandler(async (req: Request, res: Response): Promise<void> => {
       const { id } = req.params;
+
+      const authReq = req as AuthenticatedRequest;
+      const externalUserId = authReq.user?.id;
+      const accessToken = this.getBearerToken(req);
+
+      const { chapterExists, allowed } = await this.contentAuthorizationService.canManageChapter(
+         externalUserId,
+         id as string,
+         authReq.user?.role,
+         accessToken,
+      );
+
+      if (!chapterExists) {
+         ResponseHandler.notFound(res, MessageHandler.getErrorMessage('not_found.chapter'));
+         return;
+      }
+
+      if (!allowed) {
+         ResponseHandler.forbidden(
+            res,
+            MessageHandler.getErrorMessage('organizations.admin_required'),
+         );
+         return;
+      }
+
       const uploadedFile = req.file as Express.Multer.File | undefined;
       const uploadedCoverImage = (req as any).coverImageFile as Express.Multer.File | undefined;
 
@@ -432,6 +493,30 @@ export class ChapterController {
     */
    deleteChapter = ErrorHandler.asyncHandler(async (req: Request, res: Response): Promise<void> => {
       const { id } = req.params;
+
+      const authReq = req as AuthenticatedRequest;
+      const externalUserId = authReq.user?.id;
+      const accessToken = this.getBearerToken(req);
+
+      const { chapterExists, allowed } = await this.contentAuthorizationService.canManageChapter(
+         externalUserId,
+         id as string,
+         authReq.user?.role,
+         accessToken,
+      );
+
+      if (!chapterExists) {
+         ResponseHandler.notFound(res, MessageHandler.getErrorMessage('not_found.chapter'));
+         return;
+      }
+
+      if (!allowed) {
+         ResponseHandler.forbidden(
+            res,
+            MessageHandler.getErrorMessage('organizations.admin_required'),
+         );
+         return;
+      }
 
       await this.chapterService.deleteChapter(id as string);
 

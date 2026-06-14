@@ -40,6 +40,7 @@ export interface TranscodingJobData {
    priority: 'low' | 'normal' | 'high';
    userId?: string;
    retryCount?: number;
+   forceRetranscode?: boolean;
 }
 
 export interface TranscodingJobResult {
@@ -193,6 +194,9 @@ export class RabbitMQConnection {
       // Setup authors exchange and queue for author creation events
       await this.setupAuthorsExchangeAndQueue(queuePrefix);
 
+      // Setup organizations exchange and queue for organization deletion events
+      await this.setupOrganizationsExchangeAndQueue(queuePrefix);
+
       rabbitmqLogger.info('RabbitMQ exchanges and queues setup completed');
    }
 
@@ -222,6 +226,17 @@ export class RabbitMQConnection {
 
       // Bind queue to exchange with routing key
       await this.channel.bindQueue(`${queuePrefix}.users.created`, 'users', 'user.created');
+
+      await this.channel.assertQueue(`${queuePrefix}.users.deleted`, {
+         durable: true,
+         exclusive: false,
+         autoDelete: false,
+         arguments: {
+            'x-message-ttl': 3600000
+         }
+      });
+
+      await this.channel.bindQueue(`${queuePrefix}.users.deleted`, 'users', 'user.deleted');
 
       rabbitmqLogger.info('Users exchange and queue setup completed');
    }
@@ -280,7 +295,45 @@ export class RabbitMQConnection {
 
       await this.channel.bindQueue(`${queuePrefix}.authors.created`, 'authors', 'author.created');
 
+      await this.channel.assertQueue(`${queuePrefix}.authors.deleted`, {
+         durable: true,
+         exclusive: false,
+         autoDelete: false,
+         arguments: {
+            'x-message-ttl': 3600000
+         }
+      });
+
+      await this.channel.bindQueue(`${queuePrefix}.authors.deleted`, 'authors', 'author.deleted');
+
       rabbitmqLogger.info('Authors exchange and queue setup completed');
+   }
+
+   /**
+    * Setup organizations exchange and queue for organization deletion events
+    */
+   private async setupOrganizationsExchangeAndQueue(queuePrefix: string): Promise<void> {
+      if (!this.channel) {
+         throw new Error('Channel not available');
+      }
+
+      await this.channel.assertExchange('organizations', 'topic', {
+         durable: true,
+         autoDelete: false
+      });
+
+      await this.channel.assertQueue(`${queuePrefix}.organizations.deleted`, {
+         durable: true,
+         exclusive: false,
+         autoDelete: false,
+         arguments: {
+            'x-message-ttl': 3600000
+         }
+      });
+
+      await this.channel.bindQueue(`${queuePrefix}.organizations.deleted`, 'organizations', 'organization.deleted');
+
+      rabbitmqLogger.info('Organizations exchange and queue setup completed');
    }
 
    /**
@@ -594,6 +647,77 @@ export class RabbitMQConnection {
          rabbitmqLogger.info({ queueName }, 'Stopped consuming author creation messages from queue');
       } catch (error: any) {
          rabbitmqLogger.error({ err: error }, 'Error stopping author creation message consumer');
+      }
+   }
+
+   public async consumeUserDeletionMessages(
+      onMessage: (message: unknown) => Promise<void>
+   ): Promise<void> {
+      await this.consumeDeletionMessages(`${config.RABBITMQ_QUEUE_PREFIX}.users.deleted`, 'user deletion', onMessage);
+   }
+
+   public async stopConsumingUserDeletionMessages(): Promise<void> {
+      await this.stopConsumingDeletionMessages(`${config.RABBITMQ_QUEUE_PREFIX}.users.deleted`, 'user deletion');
+   }
+
+   public async consumeAuthorDeletionMessages(
+      onMessage: (message: unknown) => Promise<void>
+   ): Promise<void> {
+      await this.consumeDeletionMessages(`${config.RABBITMQ_QUEUE_PREFIX}.authors.deleted`, 'author deletion', onMessage);
+   }
+
+   public async stopConsumingAuthorDeletionMessages(): Promise<void> {
+      await this.stopConsumingDeletionMessages(`${config.RABBITMQ_QUEUE_PREFIX}.authors.deleted`, 'author deletion');
+   }
+
+   public async consumeOrganizationDeletionMessages(
+      onMessage: (message: unknown) => Promise<void>
+   ): Promise<void> {
+      await this.consumeDeletionMessages(`${config.RABBITMQ_QUEUE_PREFIX}.organizations.deleted`, 'organization deletion', onMessage);
+   }
+
+   public async stopConsumingOrganizationDeletionMessages(): Promise<void> {
+      await this.stopConsumingDeletionMessages(`${config.RABBITMQ_QUEUE_PREFIX}.organizations.deleted`, 'organization deletion');
+   }
+
+   private async consumeDeletionMessages(
+      queueName: string,
+      label: string,
+      onMessage: (message: unknown) => Promise<void>
+   ): Promise<void> {
+      if (!this.channel) {
+         throw new Error('Channel not available');
+      }
+
+      await this.channel.consume(queueName, async (msg) => {
+         if (!msg) {
+            return;
+         }
+
+         try {
+            const messageContent = JSON.parse(msg.content.toString());
+            rabbitmqLogger.info({ messageContent }, `Received ${label} message`);
+            await onMessage(messageContent);
+            this.channel!.ack(msg);
+         } catch (error: unknown) {
+            rabbitmqLogger.error({ err: error }, `Error processing ${label} message`);
+            this.channel!.ack(msg);
+         }
+      }, { noAck: false });
+
+      rabbitmqLogger.info({ queueName }, `Started consuming ${label} messages from queue`);
+   }
+
+   private async stopConsumingDeletionMessages(queueName: string, label: string): Promise<void> {
+      if (!this.channel) {
+         return;
+      }
+
+      try {
+         await this.channel.cancel(queueName);
+         rabbitmqLogger.info({ queueName }, `Stopped consuming ${label} messages from queue`);
+      } catch (error: unknown) {
+         rabbitmqLogger.error({ err: error }, `Error stopping ${label} message consumer`);
       }
    }
 }

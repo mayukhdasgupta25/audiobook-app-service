@@ -17,13 +17,14 @@ import { createStreamingRoutes } from './streamingRoutes';
 import { createUserProfileRoutes } from './userProfileRoutes';
 import { createUserAudioBookRoutes } from './userAudioBookRoutes';
 import { createTagRoutes } from './tagRoutes';
-import { createAuthorRoutes } from './authorRoutes';
-import { createOrganizationRoutes } from './organizationRoutes';
+import { createAuthorProfileRoutes } from './authorProfileRoutes';
+import { createOrganizationCatalogRoutes } from './organizationCatalogRoutes';
 import { createCommentRoutes } from './commentRoutes';
 import { createReviewRoutes } from './reviewRoutes';
 import { createFavoriteRoutes } from './favoriteRoutes';
 import { createPlaylistRoutes } from './playlistRoutes';
 import { createListeningHistoryRoutes } from './listeningHistoryRoutes';
+import { createDomainEventsRoutes } from './domainEventsRoutes';
 
 export class ApiRouter {
   private static instance: ApiRouter;
@@ -71,8 +72,10 @@ export class ApiRouter {
   private setupV1Routes(): void {
     const v1Router = Router();
 
-    // Apply JWT authentication middleware to all v1 routes
-    // This ensures all API endpoints require valid JWT tokens
+    // SSE stream supports Bearer header or ?access_token= (EventSource)
+    v1Router.use('/events', createDomainEventsRoutes());
+
+    // Apply JWT authentication middleware to all other v1 routes
     v1Router.use(authenticateJWT);
 
     // Mount all route modules (protected routes)
@@ -84,11 +87,11 @@ export class ApiRouter {
     v1Router.use('/genres', createGenreRoutes(this.prisma));
     v1Router.use('/moods', createMoodRoutes(this.prisma));
     v1Router.use('/tags', createTagRoutes(this.prisma));
-    v1Router.use('/authors', createAuthorRoutes(this.prisma));
+    v1Router.use('/author-profiles', createAuthorProfileRoutes(this.prisma));
     v1Router.use('/stream', createStreamingRoutes(this.prisma));
     v1Router.use('/', createUserProfileRoutes(this.prisma));
     v1Router.use('/user-audiobooks', createUserAudioBookRoutes(this.prisma));
-    v1Router.use('/organizations', createOrganizationRoutes(this.prisma));
+    v1Router.use('/organizations', createOrganizationCatalogRoutes(this.prisma));
     v1Router.use('/comments', createCommentRoutes(this.prisma));
     v1Router.use('/reviews', createReviewRoutes(this.prisma));
     v1Router.use('/favorites', createFavoriteRoutes(this.prisma));

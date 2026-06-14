@@ -19,20 +19,20 @@ import { RabbitMQFactory, TranscodingJobData } from '../config/rabbitmq';
 import { config } from '../config/env';
 import { FileUploadService } from './FileUploadService';
 import { BackgroundJobService } from './BackgroundJobService';
-import { ImageProcessingService } from './ImageProcessingService';
-import { validateChapterCoverImageOrThrow } from '../utils/ImageValidator';
-import path from 'path';
+import { ImageAssetService } from './ImageAssetService';
 import { fileUrlService } from './FileUrlService';
+import { mediaCleanupService } from './MediaCleanupService';
+import { emitCacheInvalidation } from './DomainEventPublisher';
 
 export class ChapterService {
    private fileUploadService: FileUploadService;
    private backgroundJobService: BackgroundJobService | undefined;
-   private imageProcessingService: ImageProcessingService;
+   private imageAssetService: ImageAssetService;
 
    constructor(private prisma: PrismaClient, backgroundJobService?: BackgroundJobService) {
       this.fileUploadService = new FileUploadService();
       this.backgroundJobService = backgroundJobService;
-      this.imageProcessingService = new ImageProcessingService();
+      this.imageAssetService = new ImageAssetService(prisma);
    }
 
    /**
@@ -145,73 +145,31 @@ export class ChapterService {
             throw new ApiError('Chapter number already exists for this audiobook', 400);
          }
 
-         // Upload audio file if provided
-         let filePath = chapterData.filePath || '';
-         let fileSize = chapterData.fileSize || 0;
+         // Defer audio upload until after DB commit when a new file is attached
+         const filePath = chapterData.filePath || '';
+         const fileSize = chapterData.fileSize || 0;
+         const hasAudioUpload = Boolean(uploadedFile);
 
-         if (uploadedFile) {
-            const uploadResult = await this.fileUploadService.uploadFile(
-               uploadedFile,
-               '/uploads/chapters'
-            );
-            filePath = uploadResult.filePath;
-            fileSize = uploadResult.fileSize;
-         }
-
-         // Handle coverImage - it's required, so it must be provided via upload or in chapterData
+         // Handle coverImage - required via upload or chapterData
          let coverImage = chapterData.coverImage;
          let coverImagePath: string | undefined;
 
          if (uploadedCoverImage) {
-            // Validate cover image dimensions
-            try {
-               validateChapterCoverImageOrThrow(uploadedCoverImage.path);
-            } catch (validationError: any) {
-               // Delete the uploaded file if validation fails
-               const fs = require('fs');
-               if (fs.existsSync(uploadedCoverImage.path)) {
-                  fs.unlinkSync(uploadedCoverImage.path);
-               }
-               throw new ApiError(validationError.message || 'Invalid chapter cover image dimensions', 400);
-            }
-
-            // Store the path for thumbnail generation
             coverImagePath = uploadedCoverImage.path;
-            // In local environment, multer already saved the file to the correct directory
-            // Just convert the path to a URL using getFileUrl (similar to audiobooks)
-            coverImage = await fileUrlService.processUploadedCoverFile(
-               uploadedCoverImage.path,
-               'uploads/images/chapters',
-               uploadedCoverImage.mimetype || 'image/jpeg'
-            );
+            coverImage = coverImage ?? 'pending';
          }
 
-         // Validate that coverImage is provided
          if (!coverImage) {
             throw new ApiError('Cover image is required', 400);
          }
 
-         // Handle scheduledAt: if provided, set isActive=false
          const createData: any = {
             ...chapterData,
-            filePath,
-            fileSize: BigInt(fileSize),
+            filePath: hasAudioUpload ? '' : filePath,
+            fileSize: BigInt(hasAudioUpload ? 0 : fileSize),
             coverImage,
+            sourceUploadStatus: hasAudioUpload ? 'pending' : (filePath ? 'ready' : 'pending'),
          };
-
-         // Generate thumbnails from cover image if provided
-         if (coverImagePath) {
-            try {
-               const thumbnailOutputDir = path.join(config.DEV_UPLOAD_DIR, 'images', 'chapters', 'thumbnails');
-               const thumbnails = await this.imageProcessingService.generateChapterThumbnails(coverImagePath, thumbnailOutputDir);
-               createData.chapterCardCoverImage = thumbnails.chapterCard;
-               createData.maximizedChapterCoverImage = thumbnails.maximized;
-               createData.minimizedChapterCoverImage = thumbnails.minimized;
-            } catch (thumbnailError: any) {
-               console.error('Failed to generate chapter thumbnails from cover image:', thumbnailError);
-               // Don't fail chapter creation if thumbnail generation fails
-            }
-         }
 
          if (chapterData.scheduledAt !== undefined) {
             createData.scheduledAt = chapterData.scheduledAt;
@@ -220,42 +178,58 @@ export class ChapterService {
             createData.isActive = chapterData.isActive ?? true; // Default to true if not provided
          }
 
-         const chapter = await this.prisma.chapter.create({
+         let chapter = await this.prisma.chapter.create({
             data: createData,
          });
 
-         // Publish transcoding job to RabbitMQ
-         try {
-            const jobData: TranscodingJobData = {
-               chapter: {
-                  id: chapter.id,
-                  audiobookId: chapter.audiobookId,
-                  title: chapter.title,
-                  ...(chapter.description && { description: chapter.description }),
-                  chapterNumber: chapter.chapterNumber,
-                  duration: chapter.duration,
-                  filePath: chapter.filePath,
-                  fileSize: Number(chapter.fileSize),
-                  startPosition: chapter.startPosition,
-                  endPosition: chapter.endPosition,
-                  createdAt: chapter.createdAt,
-                  updatedAt: chapter.updatedAt,
-               },
-               bitrates: config.TRANSCODING_BITRATES,
-               priority: 'normal'
-            };
-
-            const rabbitMQ = RabbitMQFactory.getConnection();
-            const published = await rabbitMQ.publishTranscodingJob(jobData, 'normal');
-
-            if (published) {
-               console.log(`Transcoding job published for new chapter ${chapter.id}`);
-            } else {
-               // console.error(`Failed to publish transcoding job for chapter ${chapter.id}`);
+         if (coverImagePath) {
+            try {
+               const { primaryStorageKey } = await this.imageAssetService.generateAndStoreVariants(
+                  'chapter',
+                  chapter.id,
+                  coverImagePath,
+               );
+               chapter = await this.prisma.chapter.update({
+                  where: { id: chapter.id },
+                  data: { coverImage: primaryStorageKey },
+               });
+            } catch (variantError: unknown) {
+               await this.prisma.chapter.delete({ where: { id: chapter.id } });
+               const message = variantError instanceof Error ? variantError.message : 'Invalid chapter cover image';
+               throw new ApiError(message, 400);
             }
-         } catch (_error) {
-            // Log error but don't fail chapter creation
-            // console.error(`Error publishing transcoding job for chapter ${chapter.id}:`, error);
+         }
+
+         if (hasAudioUpload && uploadedFile) {
+            try {
+               const uploadResult = await this.fileUploadService.uploadFile(
+                  uploadedFile,
+                  '/uploads/chapters'
+               );
+               chapter = await this.prisma.chapter.update({
+                  where: { id: chapter.id },
+                  data: {
+                     filePath: uploadResult.filePath,
+                     fileSize: BigInt(uploadResult.fileSize),
+                     sourceUploadStatus: 'ready',
+                     sourceUploadError: null,
+                  },
+               });
+            } catch (uploadError: unknown) {
+               const message = uploadError instanceof Error ? uploadError.message : 'Upload failed';
+               await this.prisma.chapter.update({
+                  where: { id: chapter.id },
+                  data: {
+                     sourceUploadStatus: 'failed',
+                     sourceUploadError: message,
+                  },
+               });
+               throw new ApiError(`Failed to upload chapter audio: ${message}`, 500);
+            }
+         }
+
+         if (chapter.sourceUploadStatus === 'ready' && chapter.filePath) {
+            await this.publishChapterTranscodingJob(chapter);
          }
 
          // Schedule audiobook duration calculation job
@@ -279,6 +253,7 @@ export class ChapterService {
             }
          }
 
+         emitCacheInvalidation('chapter', 'created', chapter.id, { audiobookId: chapterData.audiobookId });
          return fileUrlService.resolveChapterMedia(this.mapChapterData(chapter));
       } catch (error) {
          if (error instanceof ApiError) {
@@ -326,102 +301,20 @@ export class ChapterService {
             }
          }
 
-         // Upload audio file if provided
-         let filePath = updateData.filePath;
-         let fileSize = updateData.fileSize;
-
-         if (uploadedFile) {
-            // Delete old file if it exists
-            if (existingChapter.filePath) {
-               try {
-                  const fs = require('fs');
-                  if (fs.existsSync(existingChapter.filePath)) {
-                     fs.unlinkSync(existingChapter.filePath);
-                  }
-               } catch (_error) {
-                  // Log error but don't fail update
-                  console.error(`Error deleting old file for chapter ${chapterId}:`, _error);
-               }
-            }
-
-            const uploadResult = await this.fileUploadService.uploadFile(
-               uploadedFile,
-               '/uploads/chapters'
-            );
-            filePath = uploadResult.filePath;
-            fileSize = uploadResult.fileSize;
-         }
+         // Defer audio upload until after DB commit when replacing audio
+         const filePath = updateData.filePath;
+         const fileSize = updateData.fileSize;
+         const hasAudioUpload = Boolean(uploadedFile);
+         const oldFilePath = existingChapter.filePath;
 
          // Handle coverImage upload if provided
          let coverImage = updateData.coverImage;
          let coverImagePath: string | undefined;
 
          if (uploadedCoverImage) {
-            // Validate cover image dimensions
-            try {
-               validateChapterCoverImageOrThrow(uploadedCoverImage.path);
-            } catch (validationError: any) {
-               // Delete the uploaded file if validation fails
-               const fs = require('fs');
-               if (fs.existsSync(uploadedCoverImage.path)) {
-                  fs.unlinkSync(uploadedCoverImage.path);
-               }
-               throw new ApiError(validationError.message || 'Invalid chapter cover image dimensions', 400);
-            }
-
-            // Delete old cover image and thumbnails if they exist
-            if (existingChapter.coverImage) {
-               try {
-                  const fs = require('fs');
-                  const path = require('path');
-                  // Extract the actual file path from the URL if it's a URL
-                  let oldImagePath = existingChapter.coverImage;
-                  // If it's a URL starting with /uploads, convert to file path
-                  if (oldImagePath.startsWith('/uploads')) {
-                     oldImagePath = path.join(config.DEV_UPLOAD_DIR, oldImagePath.replace('/uploads', ''));
-                  }
-                  if (fs.existsSync(oldImagePath)) {
-                     fs.unlinkSync(oldImagePath);
-                  }
-
-                  // Delete old thumbnails if they exist (in development)
-                  if (config.NODE_ENV === 'development') {
-                     const oldThumbnails = [
-                        existingChapter.chapterCardCoverImage,
-                        existingChapter.maximizedChapterCoverImage,
-                        existingChapter.minimizedChapterCoverImage
-                     ];
-                     oldThumbnails.forEach(thumbnailUrl => {
-                        if (thumbnailUrl && thumbnailUrl.startsWith('/uploads')) {
-                           const thumbnailPath = path.join(config.DEV_UPLOAD_DIR, thumbnailUrl.replace('/uploads', ''));
-                           if (fs.existsSync(thumbnailPath)) {
-                              try {
-                                 fs.unlinkSync(thumbnailPath);
-                              } catch (_err) {
-                                 // Ignore errors when deleting old thumbnails
-                              }
-                           }
-                        }
-                     });
-                  }
-               } catch (_error) {
-                  // Log error but don't fail update
-                  console.error(`Error deleting old cover image for chapter ${chapterId}:`, _error);
-               }
-            }
-
-            // Store the path for thumbnail generation
             coverImagePath = uploadedCoverImage.path;
-            // In local environment, multer already saved the file to the correct directory
-            // Just convert the path to a URL using getFileUrl (similar to audiobooks)
-            coverImage = await fileUrlService.processUploadedCoverFile(
-               uploadedCoverImage.path,
-               'uploads/images/chapters',
-               uploadedCoverImage.mimetype || 'image/jpeg'
-            );
          }
 
-         // Ensure coverImage is always set (required field)
          if (coverImage === undefined) {
             coverImage = existingChapter.coverImage || '';
          }
@@ -433,22 +326,13 @@ export class ChapterService {
          if (fileSize !== undefined) {
             updatePayload.fileSize = BigInt(fileSize);
          }
-         if (coverImage !== undefined) {
+         if (coverImage !== undefined && !coverImagePath) {
             updatePayload.coverImage = coverImage;
          }
 
-         // Generate thumbnails from cover image if a new one was uploaded
-         if (coverImagePath) {
-            try {
-               const thumbnailOutputDir = path.join(config.DEV_UPLOAD_DIR, 'images', 'chapters', 'thumbnails');
-               const thumbnails = await this.imageProcessingService.generateChapterThumbnails(coverImagePath, thumbnailOutputDir);
-               updatePayload.chapterCardCoverImage = thumbnails.chapterCard;
-               updatePayload.maximizedChapterCoverImage = thumbnails.maximized;
-               updatePayload.minimizedChapterCoverImage = thumbnails.minimized;
-            } catch (thumbnailError: any) {
-               console.error('Failed to generate chapter thumbnails from cover image:', thumbnailError);
-               // Don't fail chapter update if thumbnail generation fails
-            }
+         if (hasAudioUpload) {
+            updatePayload.sourceUploadStatus = 'pending';
+            updatePayload.sourceUploadError = null;
          }
 
          // Handle scheduledAt: if provided, set isActive=false
@@ -456,10 +340,56 @@ export class ChapterService {
             updatePayload.isActive = false;
          }
 
-         const chapter = await this.prisma.chapter.update({
+         let chapter = await this.prisma.chapter.update({
             where: { id: chapterId },
             data: updatePayload,
          });
+
+         if (hasAudioUpload && uploadedFile) {
+            try {
+               const uploadResult = await this.fileUploadService.uploadFile(
+                  uploadedFile,
+                  '/uploads/chapters'
+               );
+               chapter = await this.prisma.chapter.update({
+                  where: { id: chapterId },
+                  data: {
+                     filePath: uploadResult.filePath,
+                     fileSize: BigInt(uploadResult.fileSize),
+                     sourceUploadStatus: 'ready',
+                     sourceUploadError: null,
+                  },
+               });
+
+               if (oldFilePath && oldFilePath !== chapter.filePath) {
+                  await this.fileUploadService.deleteFile(oldFilePath);
+               }
+
+               await this.publishChapterTranscodingJob(chapter, { forceRetranscode: true });
+            } catch (uploadError: unknown) {
+               const message = uploadError instanceof Error ? uploadError.message : 'Upload failed';
+               chapter = await this.prisma.chapter.update({
+                  where: { id: chapterId },
+                  data: {
+                     sourceUploadStatus: 'failed',
+                     sourceUploadError: message,
+                  },
+               });
+               throw new ApiError(`Failed to upload chapter audio: ${message}`, 500);
+            }
+         }
+
+         if (coverImagePath) {
+            const { primaryStorageKey } = await this.imageAssetService.generateAndStoreVariants(
+               'chapter',
+               chapterId,
+               coverImagePath,
+            );
+            chapter = await this.prisma.chapter.update({
+               where: { id: chapterId },
+               data: { coverImage: primaryStorageKey },
+            });
+         }
 
          // Schedule activation job if scheduledAt was provided
          if (updateData.scheduledAt !== undefined && this.backgroundJobService) {
@@ -481,6 +411,7 @@ export class ChapterService {
             }
          }
 
+         emitCacheInvalidation('chapter', 'updated', chapterId, { audiobookId: existingChapter.audiobookId });
          return fileUrlService.resolveChapterMedia(this.mapChapterData(chapter));
       } catch (error) {
          if (error instanceof ApiError) {
@@ -504,6 +435,10 @@ export class ChapterService {
          }
 
          const audiobookId = chapter.audiobookId;
+
+         await this.imageAssetService.deleteAssetsForEntity('chapter', chapterId);
+         await mediaCleanupService.deleteStoredFile(chapter.coverImage);
+         await mediaCleanupService.deleteStoredFile(chapter.filePath);
 
          await this.prisma.chapter.delete({
             where: { id: chapterId },
@@ -533,6 +468,8 @@ export class ChapterService {
                console.error(`Error scheduling duration calculation for audiobook ${audiobookId}:`, _error);
             }
          }
+
+         emitCacheInvalidation('chapter', 'deleted', chapterId, { audiobookId });
       } catch (error) {
          if (error instanceof ApiError) {
             throw error;
@@ -747,6 +684,51 @@ export class ChapterService {
       }
    }
 
+   private async publishChapterTranscodingJob(
+      chapter: {
+         id: string;
+         audiobookId: string;
+         title: string;
+         description: string | null;
+         chapterNumber: number;
+         duration: number;
+         filePath: string;
+         fileSize: bigint;
+         startPosition: number;
+         endPosition: number;
+         createdAt: Date;
+         updatedAt: Date;
+      },
+      options?: { forceRetranscode?: boolean }
+   ): Promise<void> {
+      try {
+         const jobData: TranscodingJobData = {
+            chapter: {
+               id: chapter.id,
+               audiobookId: chapter.audiobookId,
+               title: chapter.title,
+               ...(chapter.description && { description: chapter.description }),
+               chapterNumber: chapter.chapterNumber,
+               duration: chapter.duration,
+               filePath: chapter.filePath,
+               fileSize: Number(chapter.fileSize),
+               startPosition: chapter.startPosition,
+               endPosition: chapter.endPosition,
+               createdAt: chapter.createdAt,
+               updatedAt: chapter.updatedAt,
+            },
+            bitrates: config.TRANSCODING_BITRATES,
+            priority: 'normal',
+            ...(options?.forceRetranscode && { forceRetranscode: true }),
+         };
+
+         const rabbitMQ = RabbitMQFactory.getConnection();
+         await rabbitMQ.publishTranscodingJob(jobData, 'normal');
+      } catch (_error) {
+         console.error(`Error publishing transcoding job for chapter ${chapter.id}:`, _error);
+      }
+   }
+
    private mapChapterRecord(chapter: {
       id: string;
       audiobookId: string;
@@ -757,12 +739,11 @@ export class ChapterService {
       filePath: string;
       fileSize: bigint;
       coverImage: string;
-      chapterCardCoverImage: string | null;
-      maximizedChapterCoverImage: string | null;
-      minimizedChapterCoverImage: string | null;
       startPosition: number;
       endPosition: number;
       isActive: boolean;
+      sourceUploadStatus?: 'pending' | 'ready' | 'failed';
+      sourceUploadError?: string | null;
       scheduledAt: Date | null;
       createdAt: Date;
       updatedAt: Date;
@@ -781,12 +762,11 @@ export class ChapterService {
          filePath: chapter.filePath,
          fileSize: Number(chapter.fileSize),
          coverImage: chapter.coverImage,
-         chapterCardCoverImage: chapter.chapterCardCoverImage || undefined,
-         maximizedChapterCoverImage: chapter.maximizedChapterCoverImage || undefined,
-         minimizedChapterCoverImage: chapter.minimizedChapterCoverImage || undefined,
          startPosition: chapter.startPosition,
          endPosition: chapter.endPosition,
          isActive: chapter.isActive,
+         sourceUploadStatus: chapter.sourceUploadStatus ?? 'ready',
+         ...(chapter.sourceUploadError ? { sourceUploadError: chapter.sourceUploadError } : {}),
          scheduledAt: chapter.scheduledAt ?? null,
          createdAt: chapter.createdAt,
          updatedAt: chapter.updatedAt,
@@ -809,12 +789,11 @@ export class ChapterService {
       filePath: string;
       fileSize: bigint;
       coverImage: string;
-      chapterCardCoverImage: string | null;
-      maximizedChapterCoverImage: string | null;
-      minimizedChapterCoverImage: string | null;
       startPosition: number;
       endPosition: number;
       isActive: boolean;
+      sourceUploadStatus?: 'pending' | 'ready' | 'failed';
+      sourceUploadError?: string | null;
       scheduledAt: Date | null;
       createdAt: Date;
       updatedAt: Date;

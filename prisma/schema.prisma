@@ -15,12 +15,7 @@ model UserProfile {
   id        String  @id @default(cuid())
   userId    String  @unique
   username  String  @unique
-  firstName String?
-  lastName  String?
   avatar    String? // URL to profile picture
-  gender    Gender?
-  location  String?
-  age       Int?
 
   // User preferences
   preferences Json? // Store user preferences as JSON
@@ -39,10 +34,14 @@ model UserProfile {
   bookmarks           Bookmark[]
   notes               Note[]
   offlineDownloads    OfflineDownload[]
-  organizationMembers OrganizationMember[]
   comments            Comment[]
 
   @@map("user_profiles")
+}
+
+enum AudioBookOwnerType {
+  AUTHOR
+  ORGANIZATION
 }
 
 // AudioBook model for storing book information
@@ -58,8 +57,11 @@ model AudioBook {
   fileSize   BigInt? // File size in bytes
   coverImage String? // URL to cover image
 
+  // Polymorphic owner (auth-service Author or Organization id)
+  ownerType AudioBookOwnerType
+  ownerId   String
+
   // Metadata
-  organizationId String
   language       String    @default("bn")
   publisher      String?
   publishDate    DateTime?
@@ -87,7 +89,6 @@ model AudioBook {
   moodId String?
 
   // Relations
-  organization     Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   mood             Mood?              @relation(fields: [moodId], references: [id], onDelete: SetNull)
   userAudioBooks   UserAudioBook[]
   reviews          Review[]
@@ -101,7 +102,7 @@ model AudioBook {
   audioBookGenres  AudioBookGenre[]
   comments         Comment[]
 
-  @@index([organizationId])
+  @@index([ownerType, ownerId])
   @@index([moodId])
   @@map("audiobooks")
 }
@@ -160,23 +161,15 @@ model Genre {
   @@map("genres")
 }
 
-// Author model for storing author information
-model Author {
-  id        String  @id @default(cuid())
-  userId    String  @unique
-  firstName String
-  lastName  String
-  address   String?
-  contact   String?
+model AuthorProfile {
+  id       String  @id @default(cuid())
+  authorId String  @unique
+  avatar   String?
 
-  // Timestamps
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // Relations
-  organizations AuthorOrganization[]
-
-  @@map("authors")
+  @@map("author_profiles")
 }
 
 // Junction table for many-to-many relationship between AudioBook and Genre
@@ -317,6 +310,12 @@ model Favorite {
   @@map("favorites")
 }
 
+enum SourceUploadStatus {
+  pending
+  ready
+  failed
+}
+
 // Chapter model for audiobook chapters
 model Chapter {
   id          String  @id @default(cuid())
@@ -331,17 +330,14 @@ model Chapter {
   fileSize      BigInt // File size in bytes
   coverImage    String // URL to chapter cover image (required)
 
-  // Chapter thumbnail images for different display contexts
-  chapterCardCoverImage      String? // URL to chapter card cover image (240×360px, 2:3 aspect ratio)
-  maximizedChapterCoverImage String? // URL to maximized player cover image (600×600px, 1:1 aspect ratio)
-  minimizedChapterCoverImage String? // URL to minimized player cover image (150×150px, 1:1 aspect ratio)
-
   // Chapter start/end positions in main audiobook file
   startPosition Int // Start position in seconds within main audiobook
   endPosition   Int // End position in seconds within main audiobook
 
   // Status
-  isActive Boolean @default(true)
+  isActive             Boolean            @default(true)
+  sourceUploadStatus   SourceUploadStatus @default(ready)
+  sourceUploadError    String?
 
   // Timestamps
   createdAt   DateTime  @default(now())
@@ -506,83 +502,10 @@ model AudioBookTag {
   @@map("audiobook_tags")
 }
 
-// Organization model — the publisher / company that provides audiobooks to
-// listeners. Catalog access is not tied to organization membership; staff
-// roles are modeled on `OrganizationMember`.
-model Organization {
-  id          String  @id @default(cuid())
-  name        String
-  slug        String  @unique
-  description String?
-
-  // Timestamps
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Relations
-  audiobooks AudioBook[]
-  members    OrganizationMember[]
-  authors    AuthorOrganization[]
-
-  @@map("organizations")
-}
-
-// Junction table for optional many-to-many between Author and Organization
-model AuthorOrganization {
-  id             String @id @default(cuid())
-  authorId       String
-  organizationId String
-
-  createdAt DateTime @default(now())
-
-  author       Author       @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-
-  @@unique([authorId, organizationId])
-  @@map("author_organizations")
-}
-
-// Staff who administer an organization (many-to-many with role). Distinct
-// from end-user listeners, who do not need membership to browse or play
-// that organization's catalog.
-model OrganizationMember {
-  id             String           @id @default(cuid())
-  userProfileId  String
-  organizationId String
-  role           OrganizationRole @default(MEMBER)
-
-  // Timestamps
-  joinedAt  DateTime @default(now())
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Relations
-  userProfile  UserProfile  @relation(fields: [userProfileId], references: [id], onDelete: Cascade)
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-
-  @@unique([userProfileId, organizationId])
-  @@index([organizationId])
-  @@map("organization_members")
-}
-
 // Enums
-enum Gender {
-  MALE
-  FEMALE
-  NON_BINARY
-  OTHER
-  PREFER_NOT_TO_SAY
-}
-
 enum UserAudioBookType {
   OWNED
   PURCHASED
-}
-
-enum OrganizationRole {
-  OWNER
-  ADMIN
-  MEMBER
 }
 
 enum DownloadStatus {
@@ -591,4 +514,42 @@ enum DownloadStatus {
   COMPLETED
   FAILED
   CANCELLED
+}
+
+enum ImageCategory {
+  audiobook
+  chapter
+  user
+  author
+}
+
+model ImagePlaceholderSpec {
+  id                   String        @id @default(cuid())
+  category             ImageCategory
+  variantKey           String
+  actualWidth          Int
+  actualHeight         Int
+  aspectRatioWidth     Int
+  aspectRatioHeight    Int
+  recommendedMaxWidth  Int
+  recommendedMaxHeight Int
+
+  @@unique([category, variantKey])
+  @@map("image_placeholder_specs")
+}
+
+model ImageAsset {
+  id          String        @id @default(cuid())
+  category    ImageCategory
+  entityId    String
+  variantKey  String
+  storageKey  String
+  width       Int
+  height      Int
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@unique([category, entityId, variantKey])
+  @@index([category, entityId])
+  @@map("image_assets")
 }

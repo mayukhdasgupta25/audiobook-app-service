@@ -1,4 +1,5 @@
 import dotenv from 'dotenv';
+import fs from 'fs';
 import path from 'path';
 
 const LOCALHOST_PATTERN = /localhost|127\.0\.0\.1/i;
@@ -16,11 +17,20 @@ function getEnvFileForBootstrap(): string | null {
    return ENV_FILE_BY_NODE_ENV[bootstrapEnv] ?? `.env.${bootstrapEnv}`;
 }
 
+function loadEnvFile(filename: string, override = false): void {
+   const filePath = path.resolve(process.cwd(), filename);
+   if (fs.existsSync(filePath)) {
+      dotenv.config({ path: filePath, override });
+   }
+}
+
 function loadEnvFiles(): void {
+   loadEnvFile('.env');
    const envFile = getEnvFileForBootstrap();
    if (envFile) {
-      dotenv.config({ path: path.resolve(process.cwd(), envFile) });
+      loadEnvFile(envFile, true);
    }
+   loadEnvFile('.env.local', true);
 }
 
 function requireEnv(key: string): string {
@@ -110,6 +120,30 @@ function validateNoLocalhostInStagingOrProduction(
    assertNoLocalhost('JWKS_ENDPOINT', values.JWKS_ENDPOINT, nodeEnv);
 }
 
+function resolveStreamingServiceStoragePath(currentNodeEnv: string): string {
+   const raw = process.env['STREAMING_SERVICE_STORAGE_PATH'];
+   const siblingFallback = path.resolve(process.cwd(), '../streaming-service/storage');
+
+   if (currentNodeEnv === 'development') {
+      if (!raw) {
+         return siblingFallback;
+      }
+      const resolved = path.isAbsolute(raw) ? raw : path.resolve(process.cwd(), raw);
+      if (!fs.existsSync(resolved) && fs.existsSync(siblingFallback)) {
+         console.warn(
+            `[config] STREAMING_SERVICE_STORAGE_PATH not found at ${resolved}; using ${siblingFallback}`,
+         );
+         return siblingFallback;
+      }
+      return resolved;
+   }
+
+   if (!raw) {
+      throw new Error('Missing required environment variable: STREAMING_SERVICE_STORAGE_PATH');
+   }
+   return path.isAbsolute(raw) ? raw : path.resolve(process.cwd(), raw);
+}
+
 loadEnvFiles();
 
 const nodeEnv = requireEnv('NODE_ENV');
@@ -154,11 +188,14 @@ export const config = {
    DEV_UPLOAD_DIR: nodeEnv === 'development' ? './src/uploads' : './uploads',
    DEV_AUDIOBOOK_IMAGE_DIR: nodeEnv === 'development' ? './src/uploads/images/audiobooks' : './uploads/images/audiobooks',
    DEV_CHAPTER_IMAGE_DIR: nodeEnv === 'development' ? './src/uploads/images/chapters' : './uploads/images/chapters',
+   DEV_AUTHOR_IMAGE_DIR: nodeEnv === 'development' ? './src/uploads/images/authors' : './uploads/images/authors',
+   DEV_USER_AVATAR_DIR: nodeEnv === 'development' ? './src/uploads/images/users' : './uploads/images/users',
+   DEV_ORGANIZATION_IMAGE_DIR: nodeEnv === 'development' ? './src/uploads/images/organizations' : './uploads/images/organizations',
    DEV_AUDIO_DIR: nodeEnv === 'development' ? './src/uploads/audio' : './uploads/audio',
 
    TRANSCODING_BITRATES: parseTranscodingBitrates(requireEnv('TRANSCODING_BITRATES')),
    STREAMING_CACHE_TTL: requireIntEnv('STREAMING_CACHE_TTL'),
-   STREAMING_SERVICE_STORAGE_PATH: requireEnv('STREAMING_SERVICE_STORAGE_PATH'),
+   STREAMING_SERVICE_STORAGE_PATH: resolveStreamingServiceStoragePath(nodeEnv),
 
    AWS_S3_BUCKET: requireEnv('AWS_S3_BUCKET'),
    AWS_S3_REGION: requireEnv('AWS_S3_REGION'),
@@ -181,4 +218,6 @@ export const config = {
 
    HEALTH_SUPPORT_EMAIL,
    HEALTH_SUPPORT_PASSWORD,
+
+   FFMPEG_PATH: process.env['FFMPEG_PATH'] ?? 'ffmpeg',
 };

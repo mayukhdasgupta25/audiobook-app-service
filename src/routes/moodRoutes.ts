@@ -6,6 +6,7 @@ import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { MoodController } from '../controllers/MoodController';
 import { ValidationMiddleware } from '../middleware/ValidationMiddleware';
+import { requireGlobalAdmin } from '../middleware/RoleMiddleware';
 
 export function createMoodRoutes(prisma: PrismaClient): Router {
    const router = Router();
@@ -15,6 +16,7 @@ export function createMoodRoutes(prisma: PrismaClient): Router {
 
    router.post(
       '/',
+      requireGlobalAdmin(),
       ValidationMiddleware.validateCreateMood,
       moodController.createMood
    );
@@ -23,12 +25,13 @@ export function createMoodRoutes(prisma: PrismaClient): Router {
 
    router.put(
       '/:id',
+      requireGlobalAdmin(),
       ValidationMiddleware.validateId,
       ValidationMiddleware.validateUpdateMood,
       moodController.updateMood
    );
 
-   router.delete('/:id', ValidationMiddleware.validateId, moodController.deleteMood);
+   router.delete('/:id', requireGlobalAdmin(), ValidationMiddleware.validateId, moodController.deleteMood);
 
    return router;
 }

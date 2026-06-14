@@ -8,8 +8,12 @@
  */
 export interface UserCreationMessage {
    userId: string;
-   firstName?: string;
-   lastName?: string;
+   avatar?: string;
+}
+
+export interface UserDeletionMessage {
+   userId: string;
+   authorId?: string;
 }
 
 /**

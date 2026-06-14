@@ -1,18 +1,24 @@
 /**
  * UserProfile Service
- * Handles user profile creation and management operations
+ * Handles app-local user profile creation and management (username, avatar, preferences)
  */
-import { Gender, PrismaClient } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
 import { UsernameGenerator } from '../utils/UsernameGenerator';
 import { UserProfileCreationResult } from '../types/user-events';
+import { fileUrlService } from './FileUrlService';
+import { ImageAssetService } from './ImageAssetService';
+import { mediaCleanupService } from './MediaCleanupService';
+import { emitCacheInvalidation } from './DomainEventPublisher';
 
 export class UserProfileService {
    private prisma: PrismaClient;
    private usernameGenerator: UsernameGenerator;
+   private imageAssetService: ImageAssetService;
 
    constructor(prisma: PrismaClient) {
       this.prisma = prisma;
       this.usernameGenerator = new UsernameGenerator(prisma);
+      this.imageAssetService = new ImageAssetService(prisma);
    }
 
    /**
@@ -21,12 +27,10 @@ export class UserProfileService {
    async createUserProfile(
       userId: string,
       options?: {
-         firstName?: string;
-         lastName?: string;
+         avatar?: string;
       }
    ): Promise<UserProfileCreationResult> {
       try {
-         // Check if user profile already exists
          const existingProfile = await this.prisma.userProfile.findUnique({
             where: { userId },
             select: { id: true, username: true }
@@ -39,15 +43,12 @@ export class UserProfileService {
             };
          }
 
-         // Generate unique username
          const usernameResult = await this.usernameGenerator.generateUniqueUsername();
 
-         // Prepare profile data with optional firstName and lastName
          const profileData: {
             userId: string;
             username: string;
-            firstName?: string;
-            lastName?: string;
+            avatar?: string;
             preferences: {
                theme: string;
                language: string;
@@ -65,15 +66,10 @@ export class UserProfileService {
             }
          };
 
-         // Add firstName and lastName if provided
-         if (options?.firstName) {
-            profileData.firstName = options.firstName;
-         }
-         if (options?.lastName) {
-            profileData.lastName = options.lastName;
+         if (options?.avatar) {
+            profileData.avatar = options.avatar;
          }
 
-         // Create user profile
          const userProfile = await this.prisma.userProfile.create({
             data: profileData,
             select: {
@@ -83,6 +79,7 @@ export class UserProfileService {
             }
          });
 
+         emitCacheInvalidation('user-profile', 'created', userProfile.id, { userId });
          return {
             success: true,
             userProfile: {
@@ -92,7 +89,6 @@ export class UserProfileService {
             }
          };
       } catch (error: any) {
-         // console.error(`Failed to create user profile for userId: ${userId}`, error);
          return {
             success: false,
             error: error.message || 'Failed to create user profile'
@@ -111,21 +107,19 @@ export class UserProfileService {
                id: true,
                userId: true,
                username: true,
-               firstName: true,
-               lastName: true,
                avatar: true,
-               gender: true,
-               location: true,
-               age: true,
                preferences: true,
                createdAt: true,
                updatedAt: true
             }
          });
 
-         return userProfile;
+         if (!userProfile) {
+            return userProfile;
+         }
+
+         return this.resolveProfileForClient(userProfile);
       } catch (error: any) {
-         // console.error(`Failed to get user profile for userId: ${userId}`, error);
          throw error;
       }
    }
@@ -133,38 +127,74 @@ export class UserProfileService {
    /**
     * Update user profile
     */
-   async updateUserProfile(userId: string, updateData: {
-      username?: string;
-      firstName?: string;
-      lastName?: string;
-      avatar?: string;
-      gender?: Gender | null;
-      location?: string | null;
-      age?: number | null;
-      preferences?: any;
-   }): Promise<any> {
+   async updateUserProfile(
+      userId: string,
+      updateData: {
+         username?: string;
+         avatar?: string;
+         preferences?: any;
+      },
+      avatarSourcePath?: string,
+   ): Promise<any> {
       try {
-         const userProfile = await this.prisma.userProfile.update({
+         const existing = await this.prisma.userProfile.findUnique({
             where: { userId },
-            data: updateData,
+            select: { id: true, avatar: true },
+         });
+
+         if (!existing) {
+            throw new Error('User profile not found');
+         }
+
+         const data: {
+            username?: string;
+            avatar?: string;
+            preferences?: any;
+         } = { ...updateData };
+
+         if (avatarSourcePath) {
+            delete data.avatar;
+         }
+
+         let userProfile = await this.prisma.userProfile.update({
+            where: { userId },
+            data,
             select: {
                id: true,
                userId: true,
                username: true,
-               firstName: true,
-               lastName: true,
                avatar: true,
-               gender: true,
-               location: true,
-               age: true,
                preferences: true,
                updatedAt: true
             }
          });
 
-         return userProfile;
+         if (avatarSourcePath) {
+            const { primaryStorageKey } = await this.imageAssetService.generateAndStoreVariants(
+               'user',
+               existing.id,
+               avatarSourcePath,
+            );
+            userProfile = await this.prisma.userProfile.update({
+               where: { userId },
+               data: { avatar: primaryStorageKey },
+               select: {
+                  id: true,
+                  userId: true,
+                  username: true,
+                  avatar: true,
+                  preferences: true,
+                  updatedAt: true
+               }
+            });
+         } else if (updateData.avatar !== undefined && updateData.avatar !== existing.avatar) {
+            await this.imageAssetService.deleteAssetsForEntity('user', existing.id);
+            await mediaCleanupService.deleteStoredFile(existing.avatar);
+         }
+
+         emitCacheInvalidation('user-profile', 'updated', existing.id, { userId });
+         return this.resolveProfileForClient(userProfile);
       } catch (error: any) {
-         // console.error(`Failed to update user profile for userId: ${userId}`, error);
          throw error;
       }
    }
@@ -174,12 +204,40 @@ export class UserProfileService {
     */
    async deleteUserProfile(userId: string): Promise<void> {
       try {
+         const existing = await this.prisma.userProfile.findUnique({
+            where: { userId },
+            select: { id: true, avatar: true },
+         });
+
+         if (existing) {
+            await this.imageAssetService.deleteAssetsForEntity('user', existing.id);
+            await mediaCleanupService.deleteStoredFile(existing.avatar);
+         }
+
          await this.prisma.userProfile.delete({
             where: { userId }
          });
+
+         if (existing) {
+            emitCacheInvalidation('user-profile', 'deleted', existing.id, { userId });
+         }
       } catch (error: any) {
-         // console.error(`Failed to delete user profile for userId: ${userId}`, error);
          throw error;
       }
+   }
+
+   private async resolveProfileForClient(profile: {
+      id: string;
+      userId: string;
+      username: string;
+      avatar: string | null;
+      preferences: unknown;
+      createdAt?: Date;
+      updatedAt?: Date;
+   }) {
+      return fileUrlService.resolveUserMedia({
+         ...profile,
+         avatar: profile.avatar ?? undefined,
+      });
    }
 }

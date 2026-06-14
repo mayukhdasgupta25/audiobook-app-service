@@ -27,10 +27,8 @@ export class UserConsumerWorker {
       }
 
       try {
-         // Initialize RabbitMQ connection
          await RabbitMQFactory.initialize();
 
-         // Start consuming user creation messages
          const rabbitMQ = RabbitMQFactory.getConnection();
          await rabbitMQ.consumeUserCreationMessages(this.handleUserCreationMessage.bind(this));
 
@@ -38,7 +36,6 @@ export class UserConsumerWorker {
          this.isRunning = true;
 
       } catch (error: any) {
-         // console.error('Failed to start user consumer worker:', error);
          throw error;
       }
    }
@@ -59,7 +56,7 @@ export class UserConsumerWorker {
          this.isRunning = false;
          console.log('User consumer worker stopped');
       } catch (_error: any) {
-         // console.error('Error stopping user consumer worker:', _error);
+         // Swallow stop errors
       }
    }
 
@@ -70,35 +67,22 @@ export class UserConsumerWorker {
       try {
          console.log(`Processing user creation for userId: ${message.userId}`);
 
-         // Validate message structure
          if (!message.userId || typeof message.userId !== 'string') {
             throw new Error('Invalid message: userId is required and must be a string');
          }
 
-         // Prepare options with firstName and lastName if present
-         const options: {
-            firstName?: string;
-            lastName?: string;
-         } = {};
-
-         if (message.firstName && typeof message.firstName === 'string') {
-            options.firstName = message.firstName;
-         }
-         if (message.lastName && typeof message.lastName === 'string') {
-            options.lastName = message.lastName;
+         const options: { avatar?: string } = {};
+         if (message.avatar && typeof message.avatar === 'string') {
+            options.avatar = message.avatar;
          }
 
-         // Create user profile with optional firstName and lastName
          const result = await this.userProfileService.createUserProfile(message.userId, options);
 
          if (result.success) {
             console.log(`Successfully created user profile for userId: ${message.userId}, username: ${result.userProfile?.username}`);
-         } else {
-            // console.error(`Failed to create user profile for userId: ${message.userId}, error: ${result.error}`);
          }
 
       } catch (_error: any) {
-         // console.error(`Error handling user creation message for userId: ${message.userId}:`, _error);
          // Error is logged but message is acknowledged (no retry/DLQ as per requirements)
       }
    }
@@ -119,7 +103,6 @@ export class UserConsumerWorker {
             rabbitMQConnected
          };
       } catch (_error: any) {
-         // console.error('Error getting worker stats:', _error);
          return {
             isRunning: this.isRunning,
             rabbitMQConnected: false
@@ -132,19 +115,15 @@ export class UserConsumerWorker {
     */
    async testWorker(): Promise<boolean> {
       try {
-         // Test RabbitMQ connection
          const rabbitMQ = RabbitMQFactory.getConnection();
          const rabbitMQConnected = (rabbitMQ as any).isConnected();
 
-         // Test database connection
          await this.prisma.$queryRaw`SELECT 1`;
 
-         // Test user profile service
          const testUserId = `test-user-${Date.now()}`;
          const testResult = await this.userProfileService.createUserProfile(testUserId);
 
          if (testResult.success && testResult.userProfile) {
-            // Clean up test user
             await this.userProfileService.deleteUserProfile(testUserId);
          }
 
@@ -156,7 +135,6 @@ export class UserConsumerWorker {
 
          return rabbitMQConnected && testResult.success;
       } catch (_error: any) {
-         // console.error('User consumer worker test failed:', _error);
          return false;
       }
    }
@@ -168,9 +146,6 @@ export class UserConsumerWorker {
 export class UserConsumerWorkerFactory {
    private static worker: UserConsumerWorker | null = null;
 
-   /**
-    * Get worker instance
-    */
    public static getWorker(prisma: PrismaClient): UserConsumerWorker {
       if (!UserConsumerWorkerFactory.worker) {
          UserConsumerWorkerFactory.worker = new UserConsumerWorker(prisma);
@@ -178,17 +153,11 @@ export class UserConsumerWorkerFactory {
       return UserConsumerWorkerFactory.worker;
    }
 
-   /**
-    * Start worker
-    */
    public static async startWorker(prisma: PrismaClient): Promise<void> {
       const worker = UserConsumerWorkerFactory.getWorker(prisma);
       await worker.start();
    }
 
-   /**
-    * Stop worker
-    */
    public static async stopWorker(): Promise<void> {
       if (UserConsumerWorkerFactory.worker) {
          await UserConsumerWorkerFactory.worker.stop();

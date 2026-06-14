@@ -15,6 +15,7 @@ import {
 import { ApiError } from '../types/ApiError';
 import { MessageHandler } from '../utils/MessageHandler';
 import { HttpStatusCode, ErrorType } from '../types/common';
+import { emitCacheInvalidation } from './DomainEventPublisher';
 
 const moodAttributesInclude = {
    moodAttributes: {
@@ -71,6 +72,7 @@ export class MoodService {
             }
          });
 
+         emitCacheInvalidation('mood', 'created', created.id);
          return toMoodDto(created);
       } catch (error) {
          if (error instanceof ApiError) {
@@ -207,6 +209,7 @@ export class MoodService {
             data
          });
 
+         emitCacheInvalidation('mood', 'updated', id);
          return toMoodDto(updated);
       } catch (error) {
          if (error instanceof ApiError) {
@@ -232,6 +235,7 @@ export class MoodService {
          }
 
          await this.prisma.mood.delete({ where: { id } });
+         emitCacheInvalidation('mood', 'deleted', id);
          return true;
       } catch (error) {
          if (error instanceof ApiError) {

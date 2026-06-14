@@ -3,15 +3,8 @@
  * Provides role-based access control for protected routes
  */
 import { Response, NextFunction } from 'express';
+import { AuthRole, AuthRoleGroups, normalizeAuthRole } from '../constants/authRoles';
 import { AuthenticatedRequest } from '../types/auth';
-
-/**
- * Normalize role string for comparison (case-insensitive)
- */
-function normalizeRole(role: string | undefined): string {
-   if (!role) return '';
-   return role.trim().toLowerCase();
-}
 
 /**
  * Check if user has one of the allowed roles
@@ -30,8 +23,8 @@ export function requireRole(allowedRoles: string[]) {
       }
 
       // Normalize roles for comparison
-      const userRole = normalizeRole(req.user.role);
-      const normalizedAllowedRoles = allowedRoles.map(role => normalizeRole(role));
+      const userRole = normalizeAuthRole(req.user.role);
+      const normalizedAllowedRoles = allowedRoles.map(role => normalizeAuthRole(role));
 
       // Check if user role is in allowed roles
       if (!normalizedAllowedRoles.includes(userRole)) {
@@ -48,18 +41,52 @@ export function requireRole(allowedRoles: string[]) {
 }
 
 /**
- * Require Admin role only
- * Convenience middleware for admin-only routes
+ * Require GLOBAL_ADMIN role only
  */
-export function requireAdmin() {
-   return requireRole(['ADMIN']);
+export function requireGlobalAdmin() {
+   return requireRole([...AuthRoleGroups.GLOBAL_ADMIN_ONLY]);
 }
 
 /**
- * Require User or Admin role
- * Convenience middleware for routes accessible to both users and admins
+ * Require any authenticated role (listener, staff, or author)
  */
-export function requireUserOrAdmin() {
-   return requireRole(['USER', 'ADMIN']);
+export function requireAuthenticated() {
+   return requireRole([...AuthRoleGroups.ALL_AUTHENTICATED]);
 }
 
+/**
+ * Require GLOBAL_ADMIN or AUTHOR role
+ */
+export function requireGlobalAdminOrAuthor() {
+   return requireRole([...AuthRoleGroups.GLOBAL_ADMIN_OR_AUTHOR]);
+}
+
+/**
+ * Require AUTHOR role only
+ */
+export function requireAuthor() {
+   return requireRole([AuthRole.AUTHOR]);
+}
+
+/**
+ * Require ORG_ADMIN, ORG_COORDINATOR, or AUTHOR (audiobook/chapter creation)
+ */
+export function requireContentCreator() {
+   return requireRole([...AuthRoleGroups.CONTENT_CREATOR]);
+}
+
+/**
+ * Require GLOBAL_ADMIN, ORG_ADMIN, ORG_COORDINATOR, or AUTHOR (audiobook/chapter update/delete)
+ */
+export function requireContentManager() {
+   return requireRole([...AuthRoleGroups.CONTENT_MANAGER]);
+}
+
+/** @deprecated Use requireGlobalAdmin */
+export const requireAdmin = requireGlobalAdmin;
+
+/** @deprecated Use requireAuthenticated */
+export const requireUserOrAdmin = requireAuthenticated;
+
+/** @deprecated Use requireContentCreator for create flows */
+export const requireAdminOrAuthor = requireContentCreator;

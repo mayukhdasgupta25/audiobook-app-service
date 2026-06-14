@@ -9,6 +9,7 @@ import { QueueManager } from './queue';
 import { QueueFactory } from './queue';
 import { ResponseHandler } from '../utils/ResponseHandler';
 import { MessageHandler } from '../utils/MessageHandler';
+import { isGlobalAdminRole } from '../constants/authRoles';
 
 export class BullBoardConfig {
    private static instance: BullBoardConfig;
@@ -152,10 +153,7 @@ export class BullBoardAuth {
             return;
          }
 
-         // Check if user is admin (you can customize this logic)
-         const isAdmin = req.session.user.role === 'admin' ||
-            req.session.user.isAdmin === true ||
-            req.session.user.email === 'admin@audiobook.com'; // Customize this
+         const isAdmin = isGlobalAdminRole(req.session.user.role);
 
          if (!isAdmin) {
             ResponseHandler.forbidden(res, MessageHandler.getErrorMessage('forbidden.admin_required'));

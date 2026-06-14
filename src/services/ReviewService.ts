@@ -12,6 +12,7 @@ import {
 import { ApiError } from '../types/ApiError';
 import { MessageHandler } from '../utils/MessageHandler';
 import { HttpStatusCode, ErrorType } from '../types/common';
+import { emitCacheInvalidation } from './DomainEventPublisher';
 
 export class ReviewService {
    constructor(private prisma: PrismaClient) {}
@@ -64,6 +65,7 @@ export class ReviewService {
          },
       });
 
+      emitCacheInvalidation('review', 'created', review.id, { audiobookId: data.audiobookId });
       return toReviewDto(review);
    }
 
@@ -130,6 +132,7 @@ export class ReviewService {
          data: { rating: data.rating },
       });
 
+      emitCacheInvalidation('review', 'updated', id, { audiobookId: existing.audiobookId });
       return toReviewDto(updated);
    }
 
@@ -147,5 +150,6 @@ export class ReviewService {
       }
 
       await this.prisma.review.delete({ where: { id } });
+      emitCacheInvalidation('review', 'deleted', id, { audiobookId: existing.audiobookId });
    }
 }

@@ -2,7 +2,7 @@
  * AudioBook DTO (Data Transfer Object) classes
  * Provides type-safe data structures for API communication
  */
-import { AudioBook as PrismaAudioBook } from '@prisma/client';
+import { AudioBook as PrismaAudioBook, AudioBookOwnerType as PrismaAudioBookOwnerType } from '@prisma/client';
 
 /** Subscription playback access for a single audiobook (detail responses). */
 export interface AudiobookSubscriptionAccessDto {
@@ -11,6 +11,42 @@ export interface AudiobookSubscriptionAccessDto {
   message?: string;
   requiredTier?: number;
   userTier?: number | null;
+}
+
+export type AudioBookOwnerType = 'AUTHOR' | 'ORGANIZATION';
+
+export interface AudioBookOwnerInput {
+  type: AudioBookOwnerType;
+  id: string;
+}
+
+export interface AudioBookOwnerAuthorDetails {
+  id: string;
+  slug: string;
+  userId: string;
+  firstName?: string | null;
+  lastName?: string | null;
+  avatar?: string | null;
+  imageAssets?: Record<string, string>;
+}
+
+export interface AudioBookOwnerOrganizationDetails {
+  id: string;
+  name: string;
+  slug: string;
+  description?: string | null;
+  image?: string | null;
+  imageAssets?: Record<string, string>;
+  preferredGenre?: string | null;
+  websiteUrl?: string | null;
+  teamSize?: string | null;
+}
+
+export interface AudioBookOwnerDto {
+  type: AudioBookOwnerType;
+  id: string;
+  author?: AudioBookOwnerAuthorDetails;
+  organization?: AudioBookOwnerOrganizationDetails;
 }
 
 export interface AudioBookDto {
@@ -22,6 +58,7 @@ export interface AudioBookDto {
   duration?: number | undefined;
   fileSize?: number | undefined;
   coverImage?: string | undefined;
+  imageAssets?: Record<string, string>;
   language: string;
   publisher?: string | undefined;
   publishDate?: Date | undefined;
@@ -34,17 +71,12 @@ export interface AudioBookDto {
   scheduledAt?: Date | undefined;
   audiobookTags?: AudioBookTagDto[] | undefined;
   genres?: GenreDto[] | undefined;
-  organizationId: string;
-  organization?: AudioBookOrganizationDto | undefined;
+  owner: AudioBookOwnerDto;
   subscriptionAccess?: AudiobookSubscriptionAccessDto;
   /** Current user's star rating (1–5) for this audiobook; null if not reviewed. */
   rating?: number | null;
-}
-
-export interface AudioBookOrganizationDto {
-  id: string;
-  name: string;
-  slug: string;
+  /** Number of chapters belonging to this audiobook (list responses). */
+  chapterCount?: number;
 }
 
 export interface AudioBookTagDto {
@@ -58,13 +90,13 @@ export interface GenreDto {
 export interface CreateAudioBookDto {
   title: string;
   author: string;
+  owner: AudioBookOwnerInput;
   narrator?: string;
   description?: string;
   duration?: number;
   fileSize?: number;
   coverImage?: string;
   genreIds: string[]; // Required - at least one genre is mandatory
-  organizationId: string; // Required - audiobook must belong to an organization
   language?: string;
   publisher?: string;
   publishDate?: Date;
@@ -78,13 +110,13 @@ export interface CreateAudioBookDto {
 export interface UpdateAudioBookDto {
   title?: string;
   author?: string;
+  owner?: AudioBookOwnerInput;
   narrator?: string;
   description?: string;
   duration?: number;
   fileSize?: number;
   coverImage?: string;
   genreIds?: string[];
-  organizationId?: string;
   language?: string;
   publisher?: string;
   publishDate?: Date;
@@ -102,9 +134,10 @@ export interface AudioBookQueryParams {
   sortOrder?: 'asc' | 'desc';
   genreIds?: string[] | undefined;
   moodIds?: string[] | undefined;
-  organizationId?: string | undefined;
-  /** Optional filter: restrict to these publisher org IDs (not access control). */
-  organizationIds?: string[] | undefined;
+  ownerType?: AudioBookOwnerType | undefined;
+  ownerId?: string | undefined;
+  /** Optional filter: restrict to these owner IDs (same ownerType). */
+  ownerIds?: string[] | undefined;
   language?: string | undefined;
   author?: string | undefined;
   narrator?: string | undefined;
@@ -115,13 +148,30 @@ export interface AudioBookQueryParams {
   scheduled?: boolean | undefined;
 }
 
+export function toPrismaOwnerType(type: AudioBookOwnerType): PrismaAudioBookOwnerType {
+  return type as PrismaAudioBookOwnerType;
+}
+
+export function fromPrismaOwnerType(type: PrismaAudioBookOwnerType): AudioBookOwnerType {
+  return type as AudioBookOwnerType;
+}
+
+export function toOwnerDto(
+  ownerType: PrismaAudioBookOwnerType,
+  ownerId: string,
+): AudioBookOwnerDto {
+  return {
+    type: fromPrismaOwnerType(ownerType),
+    id: ownerId,
+  };
+}
+
 /**
- * Convert Prisma AudioBook to DTO
+ * Convert Prisma AudioBook to DTO (owner details hydrated separately).
  */
 export function toAudioBookDto(audiobook: PrismaAudioBook & {
   audiobookTags?: Array<{ id: string; audiobookId: string; tagId: string; createdAt: Date; tag: { id: string; name: string; createdAt: Date; updatedAt: Date } }>;
   audioBookGenres?: Array<{ id: string; audiobookId: string; genreId: string; createdAt: Date; genre: { id: string; name: string; createdAt: Date; updatedAt: Date } }>;
-  organization?: { id: string; name: string; slug: string } | null;
 }): AudioBookDto {
   return {
     id: audiobook.id,
@@ -148,13 +198,6 @@ export function toAudioBookDto(audiobook: PrismaAudioBook & {
     genres: audiobook.audioBookGenres?.map(abg => ({
       name: abg.genre.name
     })) || undefined,
-    organizationId: audiobook.organizationId,
-    organization: audiobook.organization
-      ? {
-        id: audiobook.organization.id,
-        name: audiobook.organization.name,
-        slug: audiobook.organization.slug,
-      }
-      : undefined,
+    owner: toOwnerDto(audiobook.ownerType, audiobook.ownerId),
   };
 }

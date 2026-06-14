@@ -1,17 +1,19 @@
 /**
  * UserProfileController Tests
- * Tests for fetching and updating current user's profile
  */
 
 import { PrismaClient } from '@prisma/client';
 import { UserProfileController } from '../../controllers/UserProfileController';
 import { UserProfileService } from '../../services/UserProfileService';
-import { LocationResolverService } from '../../services/LocationResolverService';
 import { ResponseHandler } from '../../utils/ResponseHandler';
 import { MessageHandler } from '../../utils/MessageHandler';
 
-// Mock dependencies
 jest.mock('../../services/UserProfileService');
+jest.mock('../../services/FileUrlService', () => ({
+   fileUrlService: {
+      processUploadedImageFile: jest.fn(async (path: string) => `https://example.com${path}`),
+   },
+}));
 jest.mock('../../utils/ResponseHandler');
 jest.mock('../../utils/MessageHandler');
 
@@ -21,7 +23,6 @@ describe('UserProfileController', () => {
    let mockReq: any;
    let mockRes: any;
    let mockService: jest.Mocked<UserProfileService>;
-   let mockLocationResolver: jest.Mocked<LocationResolverService>;
 
    beforeEach(() => {
       mockPrisma = {} as PrismaClient;
@@ -41,22 +42,16 @@ describe('UserProfileController', () => {
       mockReq.next = jest.fn();
       jest.clearAllMocks();
 
-      mockLocationResolver = {
-         resolveFromCoordinates: jest.fn(),
-      } as unknown as jest.Mocked<LocationResolverService>;
-
-      controller = new UserProfileController(mockPrisma, mockLocationResolver);
+      controller = new UserProfileController(mockPrisma);
       mockService = (controller as any).userProfileService;
    });
 
    describe('getProfile', () => {
-      it('should return current user profile', async () => {
+      it('should return current user app profile', async () => {
          const profile = {
             id: 'profile-1',
             userId: 'user-123',
             username: 'testuser',
-            firstName: 'Test',
-            lastName: 'User',
             avatar: 'avatar.jpg',
             preferences: { theme: 'dark' },
          } as any;
@@ -70,25 +65,22 @@ describe('UserProfileController', () => {
          expect(ResponseHandler.success).toHaveBeenCalledWith(
             mockRes,
             profile,
-            'Profile retrieved'
+            'Profile retrieved',
          );
       });
    });
 
    describe('updateProfile', () => {
-      it('should update current user profile', async () => {
+      it('should update username and preferences only', async () => {
          mockReq.body = {
             username: 'newname',
-            firstName: 'New',
-            lastName: 'Name',
+            preferences: { theme: 'dark' },
          };
 
          const updated = {
             id: 'profile-1',
             userId: 'user-123',
             username: 'newname',
-            firstName: 'New',
-            lastName: 'Name',
             updatedAt: new Date(),
          } as any;
 
@@ -97,63 +89,12 @@ describe('UserProfileController', () => {
 
          await controller.updateProfile(mockReq, mockRes, mockReq.next);
 
-         expect(mockService.updateUserProfile).toHaveBeenCalledWith('user-123', mockReq.body);
+         expect(mockService.updateUserProfile).toHaveBeenCalledWith('user-123', mockReq.body, undefined);
          expect(ResponseHandler.success).toHaveBeenCalledWith(
             mockRes,
             updated,
-            'Profile updated'
+            'Profile updated',
          );
-      });
-
-      it('should resolve location coordinates into a location string before update', async () => {
-         mockReq.body = {
-            location: {
-               latitude: '23.8103',
-               longitude: '90.4125',
-            },
-         };
-
-         mockLocationResolver.resolveFromCoordinates.mockResolvedValue('Dhaka, Dhaka Division, Bangladesh');
-
-         const updated = {
-            id: 'profile-1',
-            userId: 'user-123',
-            location: 'Dhaka, Dhaka Division, Bangladesh',
-            updatedAt: new Date(),
-         } as any;
-
-         mockService.updateUserProfile.mockResolvedValue(updated);
-         (MessageHandler.getSuccessMessage as jest.Mock).mockReturnValue('Profile updated');
-
-         await controller.updateProfile(mockReq, mockRes, mockReq.next);
-
-         expect(mockLocationResolver.resolveFromCoordinates).toHaveBeenCalledWith(23.8103, 90.4125);
-         expect(mockService.updateUserProfile).toHaveBeenCalledWith('user-123', {
-            location: 'Dhaka, Dhaka Division, Bangladesh',
-         });
-      });
-
-      it('should clear location when location is null', async () => {
-         mockReq.body = { location: null };
-
-         const updated = {
-            id: 'profile-1',
-            userId: 'user-123',
-            location: null,
-            updatedAt: new Date(),
-         } as any;
-
-         mockService.updateUserProfile.mockResolvedValue(updated);
-         (MessageHandler.getSuccessMessage as jest.Mock).mockReturnValue('Profile updated');
-
-         await controller.updateProfile(mockReq, mockRes, mockReq.next);
-
-         expect(mockLocationResolver.resolveFromCoordinates).not.toHaveBeenCalled();
-         expect(mockService.updateUserProfile).toHaveBeenCalledWith('user-123', {
-            location: null,
-         });
       });
    });
 });
-
-

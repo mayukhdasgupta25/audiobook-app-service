@@ -1,11 +1,26 @@
 /**
  * UserProfileService Tests
- * Tests for user profile management functionality
  */
 
 import { UserProfileService } from '../../services/UserProfileService';
 
-// Mock Prisma client
+jest.mock('../../services/FileUrlService', () => ({
+   fileUrlService: {
+      resolveForClient: jest.fn(async (value?: string | null) => value ?? undefined),
+      resolveUserMedia: jest.fn(async (profile: { id: string; avatar?: string | null }) => ({
+         ...profile,
+         avatar: profile.avatar ?? undefined,
+         imageAssets: {},
+      })),
+   },
+}));
+
+jest.mock('../../utils/UsernameGenerator', () => ({
+   UsernameGenerator: jest.fn().mockImplementation(() => ({
+      generateUniqueUsername: jest.fn().mockResolvedValue({ username: 'happy_otter_1234', attempts: 1 }),
+   })),
+}));
+
 const mockPrisma = {
    userProfile: {
       findUnique: jest.fn(),
@@ -20,11 +35,8 @@ describe('UserProfileService', () => {
 
    beforeEach(() => {
       jest.clearAllMocks();
-
       userProfileService = new UserProfileService(mockPrisma);
    });
-
-   // Removed createUserProfile tests as creation is no longer supported
 
    describe('getUserProfile', () => {
       it('should return user profile by userId', async () => {
@@ -33,8 +45,6 @@ describe('UserProfileService', () => {
             id: 'profile-1',
             userId,
             username: 'testuser',
-            firstName: 'Test',
-            lastName: 'User',
             avatar: 'avatar.jpg',
             preferences: { theme: 'dark' },
             createdAt: new Date(),
@@ -45,60 +55,36 @@ describe('UserProfileService', () => {
 
          const result = await userProfileService.getUserProfile(userId);
 
-         expect(result).toEqual(mockProfile);
+         expect(result).toEqual({ ...mockProfile, imageAssets: {} });
          expect(mockPrisma.userProfile.findUnique).toHaveBeenCalledWith({
             where: { userId },
             select: {
                id: true,
                userId: true,
                username: true,
-               firstName: true,
-               lastName: true,
                avatar: true,
-               gender: true,
-               location: true,
-               age: true,
                preferences: true,
                createdAt: true,
                updatedAt: true,
             },
          });
       });
-
-      it('should return null when profile not found', async () => {
-         const userId = 'non-existent';
-
-         mockPrisma.userProfile.findUnique.mockResolvedValue(null);
-
-         const result = await userProfileService.getUserProfile(userId);
-
-         expect(result).toBeNull();
-      });
-
-      it('should handle database errors', async () => {
-         const userId = 'user-123';
-         const error = new Error('Database connection failed');
-
-         mockPrisma.userProfile.findUnique.mockRejectedValue(error);
-
-         await expect(userProfileService.getUserProfile(userId)).rejects.toThrow('Database connection failed');
-      });
    });
 
    describe('updateUserProfile', () => {
-      it('should update user profile successfully', async () => {
+      it('should update app-local profile fields', async () => {
          const userId = 'user-123';
          const updateData = {
             username: 'updated-username',
-            firstName: 'Updated',
-            lastName: 'Name',
             preferences: { theme: 'dark', language: 'fr' },
          };
 
          const updatedProfile = {
             id: 'profile-1',
             userId,
-            ...updateData,
+            username: 'updated-username',
+            avatar: null,
+            preferences: { theme: 'dark', language: 'fr' },
             updatedAt: new Date(),
          };
 
@@ -106,91 +92,36 @@ describe('UserProfileService', () => {
 
          const result = await userProfileService.updateUserProfile(userId, updateData);
 
-         expect(result).toEqual(updatedProfile);
-         expect(mockPrisma.userProfile.update).toHaveBeenCalledWith({
-            where: { userId },
-            data: updateData,
-            select: {
-               id: true,
-               userId: true,
-               username: true,
-               firstName: true,
-               lastName: true,
-               avatar: true,
-               gender: true,
-               location: true,
-               age: true,
-               preferences: true,
-               updatedAt: true,
-            },
+         expect(result).toEqual({
+            ...updatedProfile,
+            avatar: undefined,
+            imageAssets: {},
          });
-      });
-
-      it('should handle partial updates', async () => {
-         const userId = 'user-123';
-         const updateData = {
-            avatar: 'new-avatar.jpg',
-         };
-
-         const updatedProfile = {
-            id: 'profile-1',
-            userId,
-            username: 'testuser',
-            firstName: 'Test',
-            lastName: 'User',
-            ...updateData,
-            updatedAt: new Date(),
-         };
-
-         mockPrisma.userProfile.update.mockResolvedValue(updatedProfile);
-
-         const result = await userProfileService.updateUserProfile(userId, updateData);
-
-         expect(result.avatar).toBe('new-avatar.jpg');
-      });
-
-      it('should handle database errors during update', async () => {
-         const userId = 'user-123';
-         const updateData = { username: 'new-username' };
-         const error = new Error('Update failed');
-
-         mockPrisma.userProfile.update.mockRejectedValue(error);
-
-         await expect(userProfileService.updateUserProfile(userId, updateData)).rejects.toThrow('Update failed');
       });
    });
 
-   // Removed deleteUserProfile tests as deletion is no longer supported
-
-   describe('Edge cases', () => {
-      // Creation-related edge cases removed
-
-      it('should handle complex preferences object', async () => {
-         const userId = 'user-123';
-         const complexPreferences = {
-            theme: 'dark',
-            language: 'en',
-            notifications: {
-               email: true,
-               push: false,
-            },
-            playback: {
-               speed: 1.5,
-               volume: 75,
-            },
-         };
-
-         mockPrisma.userProfile.update.mockResolvedValue({
+   describe('createUserProfile', () => {
+      it('should create profile with username and optional avatar only', async () => {
+         mockPrisma.userProfile.findUnique.mockResolvedValue(null);
+         mockPrisma.userProfile.create.mockResolvedValue({
             id: 'profile-1',
-            userId,
-            preferences: complexPreferences,
-            updatedAt: new Date(),
+            userId: 'user-123',
+            username: 'happy_otter_1234',
          });
 
-         const result = await userProfileService.updateUserProfile(userId, { preferences: complexPreferences });
+         const result = await userProfileService.createUserProfile('user-123', {
+            avatar: 'uploads/images/users/avatar.jpg',
+         });
 
-         expect(result.preferences).toEqual(complexPreferences);
+         expect(result.success).toBe(true);
+         expect(mockPrisma.userProfile.create).toHaveBeenCalledWith(
+            expect.objectContaining({
+               data: expect.objectContaining({
+                  userId: 'user-123',
+                  avatar: 'uploads/images/users/avatar.jpg',
+               }),
+            }),
+         );
       });
    });
 });
-

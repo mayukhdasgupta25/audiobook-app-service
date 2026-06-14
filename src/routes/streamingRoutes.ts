@@ -9,7 +9,7 @@ import { config } from '../config/env';
 import { ResponseHandler } from '../utils/ResponseHandler';
 import { MessageHandler } from '../utils/MessageHandler';
 
-export function createStreamingRoutes(_prisma: PrismaClient): Router {
+export function createStreamingRoutes(prisma: PrismaClient): Router {
    const router = Router();
 
    /**
@@ -44,31 +44,109 @@ export function createStreamingRoutes(_prisma: PrismaClient): Router {
       next();
    };
 
+   const proxyStreamToStreamingService = async (req: Request, res: Response): Promise<void> => {
+      try {
+         const authHeader = req.headers.authorization;
+         const userId = req.query['user'] as string;
+         if (!authHeader && !userId) {
+            ResponseHandler.unauthorized(res, MessageHandler.getErrorMessage('unauthorized.not_authenticated'));
+            return;
+         }
+
+         const externalUrl = `${config.STREAMING_SERVICE_URL}${req.path}${req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : ''}`;
+         const headers: Record<string, string> = {
+            ...(authHeader ? { Authorization: authHeader } : { user_id: userId }),
+         };
+
+         const response = await axios.get(externalUrl, {
+            headers,
+            responseType: 'stream',
+            timeout: 0,
+         });
+
+         res.setHeader('Content-Type', 'text/event-stream');
+         res.setHeader('Cache-Control', 'no-cache');
+         res.setHeader('Connection', 'keep-alive');
+         response.data.pipe(res);
+      } catch (error) {
+         if (axios.isAxiosError(error) && error.response) {
+            res.status(error.response.status).send(error.response.data);
+         } else {
+            ResponseHandler.internalError(res, MessageHandler.getErrorMessage('internal.streaming_service_unavailable'));
+         }
+      }
+   };
+
+   const proxyPostToStreamingService = async (req: Request, res: Response): Promise<void> => {
+      try {
+         const authHeader = req.headers.authorization;
+         const userId = req.query['user'] as string;
+         if (!authHeader && !userId) {
+            ResponseHandler.unauthorized(res, MessageHandler.getErrorMessage('unauthorized.not_authenticated'));
+            return;
+         }
+
+         const chapterId = req.params['chapterId'] as string;
+         const chapter = await prisma.chapter.findUnique({ where: { id: chapterId } });
+         if (!chapter?.filePath) {
+            ResponseHandler.notFound(res, MessageHandler.getErrorMessage('not_found.chapter'));
+            return;
+         }
+
+         const externalUrl = `${config.STREAMING_SERVICE_URL}${req.path}`;
+         const headers: Record<string, string> = {
+            'Content-Type': 'application/json',
+            ...(authHeader ? { Authorization: authHeader } : { user_id: userId }),
+         };
+
+         const response = await axios.post(
+            externalUrl,
+            { ...req.body, inputPath: chapter.filePath },
+            { headers, timeout: 30000 }
+         );
+
+         Object.keys(response.headers).forEach(key => {
+            res.setHeader(key, response.headers[key] as string);
+         });
+         res.status(response.status).send(response.data);
+      } catch (error) {
+         if (axios.isAxiosError(error) && error.response) {
+            res.status(error.response.status).send(error.response.data);
+         } else {
+            ResponseHandler.internalError(res, MessageHandler.getErrorMessage('internal.default'));
+         }
+      }
+   };
+
    /**
     * Proxy handler for streaming requests
     * Forwards authenticated requests to external streaming service
     */
    const proxyToStreamingService = async (req: Request, res: Response): Promise<void> => {
       try {
-         const userId = req.query["user"] as string;
-         if (!userId) {
+         const authHeader = req.headers.authorization;
+         const userId = req.query['user'] as string;
+         if (!authHeader && !userId) {
             ResponseHandler.unauthorized(res, MessageHandler.getErrorMessage('unauthorized.not_authenticated'));
             return;
          }
 
-         // Construct the external service URL
          const externalUrl = `${config.STREAMING_SERVICE_URL}${req.path}`;
-
          const isBinaryResponse = req.path.includes('/segments/');
-         // Make request to external streaming service
-         const response: AxiosResponse = await axios.get(externalUrl, {
-            headers: {
-               'user_id': userId,
-               'Content-Type': 'application/json'
-            },
-            responseType: isBinaryResponse ? 'arraybuffer' : 'text',
-            timeout: 30000 // 30 second timeout
-         });
+         const headers: Record<string, string> = {
+            'Content-Type': 'application/json',
+            ...(authHeader ? { Authorization: authHeader } : { user_id: userId }),
+         };
+
+         const axiosConfig = {
+            headers,
+            responseType: (isBinaryResponse ? 'arraybuffer' : 'text') as 'arraybuffer' | 'text',
+            timeout: 30000,
+         };
+
+         const response: AxiosResponse = req.method === 'POST'
+            ? await axios.post(externalUrl, req.body, axiosConfig)
+            : await axios.get(externalUrl, axiosConfig);
 
          // Forward response headers
          Object.keys(response.headers).forEach(key => {
@@ -87,13 +165,13 @@ export function createStreamingRoutes(_prisma: PrismaClient): Router {
                res.status(error.response.status).send(error.response.data);
             } else if (error.request) {
                // Network error
-               ResponseHandler.internalError(res, MessageHandler.getErrorMessage('error.internal.streaming_service_unavailable'));
+               ResponseHandler.internalError(res, MessageHandler.getErrorMessage('internal.streaming_service_unavailable'));
             } else {
                // Other error
-               ResponseHandler.internalError(res, MessageHandler.getErrorMessage('error.internal.default'));
+               ResponseHandler.internalError(res, MessageHandler.getErrorMessage('internal.default'));
             }
          } else {
-            ResponseHandler.internalError(res, MessageHandler.getErrorMessage('error.internal_server_error'));
+            ResponseHandler.internalError(res, MessageHandler.getErrorMessage('internal.default'));
          }
       }
    };
@@ -103,10 +181,12 @@ export function createStreamingRoutes(_prisma: PrismaClient): Router {
     * /api/v1/stream/chapters/{chapterId}/master.m3u8:
     *   get:
     *     summary: Get master playlist for chapter
-    *     description: Retrieve the master HLS playlist for a specific chapter
+    *     description: |
+    *       Proxied to streaming-service. Retrieve the master HLS playlist for a specific chapter.
+    *       Authentication: provide **either** Bearer token **or** `user` query param (one is required).
     *     tags: [Streaming]
     *     security:
-    *       - sessionAuth: []
+    *       - bearerAuth: []
     *     parameters:
     *       - name: chapterId
     *         in: path
@@ -114,7 +194,18 @@ export function createStreamingRoutes(_prisma: PrismaClient): Router {
     *         description: Chapter ID
     *         schema:
     *           type: string
-    *           example: "chapter_123"
+    *           example: "cchapter1234567890abcdef"
+    *       - $ref: '#/components/parameters/StreamingUserQueryParam'
+    *       - name: bandwidth
+    *         in: query
+    *         required: false
+    *         description: Optional client bandwidth in bps for bitrate selection
+    *         schema: { type: integer, example: 500000 }
+    *       - name: bitrate
+    *         in: query
+    *         required: false
+    *         description: Optional preferred bitrate in kbps
+    *         schema: { type: integer, example: 128 }
     *     responses:
     *       200:
     *         description: Master playlist retrieved successfully
@@ -142,10 +233,12 @@ export function createStreamingRoutes(_prisma: PrismaClient): Router {
     * /api/v1/stream/chapters/{chapterId}/{bitrate}/playlist.m3u8:
     *   get:
     *     summary: Get bitrate-specific playlist for chapter
-    *     description: Retrieve the HLS playlist for a specific chapter and bitrate
+    *     description: |
+    *       Retrieve the HLS playlist for a specific chapter and bitrate.
+    *       Authentication: provide **either** Bearer token **or** `user` query param (one is required).
     *     tags: [Streaming]
     *     security:
-    *       - sessionAuth: []
+    *       - bearerAuth: []
     *     parameters:
     *       - name: chapterId
     *         in: path
@@ -153,7 +246,7 @@ export function createStreamingRoutes(_prisma: PrismaClient): Router {
     *         description: Chapter ID
     *         schema:
     *           type: string
-    *           example: "chapter_123"
+    *           example: "cchapter1234567890abcdef"
     *       - name: bitrate
     *         in: path
     *         required: true
@@ -161,6 +254,7 @@ export function createStreamingRoutes(_prisma: PrismaClient): Router {
     *         schema:
     *           type: string
     *           example: "128"
+    *       - $ref: '#/components/parameters/StreamingUserQueryParam'
     *     responses:
     *       200:
     *         description: Playlist retrieved successfully
@@ -188,10 +282,12 @@ export function createStreamingRoutes(_prisma: PrismaClient): Router {
     * /api/v1/stream/chapters/{chapterId}/{bitrate}/segments/{segmentId}:
     *   get:
     *     summary: Get audio segment
-    *     description: Retrieve a specific audio segment for streaming
+    *     description: |
+    *       Retrieve a specific audio segment for streaming.
+    *       Authentication: provide **either** Bearer token **or** `user` query param (one is required).
     *     tags: [Streaming]
     *     security:
-    *       - sessionAuth: []
+    *       - bearerAuth: []
     *     parameters:
     *       - name: chapterId
     *         in: path
@@ -199,7 +295,7 @@ export function createStreamingRoutes(_prisma: PrismaClient): Router {
     *         description: Chapter ID
     *         schema:
     *           type: string
-    *           example: "chapter_123"
+    *           example: "cchapter1234567890abcdef"
     *       - name: bitrate
     *         in: path
     *         required: true
@@ -210,15 +306,20 @@ export function createStreamingRoutes(_prisma: PrismaClient): Router {
     *       - name: segmentId
     *         in: path
     *         required: true
-    *         description: Segment ID
+    *         description: Segment filename (e.g. segment_001.m4s)
     *         schema:
     *           type: string
-    *           example: "segment_001"
+    *           example: "segment_001.m4s"
+    *       - $ref: '#/components/parameters/StreamingUserQueryParam'
     *     responses:
     *       200:
     *         description: Audio segment retrieved successfully
     *         content:
-    *           audio/mpeg:
+    *           video/mp4:
+    *             schema:
+    *               type: string
+    *               format: binary
+    *           video/mp2t:
     *             schema:
     *               type: string
     *               format: binary
@@ -242,10 +343,12 @@ export function createStreamingRoutes(_prisma: PrismaClient): Router {
     * /api/v1/stream/chapters/{chapterId}/status:
     *   get:
     *     summary: Get chapter processing status
-    *     description: Check the transcoding/processing status of a chapter
+    *     description: |
+    *       Check the transcoding/processing status of a chapter.
+    *       Authentication: provide **either** Bearer token **or** `user` query param (one is required).
     *     tags: [Streaming]
     *     security:
-    *       - sessionAuth: []
+    *       - bearerAuth: []
     *     parameters:
     *       - name: chapterId
     *         in: path
@@ -253,7 +356,8 @@ export function createStreamingRoutes(_prisma: PrismaClient): Router {
     *         description: Chapter ID
     *         schema:
     *           type: string
-    *           example: "chapter_123"
+    *           example: "cchapter1234567890abcdef"
+    *       - $ref: '#/components/parameters/StreamingUserQueryParam'
     *     responses:
     *       200:
     *         description: Status retrieved successfully
@@ -285,13 +389,135 @@ export function createStreamingRoutes(_prisma: PrismaClient): Router {
 
    /**
     * @swagger
-    * /api/v1/stream/chapters/{chapterId}/preload:
+    * /api/v1/stream/chapters/{chapterId}/transcoding:
     *   get:
-    *     summary: Preload chapter for streaming
-    *     description: Trigger preloading/warming cache for a chapter
+    *     summary: Detailed per-bitrate transcoding status (proxied)
     *     tags: [Streaming]
     *     security:
-    *       - sessionAuth: []
+    *       - bearerAuth: []
+    *     parameters:
+    *       - name: chapterId
+    *         in: path
+    *         required: true
+    *         schema: { type: string }
+    *       - $ref: '#/components/parameters/StreamingUserQueryParam'
+    *     responses:
+    *       200:
+    *         description: Detailed transcoding status with per-bitrate progress
+    *       401:
+    *         $ref: '#/components/responses/UnauthorizedError'
+    */
+   router.get(
+      '/chapters/:chapterId/transcoding',
+      validateStreamingParams,
+      proxyToStreamingService
+   );
+
+   /**
+    * @swagger
+    * /api/v1/stream/chapters/{chapterId}/transcoding/events:
+    *   get:
+    *     summary: SSE live transcoding events for one chapter (proxied)
+    *     tags: [Streaming]
+    *     security:
+    *       - bearerAuth: []
+    *     parameters:
+    *       - name: chapterId
+    *         in: path
+    *         required: true
+    *         schema: { type: string }
+    *       - $ref: '#/components/parameters/StreamingUserQueryParam'
+    *     responses:
+    *       200:
+    *         description: text/event-stream with snapshot and transcoding events
+    *         content:
+    *           text/event-stream:
+    *             schema: { type: string }
+    *       401:
+    *         $ref: '#/components/responses/UnauthorizedError'
+    */
+   router.get(
+      '/chapters/:chapterId/transcoding/events',
+      validateStreamingParams,
+      proxyStreamToStreamingService
+   );
+
+   /**
+    * @swagger
+    * /api/v1/stream/transcoding/events:
+    *   get:
+    *     summary: Multiplexed SSE for chapter list (proxied)
+    *     tags: [Streaming]
+    *     security:
+    *       - bearerAuth: []
+    *     parameters:
+    *       - name: chapterIds
+    *         in: query
+    *         required: true
+    *         schema: { type: string, example: 'ch1,ch2' }
+    *       - $ref: '#/components/parameters/StreamingUserQueryParam'
+    *     responses:
+    *       200:
+    *         description: text/event-stream
+    *         content:
+    *           text/event-stream:
+    *             schema: { type: string }
+    *       401:
+    *         $ref: '#/components/responses/UnauthorizedError'
+    */
+   router.get(
+      '/transcoding/events',
+      proxyStreamToStreamingService
+   );
+
+   /**
+    * @swagger
+    * /api/v1/stream/chapters/{chapterId}/transcode/retry:
+    *   post:
+    *     summary: Retry failed bitrates (proxied; inputPath resolved server-side)
+    *     tags: [Streaming]
+    *     security:
+    *       - bearerAuth: []
+    *     parameters:
+    *       - name: chapterId
+    *         in: path
+    *         required: true
+    *         schema: { type: string }
+    *       - $ref: '#/components/parameters/StreamingUserQueryParam'
+    *     requestBody:
+    *       content:
+    *         application/json:
+    *           schema:
+    *             type: object
+    *             properties:
+    *               bitrates:
+    *                 type: array
+    *                 items: { type: integer }
+    *     responses:
+    *       200:
+    *         description: Retry initiated
+    *       401:
+    *         $ref: '#/components/responses/UnauthorizedError'
+    *       404:
+    *         $ref: '#/components/responses/NotFoundError'
+    */
+   router.post(
+      '/chapters/:chapterId/transcode/retry',
+      validateStreamingParams,
+      proxyPostToStreamingService
+   );
+
+   /**
+    * @swagger
+    * /api/v1/stream/chapters/{chapterId}/preload:
+    *   post:
+    *     summary: Preload chapter for streaming
+    *     description: |
+    *       Proxied to streaming-service. Triggers cache warming for chapter segments.
+    *       Authentication: provide **either** Bearer token **or** `user` query param (one is required).
+    *     tags: [Streaming]
+    *     security:
+    *       - bearerAuth: []
     *     parameters:
     *       - name: chapterId
     *         in: path
@@ -299,28 +525,50 @@ export function createStreamingRoutes(_prisma: PrismaClient): Router {
     *         description: Chapter ID
     *         schema:
     *           type: string
-    *           example: "chapter_123"
+    *           example: "cchapter1234567890abcdef"
+    *       - $ref: '#/components/parameters/StreamingUserQueryParam'
+    *     requestBody:
+    *       required: false
+    *       content:
+    *         application/json:
+    *           schema:
+    *             type: object
+    *             properties:
+    *               bitrate: { type: integer, example: 128, description: "Optional bitrate in kbps (defaults to highest available)" }
+    *           examples:
+    *             defaultBitrate:
+    *               summary: Preload with default (highest) bitrate
+    *               value: {}
+    *             specificBitrate:
+    *               summary: Preload specific bitrate
+    *               value:
+    *                 bitrate: 128
     *     responses:
     *       200:
     *         description: Preload initiated successfully
     *         content:
     *           application/json:
     *             schema:
-    *               type: object
-    *               properties:
-    *                 message:
-    *                   type: string
-    *                   example: "Preload initiated"
+    *               allOf:
+    *                 - $ref: '#/components/schemas/ApiResponse'
+    *                 - type: object
+    *                   properties:
+    *                     data:
+    *                       type: object
+    *                       properties:
+    *                         chapterId: { type: string }
+    *                         bitrate: { type: integer }
+    *                         status: { type: string, example: "preloaded" }
     *       400:
     *         $ref: '#/components/responses/ValidationError'
     *       401:
     *         $ref: '#/components/responses/UnauthorizedError'
     *       404:
-    *         $ref: '#/components/responses/NotFoundError'
+    *         $ref: '#/components/responses/NotFound'
     *       500:
     *         $ref: '#/components/responses/InternalServerError'
     */
-   router.get(
+   router.post(
       '/chapters/:chapterId/preload',
       validateStreamingParams,
       proxyToStreamingService

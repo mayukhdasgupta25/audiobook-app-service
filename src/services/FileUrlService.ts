@@ -8,10 +8,30 @@ import path from 'path';
 import { config } from '../config/env';
 import { getFileUrl } from '../middleware/UploadMiddleware';
 import { StorageFactory } from './storage/StorageFactory';
+import { ImageCategory } from '@prisma/client';
 import { AudioBookDto } from '../models/AudioBookDto';
+import { UserProfileDto } from '../models/UserDto';
 import { ChapterWithRelations } from '../models/ChapterDto';
+import { prisma } from '../lib/prisma';
+import { ImageAssetService } from './ImageAssetService';
+
+export type ImageKeyDirectory =
+   | 'uploads/images/audiobooks'
+   | 'uploads/images/chapters'
+   | 'uploads/images/authors'
+   | 'uploads/images/users'
+   | 'uploads/images/organizations';
 
 export class FileUrlService {
+   private _imageAssetService: ImageAssetService | undefined;
+
+   private get imageAssetService(): ImageAssetService {
+      if (!this._imageAssetService) {
+         this._imageAssetService = new ImageAssetService(prisma);
+      }
+      return this._imageAssetService;
+   }
+
    shouldSignUrls(): boolean {
       return config.NODE_ENV !== 'development';
    }
@@ -131,12 +151,13 @@ export class FileUrlService {
    }
 
    /**
-    * Process a multer-saved cover image: dev → /uploads/ URL; non-dev → S3 key.
+    * Process a multer-saved image: dev → /uploads/ URL; non-dev → S3 key.
     */
-   async processUploadedCoverFile(
+   async processUploadedImageFile(
       localPath: string,
-      keyDirectory: 'uploads/images/audiobooks' | 'uploads/images/chapters',
-      contentType = 'image/jpeg'
+      keyDirectory: ImageKeyDirectory,
+      contentType = 'image/jpeg',
+      filenamePrefix = 'image'
    ): Promise<string> {
       if (!this.shouldSignUrls()) {
          return getFileUrl(localPath);
@@ -144,52 +165,68 @@ export class FileUrlService {
 
       const ext = path.extname(localPath) || '.jpg';
       const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
-      const s3Key = `${keyDirectory}/cover-${uniqueSuffix}${ext}`;
+      const s3Key = `${keyDirectory}/${filenamePrefix}-${uniqueSuffix}${ext}`;
 
       return this.uploadLocalFileToStorage(localPath, s3Key, contentType);
    }
 
-   async resolveAudioBookMedia<T extends AudioBookDto>(dto: T): Promise<T> {
+   /**
+    * Process a multer-saved cover image: dev → /uploads/ URL; non-dev → S3 key.
+    */
+   async processUploadedCoverFile(
+      localPath: string,
+      keyDirectory: 'uploads/images/audiobooks' | 'uploads/images/chapters',
+      contentType = 'image/jpeg'
+   ): Promise<string> {
+      return this.processUploadedImageFile(localPath, keyDirectory, contentType, 'cover');
+   }
+
+   async resolveAudioBookMedia<T extends AudioBookDto>(dto: T): Promise<T & { imageAssets: Record<string, string> }> {
       const coverImage = await this.resolveForClient(dto.coverImage);
+      const imageAssets = await this.resolveImageAssets('audiobook', dto.id);
       return {
          ...dto,
          coverImage,
+         imageAssets,
       };
    }
 
-   async resolveAudioBookMediaList<T extends AudioBookDto>(dtos: T[]): Promise<T[]> {
+   async resolveAudioBookMediaList<T extends AudioBookDto>(dtos: T[]): Promise<(T & { imageAssets: Record<string, string> })[]> {
       return Promise.all(dtos.map(dto => this.resolveAudioBookMedia(dto)));
    }
 
-   async resolveChapterMedia(chapter: ChapterWithRelations): Promise<ChapterWithRelations> {
-      const [
-         filePath,
-         coverImage,
-         chapterCardCoverImage,
-         maximizedChapterCoverImage,
-         minimizedChapterCoverImage,
-      ] = await this.resolveManyForClient([
+   async resolveChapterMedia(chapter: ChapterWithRelations): Promise<ChapterWithRelations & { imageAssets: Record<string, string> }> {
+      const [filePath, coverImage] = await this.resolveManyForClient([
          chapter.filePath,
          chapter.coverImage,
-         chapter.chapterCardCoverImage,
-         chapter.maximizedChapterCoverImage,
-         chapter.minimizedChapterCoverImage,
       ]);
+
+      const imageAssets = await this.resolveImageAssets('chapter', chapter.id);
 
       return {
          ...chapter,
          filePath: filePath ?? chapter.filePath,
          coverImage: coverImage ?? chapter.coverImage,
-         ...(chapterCardCoverImage !== undefined && { chapterCardCoverImage }),
-         ...(maximizedChapterCoverImage !== undefined && { maximizedChapterCoverImage }),
-         ...(minimizedChapterCoverImage !== undefined && { minimizedChapterCoverImage }),
+         imageAssets,
       };
    }
 
-   async resolveChapterMediaList(chapters: ChapterWithRelations[]): Promise<ChapterWithRelations[]> {
+   async resolveChapterMediaList(chapters: ChapterWithRelations[]): Promise<(ChapterWithRelations & { imageAssets: Record<string, string> })[]> {
       return Promise.all(chapters.map(chapter => this.resolveChapterMedia(chapter)));
    }
 
+   async resolveNestedAudiobookMedia(
+      audiobook: { id: string; coverImage?: string | null }
+   ): Promise<{ coverImage?: string | null; imageAssets: Record<string, string> }> {
+      const coverImage = await this.resolveForClient(audiobook.coverImage);
+      const imageAssets = await this.resolveImageAssets('audiobook', audiobook.id);
+      return {
+         ...(coverImage !== undefined ? { coverImage } : {}),
+         imageAssets,
+      };
+   }
+
+   /** @deprecated Use resolveNestedAudiobookMedia */
    async resolveNestedAudiobookCoverImage(
       audiobook: { coverImage?: string | null }
    ): Promise<{ coverImage?: string | null }> {
@@ -198,6 +235,86 @@ export class FileUrlService {
          return {};
       }
       return { coverImage };
+   }
+
+   async resolveUserMedia<T extends Pick<UserProfileDto, 'avatar' | 'id'>>(
+      dto: T,
+   ): Promise<T & { imageAssets: Record<string, string> }> {
+      const avatar = await this.resolveForClient(dto.avatar);
+      const imageAssets = await this.resolveImageAssets('user', dto.id);
+      return {
+         ...dto,
+         avatar,
+         imageAssets,
+      };
+   }
+
+   async resolveCommentUserMedia(profile: {
+      id: string;
+      username: string;
+      avatar: string | null;
+   }): Promise<{ username: string; avatar: string | null; imageAssets: Record<string, string> }> {
+      const avatar = (await this.resolveForClient(profile.avatar)) ?? profile.avatar;
+      const imageAssets = await this.resolveImageAssets('user', profile.id);
+      return {
+         username: profile.username,
+         avatar,
+         imageAssets,
+      };
+   }
+
+   private async resolveImageAssets(
+      category: ImageCategory,
+      entityId: string,
+   ): Promise<Record<string, string>> {
+      return this.imageAssetService.resolveAssetsForClient(category, entityId);
+   }
+
+   async resolveImageAssetsForEntity(
+      category: ImageCategory,
+      entityId: string,
+   ): Promise<Record<string, string>> {
+      return this.resolveImageAssets(category, entityId);
+   }
+
+   private resolveDevAuthorProfileImage(stored: string): string {
+      const key = this.normalizeToS3Key(stored);
+      if (!key) {
+         return stored;
+      }
+
+      const relativeFromUploads = key.startsWith('uploads/') ? key.slice('uploads/'.length) : key;
+      const localFilePath = path.join(path.resolve(config.DEV_UPLOAD_DIR), relativeFromUploads);
+
+      if (fs.existsSync(localFilePath)) {
+         if (stored.startsWith('/uploads/')) {
+            return stored;
+         }
+         return `/${key}`;
+      }
+
+      const urlPath = `/${key}`;
+      return `${config.AUTH_SERVICE_URL.replace(/\/$/, '')}${urlPath}`;
+   }
+
+   async resolveAuthorProfileMedia<T extends { avatar?: string | null; authorId: string }>(
+      dto: T,
+   ): Promise<T & { imageAssets: Record<string, string> }> {
+      let avatar: string | undefined;
+
+      if (dto.avatar) {
+         avatar = this.shouldSignUrls()
+            ? await this.resolveForClient(dto.avatar)
+            : this.resolveDevAuthorProfileImage(dto.avatar);
+      }
+
+      const imageAssets = await this.resolveImageAssets('author', dto.authorId);
+
+      return {
+         ...dto,
+         avatar: avatar ?? dto.avatar ?? null,
+         imageAssets,
+      };
    }
 }
 

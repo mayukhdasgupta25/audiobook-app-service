@@ -8,9 +8,9 @@ export interface CommentMeta {
 }
 
 export interface CommentUserDto {
-   firstName?: string | null;
-   lastName?: string | null;
+   username?: string | null;
    avatar?: string | null;
+   imageAssets?: Record<string, string>;
 }
 
 export interface CommentDto {
@@ -51,18 +51,18 @@ export interface CommentQueryParams {
 }
 
 type CommentUserProfileSelect = {
-   firstName: string | null;
-   lastName: string | null;
+   id: string;
+   username: string;
    avatar: string | null;
 };
 
-type CommentWithUserProfile = PrismaComment & {
+export type CommentWithUserProfile = PrismaComment & {
    userProfile?: CommentUserProfileSelect;
 };
 
 export const commentUserProfileSelect = {
-   firstName: true,
-   lastName: true,
+   id: true,
+   username: true,
    avatar: true,
 } as const;
 
@@ -87,8 +87,7 @@ export function parseCommentMeta(value: Prisma.JsonValue | null): CommentMeta | 
 
 export function toCommentUserDto(profile: CommentUserProfileSelect): CommentUserDto {
    return {
-      firstName: profile.firstName,
-      lastName: profile.lastName,
+      username: profile.username,
       avatar: profile.avatar,
    };
 }

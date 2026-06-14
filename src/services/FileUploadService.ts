@@ -37,6 +37,23 @@ export class FileUploadService {
    }
 
    /**
+    * DB/API paths use /uploads/...; on disk under streaming-service storage they live without the uploads/ prefix.
+    */
+   private toLocalStorageKey(filePath: string): string {
+      return filePath.replace(/^\/+/, '').replace(/^uploads\//, '');
+   }
+
+   private toDbFilePath(relativePath: string, filename: string): string {
+      const dir = relativePath.replace(/^\/+/, '').replace(/\/+$/, '');
+      const withUploads = dir.startsWith('uploads/') ? dir : `uploads/${dir}`;
+      return `/${withUploads}/${filename}`.replace(/\\/g, '/');
+   }
+
+   private resolveLocalFullPath(filePath: string): string {
+      return path.join(config.STREAMING_SERVICE_STORAGE_PATH, this.toLocalStorageKey(filePath));
+   }
+
+   /**
     * Save file to local storage (development environment)
     */
    private async saveToLocalStorage(
@@ -49,8 +66,8 @@ export class FileUploadService {
          const ext = path.extname(uploadedFile.originalname);
          const filename = `audio-${uniqueSuffix}${ext}`;
 
-         // Construct full path
-         const fullPath = path.join(config.STREAMING_SERVICE_STORAGE_PATH, relativePath, filename);
+         const storageSubdir = this.toLocalStorageKey(relativePath);
+         const fullPath = path.join(config.STREAMING_SERVICE_STORAGE_PATH, storageSubdir, filename);
 
          // Ensure directory exists
          const dir = path.dirname(fullPath);
@@ -74,7 +91,7 @@ export class FileUploadService {
          console.log(`File saved to local storage: ${fullPath}`);
 
          return {
-            filePath: path.join(relativePath, filename).replace(/\\/g, '/'), // Use forward slashes for consistency
+            filePath: this.toDbFilePath(relativePath, filename),
             fileSize: uploadedFile.size,
             originalName: uploadedFile.originalname
          };
@@ -159,7 +176,7 @@ export class FileUploadService {
     */
    private deleteFromLocalStorage(filePath: string): boolean {
       try {
-         const fullPath = path.join(config.STREAMING_SERVICE_STORAGE_PATH, filePath);
+         const fullPath = this.resolveLocalFullPath(filePath);
 
          if (fs.existsSync(fullPath)) {
             fs.unlinkSync(fullPath);
@@ -180,7 +197,7 @@ export class FileUploadService {
    async fileExists(filePath: string): Promise<boolean> {
       try {
          if (config.NODE_ENV === 'development') {
-            const fullPath = path.join(config.STREAMING_SERVICE_STORAGE_PATH, filePath);
+            const fullPath = this.resolveLocalFullPath(filePath);
             return fs.existsSync(fullPath);
          } else {
             return await this.storageProvider.fileExists(filePath);
@@ -201,7 +218,7 @@ export class FileUploadService {
    } | null> {
       try {
          if (config.NODE_ENV === 'development') {
-            const fullPath = path.join(config.STREAMING_SERVICE_STORAGE_PATH, filePath);
+            const fullPath = this.resolveLocalFullPath(filePath);
 
             if (!fs.existsSync(fullPath)) {
                return null;
