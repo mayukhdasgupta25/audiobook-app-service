@@ -6,6 +6,7 @@ import { RabbitMQFactory } from '../config/rabbitmq';
 import { ApiError } from '../types/ApiError';
 import { MessageHandler } from '../utils/MessageHandler';
 import { mediaCleanupService } from './MediaCleanupService';
+import { emitCacheInvalidation } from './DomainEventPublisher';
 import { ImageAssetService } from './ImageAssetService';
 
 export class AudiobookMediaCleanupService {
@@ -51,5 +52,10 @@ export class AudiobookMediaCleanupService {
       await this.prisma.audioBook.delete({
          where: { id: audiobookId },
       });
+
+      for (const chapter of audiobook.chapters) {
+         emitCacheInvalidation('chapter', 'deleted', chapter.id, { audiobookId });
+      }
+      emitCacheInvalidation('audiobook', 'deleted', audiobookId);
    }
 }

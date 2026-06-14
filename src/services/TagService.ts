@@ -7,6 +7,7 @@ import { TagDto, CreateTagDto, UpdateTagDto, toTagDto } from '../models/TagDto';
 import { ApiError } from '../types/ApiError';
 import { MessageHandler } from '../utils/MessageHandler';
 import { HttpStatusCode, ErrorType } from '../types/common';
+import { emitCacheInvalidation } from './DomainEventPublisher';
 
 export class TagService {
    private prisma: PrismaClient;
@@ -107,13 +108,13 @@ export class TagService {
             }
          });
 
+         emitCacheInvalidation('tag', 'created', tag.id);
          return toTagDto(tag);
       } catch (error) {
          if (error instanceof ApiError) {
             throw error;
          }
 
-         // Handle Prisma unique constraint violation
          if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
             throw new ApiError(
                MessageHandler.getErrorMessage('tags.already_exists'),
@@ -186,13 +187,13 @@ export class TagService {
             }
          });
 
+         emitCacheInvalidation('tag', 'updated', id);
          return toTagDto(tag);
       } catch (error) {
          if (error instanceof ApiError) {
             throw error;
          }
 
-         // Handle Prisma unique constraint violation
          if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
             throw new ApiError(
                MessageHandler.getErrorMessage('tags.already_exists'),
@@ -232,6 +233,7 @@ export class TagService {
          await this.prisma.tag.delete({
             where: { id }
          });
+         emitCacheInvalidation('tag', 'deleted', id);
       } catch (error) {
          if (error instanceof ApiError) {
             throw error;

@@ -7,6 +7,7 @@ import { GenreDto, toGenreDto } from '../models/GenreDto';
 import { ApiError } from '../types/ApiError';
 import { MessageHandler } from '../utils/MessageHandler';
 import { HttpStatusCode, ErrorType } from '../types/common';
+import { emitCacheInvalidation } from './DomainEventPublisher';
 
 export class GenreService {
    private prisma: PrismaClient;
@@ -36,6 +37,7 @@ export class GenreService {
          const created = await this.prisma.genre.create({
             data: { name: trimmed }
          });
+         emitCacheInvalidation('genre', 'created', created.id);
          return toGenreDto(created);
       } catch (error) {
          if (error instanceof ApiError) {
@@ -167,6 +169,7 @@ export class GenreService {
             data: { name: trimmed }
          });
 
+         emitCacheInvalidation('genre', 'updated', id);
          return toGenreDto(updated);
       } catch (error) {
          if (error instanceof ApiError) {
@@ -196,6 +199,7 @@ export class GenreService {
          }
 
          await this.prisma.genre.delete({ where: { id } });
+         emitCacheInvalidation('genre', 'deleted', id);
          return true;
       } catch (error) {
          if (error instanceof ApiError) {

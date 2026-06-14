@@ -23,6 +23,7 @@ import { HttpStatusCode, ErrorType } from '../types/common';
 import { AudiobookMediaCleanupService } from './AudiobookMediaCleanupService';
 import { AudioBookOwnerService } from './AudioBookOwnerService';
 import { ImageAssetService } from './ImageAssetService';
+import { emitCacheInvalidation } from './DomainEventPublisher';
 
 export class AudioBookService {
   private prisma: PrismaClient;
@@ -422,6 +423,7 @@ export class AudioBookService {
         await userAudioBookService.createOwnedUserAudioBook(ownerUserProfileId, audiobook.id);
       }
 
+      emitCacheInvalidation('audiobook', 'created', audiobook.id);
       return this.hydrateOwner(
         await fileUrlService.resolveAudioBookMedia(toAudioBookDto(audiobookWithRelations)),
         accessToken,
@@ -578,6 +580,7 @@ export class AudioBookService {
         throw ApiError.internalError(MessageHandler.getErrorMessage('internal.update_audiobook'));
       }
 
+      emitCacheInvalidation('audiobook', 'updated', id);
       return this.hydrateOwner(
         await fileUrlService.resolveAudioBookMedia(toAudioBookDto(audiobookWithRelations)),
         accessToken,

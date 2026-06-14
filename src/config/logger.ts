@@ -32,6 +32,7 @@ const apiAccessLogFd = fs.openSync(path.join(logDir, 'api-access.log'), 'a');
 const rabbitmqLogFd = fs.openSync(path.join(logDir, 'rabbitmq.log'), 'a');
 const redisLogFd = fs.openSync(path.join(logDir, 'redis.log'), 'a');
 const bullLogFd = fs.openSync(path.join(logDir, 'bull.log'), 'a');
+const sseLogFd = fs.openSync(path.join(logDir, 'sse.log'), 'a');
 
 // Create file destinations using file descriptors
 // Using fd option ensures the file descriptor is available before writing
@@ -63,6 +64,11 @@ const redisLogFile = pino.destination({
 });
 const bullLogFile = pino.destination({
    fd: bullLogFd,
+   minLength: 0,
+   sync: false,
+});
+const sseLogFile = pino.destination({
+   fd: sseLogFd,
    minLength: 0,
    sync: false,
 });
@@ -116,6 +122,15 @@ export const bullLogger = pino(
       base: { component: 'bull' },
    },
    bullLogFile
+);
+
+// SSE cache-invalidation logger (writes to sse.log)
+export const sseLogger = pino(
+   {
+      ...baseLoggerConfig,
+      base: { component: 'sse' },
+   },
+   sseLogFile
 );
 
 // Export default logger for convenience

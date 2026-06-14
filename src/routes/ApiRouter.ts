@@ -24,6 +24,7 @@ import { createReviewRoutes } from './reviewRoutes';
 import { createFavoriteRoutes } from './favoriteRoutes';
 import { createPlaylistRoutes } from './playlistRoutes';
 import { createListeningHistoryRoutes } from './listeningHistoryRoutes';
+import { createDomainEventsRoutes } from './domainEventsRoutes';
 
 export class ApiRouter {
   private static instance: ApiRouter;
@@ -71,8 +72,10 @@ export class ApiRouter {
   private setupV1Routes(): void {
     const v1Router = Router();
 
-    // Apply JWT authentication middleware to all v1 routes
-    // This ensures all API endpoints require valid JWT tokens
+    // SSE stream supports Bearer header or ?access_token= (EventSource)
+    v1Router.use('/events', createDomainEventsRoutes());
+
+    // Apply JWT authentication middleware to all other v1 routes
     v1Router.use(authenticateJWT);
 
     // Mount all route modules (protected routes)

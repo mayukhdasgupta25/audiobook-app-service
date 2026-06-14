@@ -20,6 +20,7 @@ import {
 import { ApiError } from '../types/ApiError';
 import { MessageHandler } from '../utils/MessageHandler';
 import { HttpStatusCode, ErrorType } from '../types/common';
+import { emitCacheInvalidation } from './DomainEventPublisher';
 
 const BOOKMARK_SORT_FIELDS: BookmarkQueryParams['sortBy'][] = ['createdAt', 'updatedAt'];
 
@@ -66,6 +67,9 @@ export class BookmarkService {
             include: bookmarkChapterInclude,
          });
 
+         emitCacheInvalidation('bookmark', 'created', bookmark.id, {
+            audiobookId: chapter.audiobookId,
+         });
          return toBookmarkDto(bookmark);
       } catch (error) {
          if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
@@ -182,6 +186,7 @@ export class BookmarkService {
                id: bookmarkId,
                userProfileId,
             },
+            include: { chapter: { select: { audiobookId: true } } },
          });
 
          if (!bookmark) {
@@ -194,6 +199,9 @@ export class BookmarkService {
 
          await this.prisma.bookmark.delete({
             where: { id: bookmarkId },
+         });
+         emitCacheInvalidation('bookmark', 'deleted', bookmarkId, {
+            audiobookId: bookmark.chapter.audiobookId,
          });
       } catch (error) {
          if (error instanceof ApiError) {
@@ -241,6 +249,9 @@ export class BookmarkService {
             },
          });
 
+         emitCacheInvalidation('note', 'created', note.id, {
+            ...(note.audiobookId ? { audiobookId: note.audiobookId } : {}),
+         });
          return {
             id: note.id,
             userProfileId: note.userProfileId,
@@ -416,6 +427,9 @@ export class BookmarkService {
             data: updateData,
          });
 
+         emitCacheInvalidation('note', 'updated', noteId, {
+            ...(note.audiobookId ? { audiobookId: note.audiobookId } : {}),
+         });
          return {
             id: note.id,
             userProfileId: note.userProfileId,
@@ -454,6 +468,9 @@ export class BookmarkService {
 
          await this.prisma.note.delete({
             where: { id: noteId },
+         });
+         emitCacheInvalidation('note', 'deleted', noteId, {
+            ...(note.audiobookId ? { audiobookId: note.audiobookId } : {}),
          });
       } catch (error) {
          if (error instanceof ApiError) {

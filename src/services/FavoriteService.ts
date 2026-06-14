@@ -11,6 +11,7 @@ import {
 import { ApiError } from '../types/ApiError';
 import { MessageHandler } from '../utils/MessageHandler';
 import { HttpStatusCode, ErrorType } from '../types/common';
+import { emitCacheInvalidation } from './DomainEventPublisher';
 
 export class FavoriteService {
    constructor(private prisma: PrismaClient) {}
@@ -50,6 +51,7 @@ export class FavoriteService {
          },
       });
 
+      emitCacheInvalidation('favorite', 'created', favorite.id);
       return toFavoriteDto(favorite);
    }
 
@@ -111,5 +113,6 @@ export class FavoriteService {
       }
 
       await this.prisma.favorite.delete({ where: { id } });
+      emitCacheInvalidation('favorite', 'deleted', id);
    }
 }
