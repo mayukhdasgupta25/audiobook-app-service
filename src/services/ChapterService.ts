@@ -22,6 +22,7 @@ import { BackgroundJobService } from './BackgroundJobService';
 import { ImageAssetService } from './ImageAssetService';
 import { fileUrlService } from './FileUrlService';
 import { mediaCleanupService } from './MediaCleanupService';
+import { emitCacheInvalidation } from './DomainEventPublisher';
 
 export class ChapterService {
    private fileUploadService: FileUploadService;
@@ -252,6 +253,7 @@ export class ChapterService {
             }
          }
 
+         emitCacheInvalidation('chapter', 'created', chapter.id, { audiobookId: chapterData.audiobookId });
          return fileUrlService.resolveChapterMedia(this.mapChapterData(chapter));
       } catch (error) {
          if (error instanceof ApiError) {
@@ -409,6 +411,7 @@ export class ChapterService {
             }
          }
 
+         emitCacheInvalidation('chapter', 'updated', chapterId, { audiobookId: existingChapter.audiobookId });
          return fileUrlService.resolveChapterMedia(this.mapChapterData(chapter));
       } catch (error) {
          if (error instanceof ApiError) {
@@ -465,6 +468,8 @@ export class ChapterService {
                console.error(`Error scheduling duration calculation for audiobook ${audiobookId}:`, _error);
             }
          }
+
+         emitCacheInvalidation('chapter', 'deleted', chapterId, { audiobookId });
       } catch (error) {
          if (error instanceof ApiError) {
             throw error;

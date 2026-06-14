@@ -16,6 +16,7 @@ import {
 import { ApiError } from '../types/ApiError';
 import { MessageHandler } from '../utils/MessageHandler';
 import { HttpStatusCode, ErrorType } from '../types/common';
+import { emitCacheInvalidation } from './DomainEventPublisher';
 
 export class PlaylistService {
    constructor(private prisma: PrismaClient) {}
@@ -39,6 +40,7 @@ export class PlaylistService {
          },
       });
 
+      emitCacheInvalidation('playlist', 'created', playlist.id, { userId: userProfileId });
       return toPlaylistDto(playlist, []);
    }
 
@@ -139,12 +141,14 @@ export class PlaylistService {
          include: { items: { orderBy: { position: 'asc' } } },
       });
 
+      emitCacheInvalidation('playlist', 'updated', id, { userId: userProfileId });
       return toPlaylistDto(updated, updated.items);
    }
 
    async deletePlaylist(id: string, userProfileId: string): Promise<void> {
       await this.requirePlaylistOwner(id, userProfileId);
       await this.prisma.playlist.delete({ where: { id } });
+      emitCacheInvalidation('playlist', 'deleted', id, { userId: userProfileId });
    }
 
    async addPlaylistItem(
@@ -198,6 +202,7 @@ export class PlaylistService {
          },
       });
 
+      emitCacheInvalidation('playlist-item', 'created', item.id, { playlistId });
       return toPlaylistItemDto(item);
    }
 
@@ -239,6 +244,7 @@ export class PlaylistService {
          data: { position: data.position },
       });
 
+      emitCacheInvalidation('playlist-item', 'updated', itemId, { playlistId });
       return toPlaylistItemDto(updated);
    }
 
@@ -261,6 +267,7 @@ export class PlaylistService {
       }
 
       await this.prisma.playlistItem.delete({ where: { id: itemId } });
+      emitCacheInvalidation('playlist-item', 'deleted', itemId, { playlistId });
    }
 
    private async requirePlaylistOwner(playlistId: string, userProfileId: string) {

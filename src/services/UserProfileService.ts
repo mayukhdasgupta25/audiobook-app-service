@@ -8,6 +8,7 @@ import { UserProfileCreationResult } from '../types/user-events';
 import { fileUrlService } from './FileUrlService';
 import { ImageAssetService } from './ImageAssetService';
 import { mediaCleanupService } from './MediaCleanupService';
+import { emitCacheInvalidation } from './DomainEventPublisher';
 
 export class UserProfileService {
    private prisma: PrismaClient;
@@ -78,6 +79,7 @@ export class UserProfileService {
             }
          });
 
+         emitCacheInvalidation('user-profile', 'created', userProfile.id, { userId });
          return {
             success: true,
             userProfile: {
@@ -190,6 +192,7 @@ export class UserProfileService {
             await mediaCleanupService.deleteStoredFile(existing.avatar);
          }
 
+         emitCacheInvalidation('user-profile', 'updated', existing.id, { userId });
          return this.resolveProfileForClient(userProfile);
       } catch (error: any) {
          throw error;
@@ -214,6 +217,10 @@ export class UserProfileService {
          await this.prisma.userProfile.delete({
             where: { userId }
          });
+
+         if (existing) {
+            emitCacheInvalidation('user-profile', 'deleted', existing.id, { userId });
+         }
       } catch (error: any) {
          throw error;
       }

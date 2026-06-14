@@ -17,6 +17,7 @@ import { ApiError } from '../types/ApiError';
 import { MessageHandler } from '../utils/MessageHandler';
 import { HttpStatusCode, ErrorType } from '../types/common';
 import { fileUrlService } from './FileUrlService';
+import { emitCacheInvalidation } from './DomainEventPublisher';
 
 export class CommentService {
    constructor(private prisma: PrismaClient) {}
@@ -81,6 +82,7 @@ export class CommentService {
          include: commentUserInclude,
       });
 
+      emitCacheInvalidation('comment', 'created', comment.id, { audiobookId: data.audiobookId });
       return this.hydrateCommentRecord(comment);
    }
 
@@ -197,6 +199,7 @@ export class CommentService {
          include: commentUserInclude,
       });
 
+      emitCacheInvalidation('comment', 'updated', id, { audiobookId: existing.audiobookId });
       return this.hydrateCommentRecord(updated);
    }
 
@@ -214,6 +217,7 @@ export class CommentService {
       }
 
       await this.prisma.comment.delete({ where: { id } });
+      emitCacheInvalidation('comment', 'deleted', id, { audiobookId: existing.audiobookId });
    }
 
    private async hydrateCommentRecord(comment: CommentWithUserProfile): Promise<CommentDto> {

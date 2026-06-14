@@ -15,6 +15,7 @@ import { ApiError } from '../types/ApiError';
 import { MessageHandler } from '../utils/MessageHandler';
 import { HttpStatusCode, ErrorType } from '../types/common';
 import { fileUrlService } from './FileUrlService';
+import { emitCacheInvalidation } from './DomainEventPublisher';
 
 export class UserAudioBookService {
    private prisma: PrismaClient;
@@ -39,6 +40,7 @@ export class UserAudioBookService {
             }
          });
 
+         emitCacheInvalidation('user-audiobook', 'created', created.id);
          return toUserAudioBookDto(created);
       } catch (error) {
          if (error instanceof ApiError) {
@@ -81,6 +83,7 @@ export class UserAudioBookService {
             }
          });
 
+         emitCacheInvalidation('user-audiobook', 'created', created.id);
          return toUserAudioBookDto(created);
       } catch (error) {
          if (error instanceof ApiError) {
@@ -256,6 +259,7 @@ export class UserAudioBookService {
          }
 
          await this.prisma.userAudioBook.delete({ where: { id } });
+         emitCacheInvalidation('user-audiobook', 'deleted', id);
          return true;
       } catch (error) {
          if (error instanceof ApiError) {

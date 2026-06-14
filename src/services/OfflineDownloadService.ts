@@ -12,6 +12,7 @@ import {
    DownloadStats
 } from '../models/OfflineDownloadDto';
 import { BackgroundJobService } from './BackgroundJobService';
+import { emitCacheInvalidation } from './DomainEventPublisher';
 import { ApiError } from '../types/ApiError';
 import { fileUrlService } from './FileUrlService';
 
@@ -78,6 +79,7 @@ export class OfflineDownloadService {
             downloadRequest.quality
          );
 
+         emitCacheInvalidation('offline-download', 'created', download.id);
          return {
             id: download.id,
             userProfileId: download.userProfileId,
@@ -320,6 +322,7 @@ export class OfflineDownloadService {
          await this.prisma.offlineDownload.delete({
             where: { id: downloadId },
          });
+         emitCacheInvalidation('offline-download', 'deleted', downloadId);
       } catch (error) {
          if (error instanceof ApiError) {
             throw error;

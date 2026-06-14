@@ -829,6 +829,34 @@ const options: swaggerJsdoc.Options = {
                   timestamp: '2024-01-15T10:30:00Z'
                }
             },
+            CacheInvalidateEvent: {
+               type: 'object',
+               required: ['version', 'service', 'resource', 'action', 'id', 'queryKeys', 'timestamp'],
+               description:
+                  'TanStack Query cache-invalidation payload on SSE event `cache-invalidate`. Invalidate each key via queryClient.invalidateQueries({ queryKey }).',
+               properties: {
+                  version: { type: 'integer', example: 1 },
+                  service: { type: 'string', enum: ['app'], example: 'app' },
+                  resource: {
+                     type: 'string',
+                     example: 'audiobook',
+                     description: 'Stable entity name (audiobook, chapter, playlist, …)',
+                  },
+                  action: { type: 'string', enum: ['created', 'updated', 'deleted'] },
+                  id: { type: 'string' },
+                  queryKeys: {
+                     type: 'array',
+                     items: { type: 'array', items: { type: 'string' } },
+                     example: [['audiobooks'], ['audiobooks', 'cab1234567890abcdefghij']],
+                  },
+                  relatedIds: {
+                     type: 'object',
+                     additionalProperties: { type: 'string' },
+                     example: { audiobookId: 'cab1234567890abcdefghij' },
+                  },
+                  timestamp: { type: 'string', format: 'date-time' },
+               },
+            },
             Genre: {
                type: 'object',
                properties: {
@@ -1446,6 +1474,10 @@ const options: swaggerJsdoc.Options = {
          {
             name: 'Streaming',
             description: 'HLS streaming proxy to streaming-service'
+         },
+         {
+            name: 'Events',
+            description: 'SSE cache-invalidation stream for TanStack Query clients'
          },
          {
             name: 'Health',

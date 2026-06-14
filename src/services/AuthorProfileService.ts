@@ -7,6 +7,7 @@ import { HttpStatusCode, ErrorType } from '../types/common';
 import { fileUrlService } from './FileUrlService';
 import { ImageAssetService } from './ImageAssetService';
 import { mediaCleanupService } from './MediaCleanupService';
+import { emitCacheInvalidation } from './DomainEventPublisher';
 import fs from 'fs';
 
 export class AuthorProfileService {
@@ -51,6 +52,7 @@ export class AuthorProfileService {
                where: { authorId: message.authorId },
                data: { avatar: primaryStorageKey },
             });
+            emitCacheInvalidation('author-profile', 'created', updated.id, { authorId: message.authorId });
             return fileUrlService.resolveAuthorProfileMedia(toAuthorProfileDto(updated));
          } finally {
             if (tempPath && fs.existsSync(tempPath) && tempPath.includes('source-image-')) {
@@ -59,6 +61,7 @@ export class AuthorProfileService {
          }
       }
 
+      emitCacheInvalidation('author-profile', 'created', profile.id, { authorId: message.authorId });
       return fileUrlService.resolveAuthorProfileMedia(toAuthorProfileDto(profile));
    }
 
@@ -118,6 +121,7 @@ export class AuthorProfileService {
          });
       }
 
+      emitCacheInvalidation('author-profile', 'updated', updated.id, { authorId });
       return fileUrlService.resolveAuthorProfileMedia(toAuthorProfileDto(updated));
    }
 
@@ -137,5 +141,6 @@ export class AuthorProfileService {
       await this.imageAssetService.deleteAssetsForEntity('author', authorId);
       await mediaCleanupService.deleteStoredFile(existing.avatar);
       await this.prisma.authorProfile.delete({ where: { authorId } });
+      emitCacheInvalidation('author-profile', 'deleted', existing.id, { authorId });
    }
 }
