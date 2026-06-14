@@ -2,6 +2,7 @@
  * MoodService Tests
  */
 import { MoodService } from '../../services/MoodService';
+import { AudioBookService } from '../../services/AudioBookService';
 import { ApiError } from '../../types/ApiError';
 
 const mockPrisma = {
@@ -27,9 +28,13 @@ jest.mock('../../utils/MessageHandler', () => ({
 
 describe('MoodService', () => {
    let moodService: MoodService;
+   let mockAudioBookService: jest.Mocked<Pick<AudioBookService, 'getAudioBooksByMoodId'>>;
 
    beforeEach(() => {
-      moodService = new MoodService(mockPrisma);
+      mockAudioBookService = {
+         getAudioBooksByMoodId: jest.fn().mockResolvedValue([]),
+      };
+      moodService = new MoodService(mockPrisma, mockAudioBookService as unknown as AudioBookService);
       jest.clearAllMocks();
    });
 
@@ -144,6 +149,8 @@ describe('MoodService', () => {
          expect(result.id).toBe('m1');
          expect(result.purpose).toBe('Calm is designed for slowing down, breathing deeply, and finding peace.');
          expect(result.attributes).toHaveLength(1);
+         expect(result.audiobooks).toEqual([]);
+         expect(mockAudioBookService.getAudioBooksByMoodId).toHaveBeenCalledWith('m1', undefined);
          expect(mockPrisma.mood.findUnique).toHaveBeenCalledWith({
             where: { id: 'm1' },
             include: {
@@ -157,6 +164,41 @@ describe('MoodService', () => {
       it('throws when mood not found', async () => {
          mockPrisma.mood.findUnique.mockResolvedValue(null);
          await expect(moodService.getMoodById('missing')).rejects.toBeInstanceOf(ApiError);
+         expect(mockAudioBookService.getAudioBooksByMoodId).not.toHaveBeenCalled();
+      });
+
+      it('returns associated audiobooks from AudioBookService', async () => {
+         mockPrisma.mood.findUnique.mockResolvedValue({
+            id: 'm1',
+            name: 'Calm',
+            description: null,
+            purpose: 'Calm purpose',
+            descriptionIcon: 'text',
+            hexcode: '#111111',
+            icon: 'wave',
+            moodAttributes: [],
+            createdAt: new Date(),
+            updatedAt: new Date(),
+         });
+         const audiobooks = [
+            {
+               id: 'ab1',
+               title: 'Book One',
+               author: 'Author',
+               language: 'en',
+               isActive: true,
+               isPublic: true,
+               createdAt: new Date(),
+               updatedAt: new Date(),
+               owner: { type: 'AUTHOR' as const, id: 'author-1' },
+            },
+         ];
+         mockAudioBookService.getAudioBooksByMoodId.mockResolvedValue(audiobooks);
+
+         const result = await moodService.getMoodById('m1', 'token-123');
+
+         expect(result.audiobooks).toEqual(audiobooks);
+         expect(mockAudioBookService.getAudioBooksByMoodId).toHaveBeenCalledWith('m1', 'token-123');
       });
    });
 

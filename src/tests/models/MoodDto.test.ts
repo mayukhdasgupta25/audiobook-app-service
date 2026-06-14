@@ -107,6 +107,11 @@ describe('MoodDto', () => {
             updatedAt: new Date(),
          };
 
+         const detail: MoodDetailDto = {
+            ...mood,
+            audiobooks: [],
+         };
+
          expect(mood).toHaveProperty('id');
          expect(mood).toHaveProperty('name');
          expect(mood).toHaveProperty('description');
@@ -117,6 +122,7 @@ describe('MoodDto', () => {
          expect(mood).toHaveProperty('attributes');
          expect(mood).toHaveProperty('createdAt');
          expect(mood).toHaveProperty('updatedAt');
+         expect(detail).toHaveProperty('audiobooks');
       });
    });
 });

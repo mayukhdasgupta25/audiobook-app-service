@@ -99,6 +99,7 @@ describe('MoodController', () => {
             hexcode: '#111111',
             icon: 'wave',
             attributes: [],
+            audiobooks: [],
             createdAt: new Date(),
             updatedAt: new Date(),
          };
@@ -106,7 +107,7 @@ describe('MoodController', () => {
 
          await moodController.getMoodById(mockReq, mockRes, mockNext);
 
-         expect(mockMoodService.getMoodById).toHaveBeenCalledWith('m1');
+         expect(mockMoodService.getMoodById).toHaveBeenCalledWith('m1', undefined);
          expect(ResponseHandler.success).toHaveBeenCalledWith(mockRes, mood, 'moods.retrieved');
       });
    });

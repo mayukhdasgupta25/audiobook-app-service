@@ -6,16 +6,18 @@ import { PrismaClient } from '@prisma/client';
 import {
    MoodSummaryDto,
    MoodDetailDto,
+   MoodDto,
    CreateMoodDto,
    CreateMoodAttributeDto,
    UpdateMoodDto,
    toMoodDto,
-   isValidHexcode
+   isValidHexcode,
 } from '../models/MoodDto';
 import { ApiError } from '../types/ApiError';
 import { MessageHandler } from '../utils/MessageHandler';
 import { HttpStatusCode, ErrorType } from '../types/common';
 import { emitCacheInvalidation } from './DomainEventPublisher';
+import { AudioBookService } from './AudioBookService';
 
 const moodAttributesInclude = {
    moodAttributes: {
@@ -25,9 +27,11 @@ const moodAttributesInclude = {
 
 export class MoodService {
    private prisma: PrismaClient;
+   private audioBookService: AudioBookService;
 
-   constructor(prisma: PrismaClient) {
+   constructor(prisma: PrismaClient, audioBookService?: AudioBookService) {
       this.prisma = prisma;
+      this.audioBookService = audioBookService ?? new AudioBookService(prisma);
    }
 
    async createMood(createMoodDto: CreateMoodDto): Promise<MoodSummaryDto> {
@@ -101,7 +105,7 @@ export class MoodService {
       }
    }
 
-   async getMoodById(id: string): Promise<MoodDetailDto> {
+   async getMoodById(id: string, accessToken?: string): Promise<MoodDetailDto> {
       try {
          const mood = await this.prisma.mood.findUnique({
             where: { id },
@@ -116,7 +120,12 @@ export class MoodService {
             );
          }
 
-         return toMoodDto(mood, true) as MoodDetailDto;
+         const audiobooks = await this.audioBookService.getAudioBooksByMoodId(id, accessToken);
+
+         return {
+            ...(toMoodDto(mood, true) as MoodDto),
+            audiobooks,
+         };
       } catch (error) {
          if (error instanceof ApiError) {
             throw error;

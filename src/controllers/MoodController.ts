@@ -10,6 +10,14 @@ import { ErrorHandler } from '../middleware/ErrorHandler';
 import { MessageHandler } from '../utils/MessageHandler';
 import { CreateMoodDto, UpdateMoodDto } from '../models/MoodDto';
 
+function getBearerToken(req: Request): string | undefined {
+   const authHeader = req.headers.authorization;
+   if (!authHeader?.startsWith('Bearer ')) {
+      return undefined;
+   }
+   return authHeader.slice(7).trim();
+}
+
 export class MoodController {
    private moodService: MoodService;
 
@@ -99,7 +107,7 @@ export class MoodController {
     *           type: string
     *     responses:
     *       200:
-    *         description: Mood retrieved successfully (includes purpose and attributes)
+    *         description: Mood retrieved successfully (includes purpose, attributes, and associated audiobooks)
     *       404:
     *         $ref: '#/components/responses/NotFound'
     *       500:
@@ -107,7 +115,7 @@ export class MoodController {
     */
    getMoodById = ErrorHandler.asyncHandler(async (req: Request, res: Response): Promise<void> => {
       const { id } = req.params as { id: string };
-      const mood = await this.moodService.getMoodById(id);
+      const mood = await this.moodService.getMoodById(id, getBearerToken(req));
       ResponseHandler.success(res, mood, MessageHandler.getSuccessMessage('moods.retrieved'));
    });
 
