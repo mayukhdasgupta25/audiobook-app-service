@@ -126,6 +126,46 @@ export class AudioBookService {
   }
 
   /**
+   * Get all audiobooks assigned to a mood (used by GET /moods/:id).
+   */
+  async getAudioBooksByMoodId(moodId: string, accessToken?: string): Promise<AudioBookDto[]> {
+    try {
+      const audiobooks = await this.prisma.audioBook.findMany({
+        where: { moodId },
+        orderBy: { title: 'asc' },
+        include: {
+          _count: {
+            select: {
+              chapters: true,
+            },
+          },
+          audiobookTags: {
+            include: {
+              tag: true,
+            },
+          },
+          audioBookGenres: {
+            include: {
+              genre: true,
+            },
+          },
+        },
+      });
+
+      const resolved = await Promise.all(
+        audiobooks.map(async (audiobook) => ({
+          ...(await fileUrlService.resolveAudioBookMedia(toAudioBookDto(audiobook))),
+          chapterCount: audiobook._count.chapters,
+        })),
+      );
+
+      return this.hydrateOwners(resolved, accessToken);
+    } catch (_error) {
+      throw ApiError.internalError(MessageHandler.getErrorMessage('internal.fetch_audiobooks'));
+    }
+  }
+
+  /**
    * Build the Prisma where clause for audiobook list queries. Centralised
    * so list/list-with-counts/tags/etc. all stay in sync.
    *
@@ -326,7 +366,8 @@ export class AudioBookService {
       }
 
       // Add optional fields only if they are defined
-      if (audiobookData.narrator !== undefined) createData.narrator = audiobookData.narrator;
+      const narrator = this.resolveNarratorField(audiobookData);
+      if (narrator !== undefined) createData.narrator = narrator;
       if (audiobookData.description !== undefined) createData.description = audiobookData.description;
       if (audiobookData.duration !== undefined) createData.duration = audiobookData.duration;
       if (audiobookData.fileSize !== undefined) createData.fileSize = BigInt(audiobookData.fileSize);
@@ -338,6 +379,9 @@ export class AudioBookService {
       if (audiobookData.isbn !== undefined) createData.isbn = audiobookData.isbn;
       if (audiobookData.minSubscriptionTier !== undefined) {
         createData.minSubscriptionTier = this.validateMinSubscriptionTier(audiobookData.minSubscriptionTier);
+      }
+      if (audiobookData.moodId !== undefined) {
+        createData.moodId = audiobookData.moodId === '' ? null : audiobookData.moodId;
       }
 
       let audiobook = await this.prisma.audioBook.create({
@@ -447,7 +491,7 @@ export class AudioBookService {
    */
   async updateAudioBook(
     id: string,
-    data: UpdateAudioBookDto,
+    data: UpdateAudioBookDto & { narrators?: unknown },
     tagIds?: string[],
     genreIds?: string[],
     accessToken?: string,
@@ -468,25 +512,10 @@ export class AudioBookService {
         throw ApiError.validationError('Active audiobook cannot be scheduled');
       }
 
-      // Handle scheduledAt: if provided, set isActive=false and schedule activation job
-      const updateData: Prisma.AudioBookUncheckedUpdateInput = { ...data };
-      if (coverImageSourcePath) {
-        delete updateData.coverImage;
-      }
-      if (data.scheduledAt !== undefined) {
-        updateData.isActive = false;
-      }
-      if (data.minSubscriptionTier !== undefined) {
-        updateData.minSubscriptionTier = this.validateMinSubscriptionTier(data.minSubscriptionTier);
-      }
-      if (data.owner !== undefined) {
-        updateData.ownerType = toPrismaOwnerType(data.owner.type);
-        updateData.ownerId = data.owner.id;
-      }
-      delete (updateData as { owner?: unknown }).owner;
-
-      // updateData.duration = parseInt(updateData.duration);
-      // updateData.fileSize = BigInt(updateData.fileSize);
+      const updateData = this.buildAudiobookUpdateInput(
+        data,
+        coverImageSourcePath ? { coverImageSourcePath } : undefined,
+      );
 
       await this.prisma.audioBook.update({
         where: { id },
@@ -858,6 +887,94 @@ export class AudioBookService {
   private parseBooleanFlag(value: boolean | string | undefined, defaultValue: boolean): boolean {
     if (value === undefined) return defaultValue;
     return value === 'true' || value === true;
+  }
+
+  /**
+   * Accept `narrator` (string) or `narrators` (array / JSON string from form-data).
+   */
+  private resolveNarratorField(data: {
+    narrator?: string | null;
+    narrators?: unknown;
+  }): string | null | undefined {
+    if (data.narrator !== undefined) {
+      return data.narrator === '' ? null : data.narrator;
+    }
+    if (data.narrators === undefined || data.narrators === null || data.narrators === '') {
+      return undefined;
+    }
+    const values = this.parseStringArrayField(data.narrators);
+    return values.length > 0 ? values.join(', ') : null;
+  }
+
+  /** Parse form-data arrays sent as JSON strings, comma-separated strings, or arrays. */
+  private parseStringArrayField(value: unknown): string[] {
+    if (Array.isArray(value)) {
+      return value.map(String).map((item) => item.trim()).filter((item) => item.length > 0);
+    }
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (!trimmed) return [];
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (Array.isArray(parsed)) {
+          return parsed.map(String).map((item) => item.trim()).filter((item) => item.length > 0);
+        }
+      } catch {
+        // fall through to comma-separated parsing
+      }
+      return trimmed.split(',').map((item) => item.trim()).filter((item) => item.length > 0);
+    }
+    return [];
+  }
+
+  private buildAudiobookUpdateInput(
+    data: UpdateAudioBookDto & { narrators?: unknown },
+    options?: { coverImageSourcePath?: string },
+  ): Prisma.AudioBookUncheckedUpdateInput {
+    const updateData: Prisma.AudioBookUncheckedUpdateInput = {};
+
+    if (data.title !== undefined) updateData.title = data.title;
+    if (data.author !== undefined) updateData.author = data.author;
+
+    const narrator = this.resolveNarratorField(data);
+    if (narrator !== undefined) updateData.narrator = narrator;
+
+    if (data.description !== undefined) updateData.description = data.description;
+    if (data.duration !== undefined) updateData.duration = Number(data.duration);
+    if (data.fileSize !== undefined) updateData.fileSize = BigInt(data.fileSize);
+    if (data.coverImage !== undefined && !options?.coverImageSourcePath) {
+      updateData.coverImage = data.coverImage;
+    }
+    if (data.language !== undefined) updateData.language = data.language;
+    if (data.publisher !== undefined) updateData.publisher = data.publisher;
+    if (data.publishDate !== undefined) {
+      updateData.publishDate = data.publishDate instanceof Date
+        ? data.publishDate
+        : new Date(data.publishDate);
+    }
+    if (data.isbn !== undefined) updateData.isbn = data.isbn;
+    if (data.isActive !== undefined && data.scheduledAt === undefined) {
+      updateData.isActive = this.parseBooleanFlag(data.isActive, true);
+    }
+    if (data.isPublic !== undefined) {
+      updateData.isPublic = this.parseBooleanFlag(data.isPublic, true);
+    }
+    if (data.moodId !== undefined) {
+      updateData.moodId = data.moodId === '' ? null : data.moodId;
+    }
+    if (data.scheduledAt !== undefined) {
+      updateData.scheduledAt = data.scheduledAt;
+      updateData.isActive = false;
+    }
+    if (data.minSubscriptionTier !== undefined) {
+      updateData.minSubscriptionTier = this.validateMinSubscriptionTier(data.minSubscriptionTier);
+    }
+    if (data.owner !== undefined) {
+      updateData.ownerType = toPrismaOwnerType(data.owner.type);
+      updateData.ownerId = data.owner.id;
+    }
+
+    return updateData;
   }
 
   /**

@@ -114,8 +114,6 @@ export class StorageFactory {
             provider: 's3',
             bucket: config.AWS_S3_BUCKET,
             region: config.AWS_S3_REGION,
-            accessKeyId: config.AWS_ACCESS_KEY_ID,
-            secretAccessKey: config.AWS_SECRET_ACCESS_KEY,
             endpoint: config.AWS_S3_ENDPOINT
          },
       };
@@ -138,8 +136,6 @@ export class StorageFactory {
       switch (provider) {
          case 's3':
             if (!config.AWS_S3_BUCKET) missingFields.push('AWS_S3_BUCKET');
-            if (!config.AWS_ACCESS_KEY_ID) missingFields.push('AWS_ACCESS_KEY_ID');
-            if (!config.AWS_SECRET_ACCESS_KEY) missingFields.push('AWS_SECRET_ACCESS_KEY');
             break;
 
 
