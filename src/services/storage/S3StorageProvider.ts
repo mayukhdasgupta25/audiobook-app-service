@@ -11,16 +11,10 @@ export class S3StorageProvider implements StorageProvider {
    private bucket: string;
 
    constructor(storageConfig?: Partial<StorageConfig>) {
-      // Configure AWS SDK
-      AWS.config.update({
-         accessKeyId: config.AWS_ACCESS_KEY_ID,
-         secretAccessKey: config.AWS_SECRET_ACCESS_KEY,
-         region: config.AWS_S3_REGION
-      });
-
       this.s3 = new AWS.S3({
+         region: config.AWS_S3_REGION,
          ...(config.AWS_S3_ENDPOINT && { endpoint: config.AWS_S3_ENDPOINT }),
-         s3ForcePathStyle: !!config.AWS_S3_ENDPOINT // Required for S3-compatible services
+         s3ForcePathStyle: !!config.AWS_S3_ENDPOINT, // Required for S3-compatible services
       });
 
       this.bucket = storageConfig?.bucket || config.AWS_S3_BUCKET;

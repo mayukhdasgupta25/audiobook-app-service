@@ -199,8 +199,6 @@ export const config = {
 
    AWS_S3_BUCKET: requireEnv('AWS_S3_BUCKET'),
    AWS_S3_REGION: requireEnv('AWS_S3_REGION'),
-   AWS_ACCESS_KEY_ID: requireEnv('AWS_ACCESS_KEY_ID'),
-   AWS_SECRET_ACCESS_KEY: requireEnv('AWS_SECRET_ACCESS_KEY'),
    AWS_S3_ENDPOINT: requireEnv('AWS_S3_ENDPOINT'),
    AWS_SIGNED_URL_EXPIRES_IN: requireIntEnv('AWS_SIGNED_URL_EXPIRES_IN'),
 

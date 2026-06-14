@@ -2,6 +2,7 @@
  * Mood DTO (Data Transfer Object) classes
  */
 import { Mood as PrismaMood, MoodAttribute as PrismaMoodAttribute } from '@prisma/client';
+import { AudioBookDto } from './AudioBookDto';
 
 export interface MoodAttributeDto {
    id: string;
@@ -33,8 +34,10 @@ export interface MoodDto {
 /** Mood payload without attributes or purpose (list/create/update responses) */
 export type MoodSummaryDto = Omit<MoodDto, 'attributes' | 'purpose'>;
 
-/** Mood payload with attributes and purpose (GET /moods/:id only) */
-export type MoodDetailDto = MoodDto;
+/** Mood payload with attributes, purpose, and associated audiobooks (GET /moods/:id only) */
+export type MoodDetailDto = MoodDto & {
+   audiobooks: AudioBookDto[];
+};
 
 
 export interface CreateMoodDto {

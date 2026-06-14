@@ -105,6 +105,7 @@ export interface CreateAudioBookDto {
   isPublic?: boolean;
   minSubscriptionTier?: number | null;
   scheduledAt?: Date;
+  moodId?: string | null;
 }
 
 export interface UpdateAudioBookDto {
@@ -125,6 +126,7 @@ export interface UpdateAudioBookDto {
   isPublic?: boolean;
   minSubscriptionTier?: number | null;
   scheduledAt?: Date;
+  moodId?: string | null;
 }
 
 export interface AudioBookQueryParams {

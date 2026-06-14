@@ -11,6 +11,9 @@ jest.mock('../../services/MoodService');
 jest.mock('../../utils/ResponseHandler');
 jest.mock('../../utils/MessageHandler');
 
+const flushPromises = (): Promise<void> =>
+   new Promise<void>((resolve) => setImmediate(resolve));
+
 describe('MoodController', () => {
    let moodController: MoodController;
    let mockPrisma: PrismaClient;
@@ -21,7 +24,7 @@ describe('MoodController', () => {
 
    beforeEach(() => {
       mockPrisma = {} as PrismaClient;
-      mockReq = { params: {}, query: {}, body: {}, originalUrl: '/api/v1/moods' };
+      mockReq = { params: {}, query: {}, body: {}, headers: {}, originalUrl: '/api/v1/moods' };
       mockRes = {
          status: jest.fn().mockReturnThis(),
          json: jest.fn().mockReturnThis(),
@@ -51,6 +54,7 @@ describe('MoodController', () => {
          mockMoodService.getAllMoods.mockResolvedValue(mockMoods);
 
          await moodController.getAllMoods(mockReq, mockRes, mockNext);
+         await flushPromises();
 
          expect(mockMoodService.getAllMoods).toHaveBeenCalledTimes(1);
          expect(ResponseHandler.success).toHaveBeenCalledWith(mockRes, mockMoods, 'moods.retrieved');
@@ -81,6 +85,7 @@ describe('MoodController', () => {
          mockMoodService.createMood.mockResolvedValue(created);
 
          await moodController.createMood(mockReq, mockRes, mockNext);
+         await flushPromises();
 
          expect(mockMoodService.createMood).toHaveBeenCalledWith(payload);
          expect(ResponseHandler.success).toHaveBeenCalledWith(mockRes, created, 'moods.created', 201);
@@ -99,14 +104,16 @@ describe('MoodController', () => {
             hexcode: '#111111',
             icon: 'wave',
             attributes: [],
+            audiobooks: [],
             createdAt: new Date(),
             updatedAt: new Date(),
          };
          mockMoodService.getMoodById.mockResolvedValue(mood);
 
          await moodController.getMoodById(mockReq, mockRes, mockNext);
+         await flushPromises();
 
-         expect(mockMoodService.getMoodById).toHaveBeenCalledWith('m1');
+         expect(mockMoodService.getMoodById).toHaveBeenCalledWith('m1', undefined);
          expect(ResponseHandler.success).toHaveBeenCalledWith(mockRes, mood, 'moods.retrieved');
       });
    });
@@ -128,6 +135,7 @@ describe('MoodController', () => {
          mockMoodService.updateMood.mockResolvedValue(updated);
 
          await moodController.updateMood(mockReq, mockRes, mockNext);
+         await flushPromises();
 
          expect(mockMoodService.updateMood).toHaveBeenCalledWith('m1', { name: 'Peaceful' });
          expect(ResponseHandler.success).toHaveBeenCalledWith(mockRes, updated, 'moods.updated');
@@ -140,6 +148,7 @@ describe('MoodController', () => {
          mockMoodService.deleteMood.mockResolvedValue(true);
 
          await moodController.deleteMood(mockReq, mockRes, mockNext);
+         await flushPromises();
 
          expect(mockMoodService.deleteMood).toHaveBeenCalledWith('m1');
          expect(ResponseHandler.success).toHaveBeenCalledWith(mockRes, { deleted: true }, 'moods.deleted');
