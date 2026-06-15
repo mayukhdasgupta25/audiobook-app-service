@@ -345,11 +345,18 @@ export class AudioBookService {
       const { tagIds, genreIds, ...audiobookData } = data;
 
       // Validate required fields
-      this.validateCreateData(audiobookData, genreIds);
+      this.validateCreateData(audiobookData, genreIds, tagIds);
 
       if (coverImageSourcePath) {
         await this.imageAssetService.validateUploadSource('audiobook', coverImageSourcePath);
       }
+
+      const moodIdForCreate =
+        audiobookData.moodId !== undefined
+          ? (audiobookData.moodId === '' ? null : audiobookData.moodId)
+          : undefined;
+
+      await this.validateReferencedIds(genreIds!, tagIds, moodIdForCreate);
 
       // Construct data object, only including defined values for optional fields
       const createData: Prisma.AudioBookUncheckedCreateInput = {
@@ -385,11 +392,33 @@ export class AudioBookService {
         createData.minSubscriptionTier = this.validateMinSubscriptionTier(audiobookData.minSubscriptionTier);
       }
       if (audiobookData.moodId !== undefined) {
-        createData.moodId = audiobookData.moodId === '' ? null : audiobookData.moodId;
+        createData.moodId = moodIdForCreate ?? null;
       }
 
-      let audiobook = await this.prisma.audioBook.create({
-        data: createData
+      let audiobook = await this.prisma.$transaction(async (tx) => {
+        const created = await tx.audioBook.create({
+          data: createData,
+        });
+
+        const uniqueGenreIds = [...new Set(genreIds!.map((genreId) => genreId.trim()))];
+        await tx.audioBookGenre.createMany({
+          data: uniqueGenreIds.map((genreId) => ({
+            audiobookId: created.id,
+            genreId,
+          })),
+        });
+
+        if (tagIds && tagIds.length > 0) {
+          const uniqueTagIds = [...new Set(tagIds.map((tagId) => tagId.trim()))];
+          await tx.audioBookTag.createMany({
+            data: uniqueTagIds.map((tagId) => ({
+              audiobookId: created.id,
+              tagId,
+            })),
+          });
+        }
+
+        return created;
       });
 
       if (coverImageSourcePath) {
@@ -404,43 +433,13 @@ export class AudioBookService {
             data: { coverImage: primaryStorageKey },
           });
         } catch (variantError: unknown) {
-          await this.prisma.audioBook.delete({ where: { id: audiobook.id } });
+          await this.rollbackAudiobookCreate(audiobook.id);
           if (variantError instanceof ApiError) {
             throw variantError;
           }
           const message = variantError instanceof Error ? variantError.message : 'Invalid audiobook cover image';
           throw ApiError.validationError(message);
         }
-      }
-
-      // Create AudioBookGenre records if genreIds are provided
-      // Ensure genreIds is an array before using map
-      if (genreIds && Array.isArray(genreIds) && genreIds.length > 0) {
-        await Promise.all(
-          genreIds.map(genreId =>
-            this.prisma.audioBookGenre.create({
-              data: {
-                audiobookId: audiobook.id,
-                genreId: genreId
-              }
-            })
-          )
-        );
-      }
-
-      // Create AudioBookTag records if tagIds are provided
-      // Ensure tagIds is an array before using map
-      if (tagIds && Array.isArray(tagIds) && tagIds.length > 0) {
-        await Promise.all(
-          tagIds.map(tagId =>
-            this.prisma.audioBookTag.create({
-              data: {
-                audiobookId: audiobook.id,
-                tagId: tagId
-              }
-            })
-          )
-        );
       }
 
       // Fetch the audiobook with all relations included
@@ -850,7 +849,11 @@ export class AudioBookService {
   /**
    * Validate create audiobook data
    */
-  private validateCreateData(data: Omit<CreateAudioBookDto, 'genreIds'>, genreIds?: string[]): void {
+  private validateCreateData(
+    data: Omit<CreateAudioBookDto, 'genreIds'>,
+    genreIds?: string[],
+    tagIds?: string[],
+  ): void {
     if (!data.title || data.title.trim().length === 0) {
       throw ApiError.validationError(MessageHandler.getErrorMessage('validation.title_required'));
     }
@@ -881,6 +884,64 @@ export class AudioBookService {
     // Validate ISBN format if provided
     if (data.isbn && !this.isValidISBN(data.isbn)) {
       throw ApiError.validationError(MessageHandler.getErrorMessage('validation.isbn_format'));
+    }
+
+    if (tagIds !== undefined && tagIds.length > 0) {
+      const invalidTagIds = tagIds.filter((id) => !id || typeof id !== 'string' || id.trim().length === 0);
+      if (invalidTagIds.length > 0) {
+        throw ApiError.validationError('All tag IDs must be valid');
+      }
+    }
+  }
+
+  private async validateReferencedIds(
+    genreIds: string[],
+    tagIds?: string[],
+    moodId?: string | null,
+  ): Promise<void> {
+    const uniqueGenreIds = [...new Set(genreIds.map((id) => id.trim()))];
+    const genres = await this.prisma.genre.findMany({
+      where: { id: { in: uniqueGenreIds } },
+      select: { id: true },
+    });
+
+    if (genres.length !== uniqueGenreIds.length) {
+      throw ApiError.validationError('One or more genre IDs are invalid');
+    }
+
+    if (tagIds && tagIds.length > 0) {
+      const uniqueTagIds = [...new Set(tagIds.map((id) => id.trim()))];
+      const tags = await this.prisma.tag.findMany({
+        where: { id: { in: uniqueTagIds } },
+        select: { id: true },
+      });
+
+      if (tags.length !== uniqueTagIds.length) {
+        throw ApiError.validationError('One or more tag IDs are invalid');
+      }
+    }
+
+    if (moodId) {
+      const mood = await this.prisma.mood.findUnique({
+        where: { id: moodId },
+        select: { id: true },
+      });
+
+      if (!mood) {
+        throw ApiError.validationError('Invalid mood ID');
+      }
+    }
+  }
+
+  private async rollbackAudiobookCreate(audiobookId: string): Promise<void> {
+    try {
+      await this.prisma.$transaction([
+        this.prisma.audioBookGenre.deleteMany({ where: { audiobookId } }),
+        this.prisma.audioBookTag.deleteMany({ where: { audiobookId } }),
+        this.prisma.audioBook.delete({ where: { id: audiobookId } }),
+      ]);
+    } catch {
+      // Best-effort cleanup after a post-create failure (e.g. image processing).
     }
   }
 
