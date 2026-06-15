@@ -49,6 +49,41 @@ export class FileUploadService {
       return `/${withUploads}/${filename}`.replace(/\\/g, '/');
    }
 
+   private toS3StorageKey(filePath: string): string | null {
+      const trimmed = filePath.trim();
+      if (!trimmed) {
+         return null;
+      }
+
+      if (trimmed.startsWith('/uploads/')) {
+         return trimmed.slice(1).replace(/\\/g, '/');
+      }
+
+      if (trimmed.startsWith('uploads/')) {
+         return trimmed.replace(/\\/g, '/');
+      }
+
+      if (path.isAbsolute(trimmed) || /^[A-Za-z]:\\/.test(trimmed)) {
+         return null;
+      }
+
+      return trimmed.replace(/\\/g, '/');
+   }
+
+   private buildStoragePaths(
+      relativePath: string,
+      filename: string,
+   ): { dbFilePath: string; s3Key: string } {
+      const dbFilePath = this.toDbFilePath(relativePath, filename);
+      const s3Key = this.toS3StorageKey(dbFilePath);
+
+      if (!s3Key) {
+         throw new Error('Unable to derive S3 key for upload');
+      }
+
+      return { dbFilePath, s3Key };
+   }
+
    private resolveLocalFullPath(filePath: string): string {
       return path.join(config.STREAMING_SERVICE_STORAGE_PATH, this.toLocalStorageKey(filePath));
    }
@@ -113,9 +148,7 @@ export class FileUploadService {
          const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
          const ext = path.extname(uploadedFile.originalname);
          const filename = `audio-${uniqueSuffix}${ext}`;
-
-         // Construct S3 key
-         const s3Key = path.join(relativePath, filename).replace(/\\/g, '/');
+         const { dbFilePath, s3Key } = this.buildStoragePaths(relativePath, filename);
 
          // Get file buffer from either path or buffer
          let fileBuffer: Buffer;
@@ -145,7 +178,7 @@ export class FileUploadService {
          console.log(`File uploaded to S3: ${s3Url}`);
 
          return {
-            filePath: s3Key,
+            filePath: dbFilePath,
             fileSize: uploadedFile.size,
             originalName: uploadedFile.originalname
          };
@@ -163,7 +196,11 @@ export class FileUploadService {
          if (config.NODE_ENV === 'development') {
             return this.deleteFromLocalStorage(filePath);
          } else {
-            return await this.storageProvider.deleteFile(filePath);
+            const s3Key = this.toS3StorageKey(filePath);
+            if (!s3Key) {
+               return false;
+            }
+            return await this.storageProvider.deleteFile(s3Key);
          }
       } catch (_error: any) {
          // console.error('File deletion error:', _error);
@@ -200,7 +237,11 @@ export class FileUploadService {
             const fullPath = this.resolveLocalFullPath(filePath);
             return fs.existsSync(fullPath);
          } else {
-            return await this.storageProvider.fileExists(filePath);
+            const s3Key = this.toS3StorageKey(filePath);
+            if (!s3Key) {
+               return false;
+            }
+            return await this.storageProvider.fileExists(s3Key);
          }
       } catch (_error: any) {
          // console.error('File existence check error:', _error);
@@ -231,7 +272,11 @@ export class FileUploadService {
                contentType: 'audio/mpeg' // Default for audio files
             };
          } else {
-            return await this.storageProvider.getFileMetadata(filePath);
+            const s3Key = this.toS3StorageKey(filePath);
+            if (!s3Key) {
+               return null;
+            }
+            return await this.storageProvider.getFileMetadata(s3Key);
          }
       } catch (_error: any) {
          // console.error('File metadata retrieval error:', _error);
