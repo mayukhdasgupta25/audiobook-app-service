@@ -6,7 +6,6 @@ import fs from 'fs';
 import path from 'path';
 import { config } from '../config/env';
 import { StorageFactory } from './storage/StorageFactory';
-import { fileUrlService } from './FileUrlService';
 import { ApiError } from '../types/ApiError';
 
 export interface FileUploadResult {
@@ -50,22 +49,39 @@ export class FileUploadService {
       return `/${withUploads}/${filename}`.replace(/\\/g, '/');
    }
 
+   private toS3StorageKey(filePath: string): string | null {
+      const trimmed = filePath.trim();
+      if (!trimmed) {
+         return null;
+      }
+
+      if (trimmed.startsWith('/uploads/')) {
+         return trimmed.slice(1).replace(/\\/g, '/');
+      }
+
+      if (trimmed.startsWith('uploads/')) {
+         return trimmed.replace(/\\/g, '/');
+      }
+
+      if (path.isAbsolute(trimmed) || /^[A-Za-z]:\\/.test(trimmed)) {
+         return null;
+      }
+
+      return trimmed.replace(/\\/g, '/');
+   }
+
    private buildStoragePaths(
       relativePath: string,
       filename: string,
    ): { dbFilePath: string; s3Key: string } {
       const dbFilePath = this.toDbFilePath(relativePath, filename);
-      const s3Key = fileUrlService.normalizeToS3Key(dbFilePath);
+      const s3Key = this.toS3StorageKey(dbFilePath);
 
       if (!s3Key) {
          throw new Error('Unable to derive S3 key for upload');
       }
 
       return { dbFilePath, s3Key };
-   }
-
-   private toS3StorageKey(filePath: string): string | null {
-      return fileUrlService.normalizeToS3Key(filePath);
    }
 
    private resolveLocalFullPath(filePath: string): string {

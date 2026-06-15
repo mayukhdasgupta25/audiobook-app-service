@@ -25,20 +25,6 @@ jest.mock('../../services/storage/StorageFactory', () => ({
    },
 }));
 
-jest.mock('../../services/FileUrlService', () => ({
-   fileUrlService: {
-      normalizeToS3Key: jest.fn((stored: string) => {
-         if (stored.startsWith('/uploads/')) {
-            return stored.slice(1);
-         }
-         if (stored.startsWith('uploads/')) {
-            return stored;
-         }
-         return null;
-      }),
-   },
-}));
-
 describe('FileUploadService non-development storage keys', () => {
    let service: FileUploadService;
 
