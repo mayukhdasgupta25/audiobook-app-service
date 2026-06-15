@@ -2,19 +2,31 @@
  * AWS S3 Storage Provider
  * Implementation of StorageProvider interface for AWS S3
  */
-import AWS from 'aws-sdk';
+import {
+   S3Client,
+   PutObjectCommand,
+   GetObjectCommand,
+   DeleteObjectCommand,
+   HeadObjectCommand,
+   HeadBucketCommand,
+   ListObjectsV2Command,
+   CopyObjectCommand,
+} from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { StorageProvider, StorageConfig, FileMetadata } from './StorageProvider';
 import { config } from '../../config/env';
 
 export class S3StorageProvider implements StorageProvider {
-   private s3: AWS.S3;
+   private s3Client: S3Client;
    private bucket: string;
 
    constructor(storageConfig?: Partial<StorageConfig>) {
-      this.s3 = new AWS.S3({
+      this.s3Client = new S3Client({
          region: config.AWS_S3_REGION,
-         ...(config.AWS_S3_ENDPOINT && { endpoint: config.AWS_S3_ENDPOINT }),
-         s3ForcePathStyle: !!config.AWS_S3_ENDPOINT, // Required for S3-compatible services
+         ...(config.AWS_S3_ENDPOINT && {
+            endpoint: config.AWS_S3_ENDPOINT,
+            forcePathStyle: true,
+         }),
       });
 
       this.bucket = storageConfig?.bucket || config.AWS_S3_BUCKET;
@@ -34,18 +46,17 @@ export class S3StorageProvider implements StorageProvider {
       metadata?: Record<string, string>
    ): Promise<string> {
       try {
-         const params: AWS.S3.PutObjectRequest = {
+         const command = new PutObjectCommand({
             Bucket: this.bucket,
             Key: filePath,
             Body: fileContent,
             ContentType: contentType || 'application/octet-stream',
-            Metadata: metadata || {}
-         };
+            Metadata: metadata || {},
+         });
 
-         const result = await this.s3.upload(params).promise();
-         return result.Location;
+         await this.s3Client.send(command);
+         return filePath.replace(/\\/g, '/');
       } catch (error: any) {
-         // console.error('S3 upload error:', error);
          throw new Error(`Failed to upload file to S3: ${error.message}`);
       }
    }
@@ -55,23 +66,32 @@ export class S3StorageProvider implements StorageProvider {
     */
    async downloadFile(filePath: string): Promise<Buffer> {
       try {
-         const params: AWS.S3.GetObjectRequest = {
+         const command = new GetObjectCommand({
             Bucket: this.bucket,
-            Key: filePath
-         };
+            Key: filePath,
+         });
 
-         const result = await this.s3.getObject(params).promise();
+         const response = await this.s3Client.send(command);
 
-         if (!result.Body) {
+         if (!response.Body) {
             throw new Error('File not found or empty');
          }
 
-         return result.Body as Buffer;
+         const chunks: Uint8Array[] = [];
+         const reader = response.Body.transformToWebStream().getReader();
+
+         // eslint-disable-next-line no-constant-condition
+         while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            chunks.push(value);
+         }
+
+         return Buffer.concat(chunks);
       } catch (error: any) {
-         if (error.code === 'NoSuchKey') {
+         if (error.name === 'NoSuchKey' || error.$metadata?.httpStatusCode === 404) {
             throw new Error('File not found');
          }
-         // console.error('S3 download error:', error);
          throw new Error(`Failed to download file from S3: ${error.message}`);
       }
    }
@@ -81,33 +101,30 @@ export class S3StorageProvider implements StorageProvider {
     */
    async deleteFile(filePath: string): Promise<boolean> {
       try {
-         const params: AWS.S3.DeleteObjectRequest = {
-            Bucket: this.bucket,
-            Key: filePath
-         };
-
-         await this.s3.deleteObject(params).promise();
+         await this.s3Client.send(
+            new DeleteObjectCommand({
+               Bucket: this.bucket,
+               Key: filePath,
+            }),
+         );
          return true;
-      } catch (_error: any) {
-         // console.error('S3 delete error:', _error);
+      } catch {
          return false;
       }
    }
 
    /**
-    * Get a public URL for a file
+    * Presigns a GET URL using AWS SDK v3 (Signature Version 4 only).
     */
    async getFileUrl(filePath: string, expiresIn: number = config.AWS_SIGNED_URL_EXPIRES_IN): Promise<string> {
       try {
-         const params: any = {
+         const command = new GetObjectCommand({
             Bucket: this.bucket,
             Key: filePath,
-            Expires: expiresIn
-         };
+         });
 
-         return this.s3.getSignedUrl('getObject', params);
+         return await getSignedUrl(this.s3Client, command, { expiresIn });
       } catch (error: any) {
-         // console.error('S3 URL generation error:', error);
          throw new Error(`Failed to generate file URL: ${error.message}`);
       }
    }
@@ -117,18 +134,17 @@ export class S3StorageProvider implements StorageProvider {
     */
    async fileExists(filePath: string): Promise<boolean> {
       try {
-         const params: AWS.S3.HeadObjectRequest = {
-            Bucket: this.bucket,
-            Key: filePath
-         };
-
-         await this.s3.headObject(params).promise();
+         await this.s3Client.send(
+            new HeadObjectCommand({
+               Bucket: this.bucket,
+               Key: filePath,
+            }),
+         );
          return true;
       } catch (error: any) {
-         if (error.code === 'NotFound') {
+         if (error.name === 'NotFound' || error.$metadata?.httpStatusCode === 404) {
             return false;
          }
-         // console.error('S3 file exists check error:', error);
          return false;
       }
    }
@@ -138,16 +154,15 @@ export class S3StorageProvider implements StorageProvider {
     */
    async listFiles(prefix: string): Promise<string[]> {
       try {
-         const params: AWS.S3.ListObjectsV2Request = {
-            Bucket: this.bucket,
-            Prefix: prefix
-         };
+         const response = await this.s3Client.send(
+            new ListObjectsV2Command({
+               Bucket: this.bucket,
+               Prefix: prefix,
+            }),
+         );
 
-         const result = await this.s3.listObjectsV2(params).promise();
-
-         return result.Contents?.map(obj => obj.Key!).filter(key => key !== undefined) || [];
-      } catch (_error: any) {
-         // console.error('S3 list files error:', _error);
+         return response.Contents?.map(obj => obj.Key!).filter(key => key !== undefined) || [];
+      } catch {
          return [];
       }
    }
@@ -157,24 +172,23 @@ export class S3StorageProvider implements StorageProvider {
     */
    async getFileMetadata(filePath: string): Promise<FileMetadata | null> {
       try {
-         const params: AWS.S3.HeadObjectRequest = {
-            Bucket: this.bucket,
-            Key: filePath
-         };
-
-         const result = await this.s3.headObject(params).promise();
+         const response = await this.s3Client.send(
+            new HeadObjectCommand({
+               Bucket: this.bucket,
+               Key: filePath,
+            }),
+         );
 
          return {
-            size: result.ContentLength || 0,
-            lastModified: result.LastModified || new Date(),
-            ...(result.ContentType && { contentType: result.ContentType }),
-            ...(result.ETag && { etag: result.ETag })
+            size: response.ContentLength || 0,
+            lastModified: response.LastModified || new Date(),
+            ...(response.ContentType && { contentType: response.ContentType }),
+            ...(response.ETag && { etag: response.ETag }),
          };
       } catch (error: any) {
-         if (error.code === 'NotFound') {
+         if (error.name === 'NotFound' || error.$metadata?.httpStatusCode === 404) {
             return null;
          }
-         // console.error('S3 metadata error:', error);
          return null;
       }
    }
@@ -184,16 +198,15 @@ export class S3StorageProvider implements StorageProvider {
     */
    async copyFile(sourcePath: string, destinationPath: string): Promise<boolean> {
       try {
-         const params: AWS.S3.CopyObjectRequest = {
-            Bucket: this.bucket,
-            CopySource: `${this.bucket}/${sourcePath}`,
-            Key: destinationPath
-         };
-
-         await this.s3.copyObject(params).promise();
+         await this.s3Client.send(
+            new CopyObjectCommand({
+               Bucket: this.bucket,
+               CopySource: `${this.bucket}/${sourcePath}`,
+               Key: destinationPath,
+            }),
+         );
          return true;
-      } catch (_error: any) {
-         // console.error('S3 copy error:', _error);
+      } catch {
          return false;
       }
    }
@@ -208,8 +221,7 @@ export class S3StorageProvider implements StorageProvider {
             return await this.deleteFile(sourcePath);
          }
          return false;
-      } catch (_error: any) {
-         // console.error('S3 move error:', _error);
+      } catch {
          return false;
       }
    }
@@ -222,18 +234,11 @@ export class S3StorageProvider implements StorageProvider {
       region: string;
       creationDate: Date;
    }> {
-      try {
-         // const result = await this.s3.headBucket({ Bucket: this.bucket }).promise();
-
-         return {
-            name: this.bucket,
-            region: config.AWS_S3_REGION,
-            creationDate: new Date() // S3 doesn't return creation date in headBucket
-         };
-      } catch (error: any) {
-         // console.error('S3 bucket info error:', error);
-         throw new Error(`Failed to get bucket info: ${error.message}`);
-      }
+      return {
+         name: this.bucket,
+         region: config.AWS_S3_REGION,
+         creationDate: new Date(),
+      };
    }
 
    /**
@@ -241,10 +246,9 @@ export class S3StorageProvider implements StorageProvider {
     */
    async testConnection(): Promise<boolean> {
       try {
-         await this.s3.headBucket({ Bucket: this.bucket }).promise();
+         await this.s3Client.send(new HeadBucketCommand({ Bucket: this.bucket }));
          return true;
-      } catch (_error: any) {
-         // console.error('S3 connection test failed:', _error);
+      } catch {
          return false;
       }
    }
