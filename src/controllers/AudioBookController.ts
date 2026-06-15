@@ -125,7 +125,7 @@ export class AudioBookController {
     // Get cover image from upload middleware (audio file not required for audiobook creation)
     const uploadedCoverImage = (req as any).coverImageFile as Express.Multer.File | undefined;
 
-    // Cover image is already validated by middleware, but double-check for safety
+    // Cover image presence and MIME type are checked by upload middleware; spec validation runs in the service.
     if (!uploadedCoverImage) {
       ResponseHandler.validationError(res, 'Cover image is required');
       return;
