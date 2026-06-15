@@ -347,6 +347,10 @@ export class AudioBookService {
       // Validate required fields
       this.validateCreateData(audiobookData, genreIds);
 
+      if (coverImageSourcePath) {
+        await this.imageAssetService.validateUploadSource('audiobook', coverImageSourcePath);
+      }
+
       // Construct data object, only including defined values for optional fields
       const createData: Prisma.AudioBookUncheckedCreateInput = {
         title: audiobookData.title,
@@ -389,15 +393,24 @@ export class AudioBookService {
       });
 
       if (coverImageSourcePath) {
-        const { primaryStorageKey } = await this.imageAssetService.generateAndStoreVariants(
-          'audiobook',
-          audiobook.id,
-          coverImageSourcePath,
-        );
-        audiobook = await this.prisma.audioBook.update({
-          where: { id: audiobook.id },
-          data: { coverImage: primaryStorageKey },
-        });
+        try {
+          const { primaryStorageKey } = await this.imageAssetService.generateAndStoreVariants(
+            'audiobook',
+            audiobook.id,
+            coverImageSourcePath,
+          );
+          audiobook = await this.prisma.audioBook.update({
+            where: { id: audiobook.id },
+            data: { coverImage: primaryStorageKey },
+          });
+        } catch (variantError: unknown) {
+          await this.prisma.audioBook.delete({ where: { id: audiobook.id } });
+          if (variantError instanceof ApiError) {
+            throw variantError;
+          }
+          const message = variantError instanceof Error ? variantError.message : 'Invalid audiobook cover image';
+          throw ApiError.validationError(message);
+        }
       }
 
       // Create AudioBookGenre records if genreIds are provided
@@ -516,6 +529,10 @@ export class AudioBookService {
         data,
         coverImageSourcePath ? { coverImageSourcePath } : undefined,
       );
+
+      if (coverImageSourcePath) {
+        await this.imageAssetService.validateUploadSource('audiobook', coverImageSourcePath);
+      }
 
       await this.prisma.audioBook.update({
         where: { id },

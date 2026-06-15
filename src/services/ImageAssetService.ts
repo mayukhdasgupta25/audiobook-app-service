@@ -51,6 +51,10 @@ export class ImageAssetService {
       await this.prisma.imageAsset.deleteMany({ where: { category, entityId } });
    }
 
+   async validateUploadSource(category: ImageCategory, sourcePath: string): Promise<void> {
+      await this.specService.validateUpload(category, sourcePath);
+   }
+
    async generateAndStoreVariants(
       category: ImageCategory,
       entityId: string,
